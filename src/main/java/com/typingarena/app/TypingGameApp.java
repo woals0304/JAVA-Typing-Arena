@@ -1,8 +1,9 @@
 package com.typingarena.app;
 
-import com.typingarena.minigames.TugOfWarGame;
-
 import javax.swing.*;
+
+import com.typingarena.minigames.tugofwar.TugOfWarGame;
+
 import java.awt.*;
 
 public class TypingGameApp extends JFrame {
