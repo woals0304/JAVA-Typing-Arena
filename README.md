@@ -5,6 +5,16 @@
 - 각 팀원이 하나 이상의 미니게임을 맡아 최소 3개 이상의 게임을 완성하는 것이 1차 목표입니다.
 - 현재 구현된 게임: 줄다리기 타자 대전(`TugOfWarGame`).
 
+## 빌드 및 실행
+현재 Gradle/Maven 설정이 없으므로 IDE(예: IntelliJ)에서 직접 실행합니다.
+1. `TypingGameApp`을 실행하면 로비 화면이 나타납니다.
+2. “줄다리기 게임 시작” 버튼을 누르면 `TugOfWarGame` 창이 열립니다.
+
+**VS Code**에서 실행
+- Java Extension Pack 설치 -> `TypingGameApp` 파일 열기 -> Run 버튼 클릭
+
+추후 빌드 도구가 필요하면 `build.gradle` 또는 `pom.xml`을 추가해 주세요.
+
 ## 디렉터리 구조
 ```
 JAVA프로젝트/
@@ -18,13 +28,6 @@ JAVA프로젝트/
 │  │  └─ resources/         # 리소스(사운드, 이미지 등) 배치 예정
 └─ docs/                    # 설계 문서 및 참고 자료
 ```
-
-## 빌드 및 실행
-현재 Gradle/Maven 설정이 없으므로 IDE(예: IntelliJ)에서 직접 실행합니다.
-1. `TypingGameApp`을 실행하면 로비 화면이 나타납니다.
-2. “줄다리기 게임 시작” 버튼을 누르면 `TugOfWarGame` 창이 열립니다.
-
-추후 빌드 도구가 필요하면 `build.gradle` 또는 `pom.xml`을 추가해 주세요.
 
 ## 코딩 컨벤션
 - 패키지 명은 모두 소문자, 클래스 명은 PascalCase를 사용합니다.
