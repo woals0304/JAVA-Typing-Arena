@@ -12,13 +12,11 @@ JAVA프로젝트/
 ├─ src/
 │  ├─ main/
 │  │  ├─ java/
-│  │  │  └─ com/
-│  │  │     └─ typingarena/
-│  │  │        ├─ app/      # 엔트리 포인트, 공용 UI
-│  │  │        └─ minigames/# 각 미니게임 구현
+│  │  │  └─ typingarena/
+│  │  │     ├─ app/      # 엔트리 포인트, 공용 UI
+│  │  │     └─ minigames/# 각 미니게임 구현
 │  │  └─ resources/         # 리소스(사운드, 이미지 등) 배치 예정
-│  └─ test/                 # 테스트 코드 (필요 시 작성)
-└─ assets/                  # 미사용 중, 리소스 필요 시 폴더 생성
+└─ docs/                    # 설계 문서 및 참고 자료
 ```
 
 ## 빌드 및 실행
