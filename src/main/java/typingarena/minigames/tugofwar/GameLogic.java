@@ -1,4 +1,4 @@
-package com.typingarena.minigames.tugofwar;
+package typingarena.minigames.tugofwar;
 
 import java.util.Random;
 

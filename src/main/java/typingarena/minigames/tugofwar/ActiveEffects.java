@@ -1,4 +1,4 @@
-package com.typingarena.minigames.tugofwar;
+package typingarena.minigames.tugofwar;
 
 /**
  * 아이템 효과들의 지속시간을 관리하는 클래스.

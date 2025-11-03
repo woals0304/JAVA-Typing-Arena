@@ -1,8 +1,8 @@
-package com.typingarena.app;
+package typingarena.app;
 
 import javax.swing.*;
 
-import com.typingarena.minigames.tugofwar.TugOfWarGame;
+import typingarena.minigames.tugofwar.TugOfWarGame;
 
 import java.awt.*;
 
