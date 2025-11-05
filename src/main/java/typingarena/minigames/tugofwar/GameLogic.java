@@ -1,6 +1,9 @@
 package typingarena.minigames.tugofwar;
 
-import java.util.Random;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.*;
+import java.util.*;
 
 /**
  * 게임 규칙/상태 전부 여기서 관리.
@@ -12,11 +15,22 @@ import java.util.Random;
  */
 public class GameLogic {
 
+    private static final String WORD_RESOURCE = "words/ko.txt";
+
+    private static final String[] DEFAULT_WORDS = {
+        "apple","note","river","korea","typing","banana","window","socket","orange","system",
+        "thread","packet","object","combo","vector","method","class","random","matrix","buffer",
+        "friend","music","guitar","soccer","player","winner","castle","dragon","danger","shield",
+        "future","simple","mobile","attack","defense","victory","balance","energy","memory","rocket",
+        "coffee","school","winter","summer","spring","autumn","family","forest","desert","thunder"
+    };
+
+    private static final List<String> WORD_POOL = loadWordPool();
     // 랜덤 단어 뽑기용
     private final Random rnd = new Random();
 
     // --- 상태 ---
-    private String currentWord = "apple"; // 지금 쳐야 하는 단어
+    private String currentWord = WORD_POOL.isEmpty() ? "" : WORD_POOL.get(0); // 지금 쳐야 하는 단어
     private double pos = 0.0;             // 로프 위치 (-100 ~ 100)
     private int score = 0;
     private int combo = 0;
@@ -128,30 +142,62 @@ public class GameLogic {
 
     // ===== 단어 생성 =====
     private void nextWord() {
-        // 경과 시간에 따라 단어 길이를 늘려 난이도 조절
-        int elapsed = 60_000 - timeMs;
-        int minLen = 4 + Math.min(elapsed / 15_000, 3); // 0~3 → 4~7
-        int maxLen = Math.min(minLen + 1, 8);
-
-        currentWord = randomWord(minLen, maxLen);
+        currentWord = randomWord();
     }
 
-    private String randomWord(int minLen, int maxLen) {
-        String[] pool = {
-            "apple","note","river","korea","typing","banana","window","socket","orange","system",
-            "thread","packet","object","combo","vector","method","class","random","matrix","buffer",
-            "friend","music","guitar","soccer","player","winner","castle","dragon","danger","shield",
-            "future","simple","mobile","attack","defense","victory","balance","energy","memory","rocket",
-            "coffee","school","winter","summer","spring","autumn","family","forest","desert","thunder"
-        };
+    private String randomWord() {
+        if (WORD_POOL.isEmpty()) {
+            return "";
+        }
+        return WORD_POOL.get(rnd.nextInt(WORD_POOL.size()));
+    }
 
-        for (int i = 0; i < 100; i++) {
-            String w = pool[rnd.nextInt(pool.length)];
-            if (w.length() >= minLen && w.length() <= maxLen) {
-                return w;
+    private static List<String> loadWordPool() {
+        List<String> words = loadFromClasspath();
+        if (words.isEmpty()) {
+            words = loadFromFilesystem();
+        }
+        if (!words.isEmpty()) {
+            return Collections.unmodifiableList(words);
+        }
+        return Collections.unmodifiableList(Arrays.asList(DEFAULT_WORDS));
+    }
+
+    private static List<String> loadFromClasspath() {
+        try (InputStream in = GameLogic.class.getClassLoader().getResourceAsStream(WORD_RESOURCE)) {
+            if (in == null) {
+                return Collections.emptyList();
+            }
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+                return readWordLines(reader);
+            }
+        } catch (IOException e) {
+            return Collections.emptyList();
+        }
+    }
+
+    private static List<String> loadFromFilesystem() {
+        Path path = Paths.get("src", "main", "resources").resolve(WORD_RESOURCE);
+        if (!Files.exists(path)) {
+            return Collections.emptyList();
+        }
+        try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+            return readWordLines(reader);
+        } catch (IOException e) {
+            return Collections.emptyList();
+        }
+    }
+
+    private static List<String> readWordLines(BufferedReader reader) throws IOException {
+        List<String> words = new ArrayList<>();
+        String line;
+        while ((line = reader.readLine()) != null) {
+            String trimmed = line.trim();
+            if (!trimmed.isEmpty() && !trimmed.startsWith("#")) {
+                words.add(trimmed);
             }
         }
-        return pool[rnd.nextInt(pool.length)];
+        return words;
     }
 
     // ===== 아이템 발동 =====
