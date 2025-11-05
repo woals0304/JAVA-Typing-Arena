@@ -87,7 +87,14 @@ public class RopePanel extends JPanel {
         int wordBaseY = centerY + 140; // 말판 아래쪽에 배치
 
         // 단어 글자 (밑에 먹물 깔기 전, 원래 텍스트)
-        g.setColor(new Color(30, 30, 30));
+        Color wordColor = new Color(30, 30, 30);
+        GameLogic.WordModifier modifier = logic.getCurrentWordModifier();
+        if (modifier == GameLogic.WordModifier.BUFF) {
+            wordColor = new Color(46, 160, 92);
+        } else if (modifier == GameLogic.WordModifier.TRAP) {
+            wordColor = new Color(208, 68, 68);
+        }
+        g.setColor(wordColor);
         g.drawString(word, wordX, wordBaseY);
 
         // 6) 먹물(blind) 효과가 활성화되면

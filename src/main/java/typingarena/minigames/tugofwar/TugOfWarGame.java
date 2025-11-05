@@ -5,7 +5,7 @@ import java.awt.*;
 
 /**
  * TugOfWarGame
- * - JFrame + HUD + 입력창 + 아이템 버튼 + Swing Timer 연결만 담당.
+ * - JFrame + HUD + 입력창 + 자동 아이템 연출 + Swing Timer 연결만 담당.
  * - 실제 게임 규칙/상태는 GameLogic,
  *   실제 그리기는 RopePanel이 맡는다.
  *
@@ -13,7 +13,7 @@ import java.awt.*;
  *  1) 시작 버튼 -> logic.startGame() -> gameTimer.start()
  *  2) 100ms마다 gameTimer -> logic.tick() -> HUD 갱신 -> RopePanel.repaint()
  *  3) 플레이어가 엔터 -> logic.submitAnswer() -> flashRight/flashLeft()
- *  4) 아이템 버튼 -> logic.usePowerGrip()/useAnchor()/useBlind()
+ *                         + 필요 시 자동 아이템 발동
  */
 public class TugOfWarGame extends JFrame {
 
@@ -25,13 +25,13 @@ public class TugOfWarGame extends JFrame {
     private final JLabel lblScore   = new JLabel("점수: 0");
     private final JLabel lblCombo   = new JLabel("콤보: 0");
     private final JLabel lblEffects = new JLabel("효과: 없음");
+    private final JLabel lblLastItem = new JLabel("최근 아이템: 없음");
 
     // 입력창 / 버튼들
     private final JTextField tfInput   = new JTextField();
     private final JButton btnStart     = new JButton("게임 시작");
-    private final JButton btnPowerGrip = new JButton("파워 그립 (힘 2배)");
-    private final JButton btnAnchor    = new JButton("앵커 (안 밀림)");
-    private final JButton btnBlind     = new JButton("먹물 (단어 가리기)");
+
+    private long lastItemNotifiedAt = 0L;
 
     // 100ms마다 게임 한 틱씩 진행시키는 타이머
     // final이라 반드시 생성자에서 한 번만 할당돼야 함
@@ -77,31 +77,18 @@ public class TugOfWarGame extends JFrame {
         lblScore.setFont(hudFont);
         lblCombo.setFont(hudFont);
         lblEffects.setFont(hudFont);
+        lblLastItem.setFont(hudFont);
         top.add(lblTime);
         top.add(lblScore);
         top.add(lblCombo);
         top.add(lblEffects);
+        top.add(lblLastItem);
 
-        // ===== 아이템 버튼 패널 =====
-        JPanel itemPanel = new JPanel();
-        itemPanel.setLayout(new BoxLayout(itemPanel, BoxLayout.Y_AXIS));
-        itemPanel.setBorder(BorderFactory.createTitledBorder("아이템"));
-
-        btnPowerGrip.setFont(btnPowerGrip.getFont().deriveFont(12f));
-        btnAnchor.setFont(btnAnchor.getFont().deriveFont(12f));
-        btnBlind.setFont(btnBlind.getFont().deriveFont(12f));
-
-        itemPanel.add(btnPowerGrip);
-        itemPanel.add(Box.createVerticalStrut(10));
-        itemPanel.add(btnAnchor);
-        itemPanel.add(Box.createVerticalStrut(10));
-        itemPanel.add(btnBlind);
-
-        // ===== 중앙(경기장 + 아이템 패널) =====
+        // ===== 중앙(경기장) =====
         ropePanel.setPreferredSize(new Dimension(800, 380));
         JPanel centerWrapper = new JPanel(new BorderLayout());
+        centerWrapper.setBorder(BorderFactory.createEmptyBorder(0, 20, 0, 20));
         centerWrapper.add(ropePanel, BorderLayout.CENTER);
-        centerWrapper.add(itemPanel, BorderLayout.EAST);
 
         // ===== 하단(입력창 + 시작 버튼) =====
         tfInput.setFont(tfInput.getFont().deriveFont(22f));
@@ -145,35 +132,14 @@ public class TugOfWarGame extends JFrame {
             btnStart.setEnabled(false);
             tfInput.requestFocusInWindow();
 
+            lastItemNotifiedAt = 0L;
             updateHUD();
             ropePanel.repaint();
 
             gameTimer.start();    // 틱 루프 시작
         });
 
-        // (c) 아이템: 파워 그립 (정답 힘 2배)
-        btnPowerGrip.addActionListener(ev -> {
-            logic.usePowerGrip();
-            ropePanel.flashBuffColor(new Color(80,160,255)); // 파란 빛
-            updateHUD();
-            ropePanel.repaint();
-        });
-
-        // (d) 아이템: 앵커 (왼쪽으로 거의 안 밀림)
-        btnAnchor.addActionListener(ev -> {
-            logic.useAnchor();
-            ropePanel.flashBuffColor(new Color(80,200,120)); // 초록 빛
-            updateHUD();
-            ropePanel.repaint();
-        });
-
-        // (e) 아이템: 먹물 (단어 가리기)
-        btnBlind.addActionListener(ev -> {
-            logic.useBlind();
-            ropePanel.flashBuffColor(new Color(30,30,30));   // 어두운 빛
-            updateHUD();
-            ropePanel.repaint();
-        });
+        updateHUD();
     }
 
     // HUD 라벨들 업데이트
@@ -182,6 +148,41 @@ public class TugOfWarGame extends JFrame {
         lblScore.setText("점수: " + logic.getScore());
         lblCombo.setText("콤보: " + logic.getCombo());
         lblEffects.setText(logic.getEffects().describeEffects());
+
+        GameLogic.ItemType itemType = logic.getLastActivatedItem();
+        lblLastItem.setText("최근 아이템: " + formatItemLabel(itemType));
+
+        long activatedAt = logic.getLastItemActivatedAt();
+        if (itemType != GameLogic.ItemType.NONE && activatedAt > lastItemNotifiedAt) {
+            lastItemNotifiedAt = activatedAt;
+            ropePanel.flashBuffColor(colorForItem(itemType));
+        }
+    }
+
+    private String formatItemLabel(GameLogic.ItemType itemType) {
+        switch (itemType) {
+            case POWER_GRIP:
+                return "파워 그립";
+            case ANCHOR:
+                return "앵커";
+            case BLIND:
+                return "먹물";
+            default:
+                return "없음";
+        }
+    }
+
+    private Color colorForItem(GameLogic.ItemType itemType) {
+        switch (itemType) {
+            case POWER_GRIP:
+                return new Color(80, 160, 255);
+            case ANCHOR:
+                return new Color(80, 200, 120);
+            case BLIND:
+                return new Color(30, 30, 30);
+            default:
+                return new Color(200, 200, 200, 0);
+        }
     }
 
     // 실행 진입점

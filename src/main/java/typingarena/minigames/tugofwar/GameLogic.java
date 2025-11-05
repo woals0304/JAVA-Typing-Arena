@@ -26,11 +26,27 @@ public class GameLogic {
     };
 
     private static final List<String> WORD_POOL = loadWordPool();
+
+    public enum WordModifier {
+        NEUTRAL,
+        BUFF,
+        TRAP
+    }
+
+    public enum ItemType {
+        NONE,
+        POWER_GRIP,
+        ANCHOR,
+        BLIND
+    }
     // 랜덤 단어 뽑기용
     private final Random rnd = new Random();
 
     // --- 상태 ---
-    private String currentWord = WORD_POOL.isEmpty() ? "" : WORD_POOL.get(0); // 지금 쳐야 하는 단어
+    private String currentWord = ""; // 지금 쳐야 하는 단어
+    private WordModifier currentWordModifier = WordModifier.NEUTRAL;
+    private ItemType lastActivatedItem = ItemType.NONE;
+    private long lastItemActivatedAt = 0L;
     private double pos = 0.0;             // 로프 위치 (-100 ~ 100)
     private int score = 0;
     private int combo = 0;
@@ -54,6 +70,9 @@ public class GameLogic {
     public boolean isRunning()      { return running; }
     public ActiveEffects getEffects(){ return effects; }
     public String getCurrentWord()  { return currentWord; }
+    public WordModifier getCurrentWordModifier() { return currentWordModifier; }
+    public ItemType getLastActivatedItem() { return lastActivatedItem; }
+    public long getLastItemActivatedAt() { return lastItemActivatedAt; }
 
     // ===== 게임 시작 =====
     public void startGame() {
@@ -64,6 +83,8 @@ public class GameLogic {
         running = true;
 
         effects.clearAll();
+        lastActivatedItem = ItemType.NONE;
+        lastItemActivatedAt = 0L;
         nextWord(); // 첫 단어 세팅
     }
 
@@ -130,6 +151,7 @@ public class GameLogic {
             }
             pos += push;
 
+            applyWordModifierReward();
             nextWord(); // 다음 단어 세팅
             return true;
         } else {
@@ -143,6 +165,7 @@ public class GameLogic {
     // ===== 단어 생성 =====
     private void nextWord() {
         currentWord = randomWord();
+        currentWordModifier = randomWordModifier();
     }
 
     private String randomWord() {
@@ -150,6 +173,40 @@ public class GameLogic {
             return "";
         }
         return WORD_POOL.get(rnd.nextInt(WORD_POOL.size()));
+    }
+
+    private WordModifier randomWordModifier() {
+        // 기본적으로 70% 확률로 일반 단어, 30% 확률로 아이템 단어
+        if (rnd.nextDouble() >= 0.3) {
+            return WordModifier.NEUTRAL;
+        }
+        return rnd.nextBoolean() ? WordModifier.BUFF : WordModifier.TRAP;
+    }
+
+    private void applyWordModifierReward() {
+        if (!running) return;
+        if (currentWordModifier == WordModifier.BUFF) {
+            activateRandomBuff();
+        } else if (currentWordModifier == WordModifier.TRAP) {
+            activateRandomTrap();
+        }
+    }
+
+    private void activateRandomBuff() {
+        if (rnd.nextBoolean()) {
+            usePowerGrip();
+        } else {
+            useAnchor();
+        }
+    }
+
+    private void activateRandomTrap() {
+        useBlind();
+    }
+
+    private void recordItemActivation(ItemType itemType) {
+        lastActivatedItem = itemType;
+        lastItemActivatedAt = System.currentTimeMillis();
     }
 
     private static List<String> loadWordPool() {
@@ -206,6 +263,7 @@ public class GameLogic {
         long now = System.currentTimeMillis();
         long dur = 5_000; // 5초
         effects.powerGripUntil = Math.max(effects.powerGripUntil, now + dur);
+        recordItemActivation(ItemType.POWER_GRIP);
     }
 
     public void useAnchor() {
@@ -213,6 +271,7 @@ public class GameLogic {
         long now = System.currentTimeMillis();
         long dur = 3_000; // 3초
         effects.anchorUntil = Math.max(effects.anchorUntil, now + dur);
+        recordItemActivation(ItemType.ANCHOR);
     }
 
     public void useBlind() {
@@ -220,5 +279,6 @@ public class GameLogic {
         long now = System.currentTimeMillis();
         long dur = 3_000; // 3초
         effects.blindUntil = Math.max(effects.blindUntil, now + dur);
+        recordItemActivation(ItemType.BLIND);
     }
 }
