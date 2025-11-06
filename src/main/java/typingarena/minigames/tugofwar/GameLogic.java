@@ -1,9 +1,23 @@
 package typingarena.minigames.tugofwar;
 
-import java.io.*;
+import com.google.gson.Gson;
+import com.google.gson.JsonIOException;
+import com.google.gson.JsonSyntaxException;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
-import java.util.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
 
 /**
  * 게임 규칙/상태 전부 여기서 관리.
@@ -15,7 +29,7 @@ import java.util.*;
  */
 public class GameLogic {
 
-    private static final String WORD_RESOURCE = "words/ko.txt";
+    private static final String WORD_RESOURCE = "words/ko.json";
 
     private static final String[] DEFAULT_WORDS = {
         "apple","note","river","korea","typing","banana","window","socket","orange","system",
@@ -210,51 +224,58 @@ public class GameLogic {
     }
 
     private static List<String> loadWordPool() {
-        List<String> words = loadFromClasspath();
+        List<String> words = loadWordsFromClasspath();
         if (words.isEmpty()) {
-            words = loadFromFilesystem();
+            words = loadWordsFromFilesystem();
         }
-        if (!words.isEmpty()) {
-            return Collections.unmodifiableList(words);
+        if (words.isEmpty()) {
+            words = new ArrayList<>(Arrays.asList(DEFAULT_WORDS));
         }
-        return Collections.unmodifiableList(Arrays.asList(DEFAULT_WORDS));
+        return Collections.unmodifiableList(words);
     }
 
-    private static List<String> loadFromClasspath() {
+    private static List<String> loadWordsFromClasspath() {
         try (InputStream in = GameLogic.class.getClassLoader().getResourceAsStream(WORD_RESOURCE)) {
             if (in == null) {
                 return Collections.emptyList();
             }
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
-                return readWordLines(reader);
+            try (Reader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+                return parseWordList(reader);
             }
-        } catch (IOException e) {
+        } catch (IOException | JsonSyntaxException | JsonIOException e) {
             return Collections.emptyList();
         }
     }
 
-    private static List<String> loadFromFilesystem() {
+    private static List<String> loadWordsFromFilesystem() {
         Path path = Paths.get("src", "main", "resources").resolve(WORD_RESOURCE);
         if (!Files.exists(path)) {
             return Collections.emptyList();
         }
-        try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-            return readWordLines(reader);
-        } catch (IOException e) {
+        try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+            return parseWordList(reader);
+        } catch (IOException | JsonSyntaxException | JsonIOException e) {
             return Collections.emptyList();
         }
     }
 
-    private static List<String> readWordLines(BufferedReader reader) throws IOException {
+    private static List<String> parseWordList(Reader reader) {
+        Gson gson = new Gson();
+        WordList data = gson.fromJson(reader, WordList.class);
+        if (data == null || data.words == null) {
+            return Collections.emptyList();
+        }
         List<String> words = new ArrayList<>();
-        String line;
-        while ((line = reader.readLine()) != null) {
-            String trimmed = line.trim();
-            if (!trimmed.isEmpty() && !trimmed.startsWith("#")) {
-                words.add(trimmed);
+        for (String word : data.words) {
+            if (word != null && !word.trim().isEmpty()) {
+                words.add(word.trim());
             }
         }
         return words;
+    }
+
+    private static final class WordList {
+        List<String> words;
     }
 
     // ===== 아이템 발동 =====

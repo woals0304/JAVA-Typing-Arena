@@ -1,49 +1,60 @@
 package typingarena.app;
 
-import javax.swing.*;
-
+import javafx.application.Application;
+import javafx.geometry.Insets;
+import javafx.geometry.Pos;
+import javafx.scene.Scene;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.VBox;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import javafx.stage.Stage;
 import typingarena.minigames.tugofwar.TugOfWarGame;
 
-import java.awt.*;
+public class TypingGameApp extends Application {
 
-public class TypingGameApp extends JFrame {
+    @Override
+    public void start(Stage primaryStage) {
+        primaryStage.setTitle("Typing Mini Game");
 
-    public TypingGameApp() {
-        super("Typing Mini Game");
-        setDefaultCloseOperation(EXIT_ON_CLOSE);
-        setSize(600, 400);
-        setLocationRelativeTo(null);
+        Label title = new Label("멀티플레이 타자 미니게임 로비");
+        title.setFont(Font.font("System", FontWeight.BOLD, 28));
+        title.setWrapText(true);
 
-        JPanel lobby = new JPanel(new BorderLayout(0, 20));
-        lobby.setBorder(BorderFactory.createEmptyBorder(40, 40, 40, 40));
-
-        JLabel title = new JLabel("멀티플레이 타자 미니게임 로비", SwingConstants.CENTER);
-        title.setFont(title.getFont().deriveFont(Font.BOLD, 20f));
-        lobby.add(title, BorderLayout.NORTH);
-
-        JTextArea description = new JTextArea(
-                "준비된 미니게임:\n" +
-                "- 줄다리기 타자 대전 (Tug of War)\n\n" +
-                "시작 버튼을 누르면 새 창에서 게임이 실행됩니다."
+        Label description = new Label(
+                "준비된 미니게임:\n"
+                        + "- 줄다리기 타자 대전 (Tug of War)\n\n"
+                        + "시작 버튼을 누르면 새 창에서 게임이 실행됩니다."
         );
-        description.setEditable(false);
-        description.setOpaque(false);
-        description.setFont(description.getFont().deriveFont(14f));
-        lobby.add(description, BorderLayout.CENTER);
+        description.setFont(Font.font(16));
+        description.setWrapText(true);
 
-        JButton startBtn = new JButton("줄다리기 게임 시작");
-        startBtn.setFont(startBtn.getFont().deriveFont(Font.BOLD, 16f));
-        startBtn.addActionListener(e -> launchTugOfWar());
-        lobby.add(startBtn, BorderLayout.SOUTH);
+        Button startBtn = new Button("줄다리기 게임 시작");
+        startBtn.setFont(Font.font("System", FontWeight.BOLD, 18));
+        startBtn.setOnAction(e -> launchTugOfWar(primaryStage));
+        startBtn.setDefaultButton(true);
 
-        add(lobby);
+        VBox centerBox = new VBox(20, title, description, startBtn);
+        centerBox.setAlignment(Pos.CENTER);
+
+        BorderPane root = new BorderPane();
+        root.setPadding(new Insets(40));
+        root.setCenter(centerBox);
+
+        Scene scene = new Scene(root, 640, 420);
+        primaryStage.setScene(scene);
+        primaryStage.show();
     }
 
-    private void launchTugOfWar() {
-        SwingUtilities.invokeLater(() -> new TugOfWarGame().setVisible(true));
+    private void launchTugOfWar(Stage owner) {
+        TugOfWarGame game = new TugOfWarGame();
+        game.initOwner(owner);
+        game.show();
     }
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> new TypingGameApp().setVisible(true));
+        launch(args);
     }
 }

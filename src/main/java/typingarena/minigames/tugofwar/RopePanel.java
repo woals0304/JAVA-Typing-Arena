@@ -1,169 +1,217 @@
 package typingarena.minigames.tugofwar;
 
-import javax.swing.*;
-import java.awt.*;
-import java.awt.AlphaComposite;
+import javafx.scene.canvas.Canvas;
+import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
+import javafx.scene.text.Text;
 
-/**
- * RopePanel
- * - 경기장(밧줄, 승리/패배 라인, YOU 말판)과
- * - 현재 단어(currentWord) 표시까지 그림.
- *
- * 먹물(blind) 효과가 활성화된 경우,
- * 단어가 그려진 그 영역 위에만 반투명 검은 사각형을 씌워서 가린다.
- * (이게 "화면 중앙"이 아니라 "단어 출력 부분만 가려달라"는 요구사항 반영)
- */
-public class RopePanel extends JPanel {
+public class RopePanel extends Canvas {
+
+    private static final Color BACKGROUND = Color.rgb(245, 248, 252);
+    private static final Color LEFT_ZONE = Color.rgb(235, 242, 247);
+    private static final Color RIGHT_ZONE = Color.rgb(225, 240, 235);
+    private static final Color CENTER_LINE = Color.rgb(210, 220, 230);
+    private static final Color ROPE_COLOR = Color.rgb(120, 90, 60);
+    private static final Color WIN_LINE = Color.rgb(80, 160, 80);
+    private static final Color LOSE_LINE = Color.rgb(200, 80, 80);
+    private static final Color PLAYER_COLOR = Color.rgb(60, 120, 255);
+    private static final Color TEXT_DEFAULT = Color.rgb(30, 30, 30);
+    private static final Color FLASH_HIT = Color.rgb(50, 200, 120);
+    private static final Color FLASH_MISS = Color.rgb(220, 80, 80);
 
     private final GameLogic logic;
+    private boolean disposed = false;
 
     // 정답/오답 순간 번쩍 (초록/빨강)
     private Color flashColor = null;
     private long flashUntil = 0L;
 
-    // 아이템 사용 순간 번쩍 (파워그립/앵커/먹물 버튼 눌렀을 때)
+    // 아이템 사용 순간 번쩍 (파워그립/앵커/먹물 버튼)
     private Color buffFlashColor = null;
     private long buffFlashUntil = 0L;
 
     public RopePanel(GameLogic logic) {
         this.logic = logic;
-        setBackground(new Color(245, 248, 252));
+
+        widthProperty().addListener((obs, oldV, newV) -> redraw());
+        heightProperty().addListener((obs, oldV, newV) -> redraw());
     }
 
-    @Override
-    protected void paintComponent(Graphics g0) {
-        super.paintComponent(g0);
-        Graphics2D g = (Graphics2D) g0;
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+    public void redraw() {
+        if (disposed) {
+            return;
+        }
+        draw();
+    }
 
-        int w = getWidth();
-        int h = getHeight();
-        int centerY = h / 2;
+    private void draw() {
+        if (disposed) {
+            return;
+        }
+        double w = getWidth();
+        double h = getHeight();
+        if (w <= 0 || h <= 0) {
+            return;
+        }
 
-        double pos = logic.getPos();
-        ActiveEffects eff = logic.getEffects();
+        GraphicsContext gc = getGraphicsContext2D();
+        gc.clearRect(0, 0, w, h);
+
+        gc.setFill(BACKGROUND);
+        gc.fillRect(0, 0, w, h);
+
+        double centerY = h / 2.0;
+        ActiveEffects effects = logic.getEffects();
 
         // 1) 왼/오른쪽 영역 & 중앙선
-        g.setColor(new Color(235, 242, 247));
-        g.fillRect(0, centerY - 60, w/2, 120);
+        double zoneHeight = 120;
+        gc.setFill(LEFT_ZONE);
+        gc.fillRect(0, centerY - zoneHeight / 2, w / 2, zoneHeight);
 
-        g.setColor(new Color(225, 240, 235));
-        g.fillRect(w/2, centerY - 60, w/2, 120);
+        gc.setFill(RIGHT_ZONE);
+        gc.fillRect(w / 2, centerY - zoneHeight / 2, w / 2, zoneHeight);
 
-        g.setColor(new Color(210, 220, 230));
-        g.fillRect(w/2 - 3, centerY - 120, 6, 240);
+        gc.setFill(CENTER_LINE);
+        gc.fillRect((w / 2) - 3, centerY - 120, 6, 240);
 
         // 2) 밧줄
-        g.setStroke(new BasicStroke(8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        g.setColor(new Color(120, 90, 60));
-        g.drawLine(60, centerY, w - 60, centerY);
+        gc.setStroke(ROPE_COLOR);
+        gc.setLineWidth(8);
+        gc.setLineCap(javafx.scene.shape.StrokeLineCap.ROUND);
+        gc.strokeLine(60, centerY, w - 60, centerY);
 
         // 3) 승리/패배 라인
-        g.setColor(new Color(200, 80, 80));
-        g.drawLine(60, centerY - 80, 60, centerY + 80);        // 왼쪽 (패배선)
-        g.setColor(new Color(80, 160, 80));
-        g.drawLine(w - 60, centerY - 80, w - 60, centerY + 80); // 오른쪽 (승리선)
+        gc.setStroke(LOSE_LINE);
+        gc.setLineWidth(3);
+        gc.strokeLine(60, centerY - 80, 60, centerY + 80);
+
+        gc.setStroke(WIN_LINE);
+        gc.strokeLine(w - 60, centerY - 80, w - 60, centerY + 80);
 
         // 4) "YOU" 말판
-        double rangePx = (w - 160) / 2.0;  // pos -100~100 -> 픽셀 변환
-        int markerX = (int)(w/2 + (pos / 100.0) * rangePx);
-        int markerY = centerY;
+        double rangePx = (w - 160) / 2.0;
+        double markerX = w / 2.0 + (logic.getPos() / 100.0) * rangePx;
+        double markerY = centerY;
 
-        g.setColor(new Color(60, 120, 255));
-        g.fillOval(markerX - 16, markerY - 16, 32, 32);
+        gc.setFill(PLAYER_COLOR);
+        gc.fillOval(markerX - 16, markerY - 16, 32, 32);
 
-        g.setColor(Color.WHITE);
-        g.setFont(g.getFont().deriveFont(Font.BOLD, 14f));
-        drawCenteredString(g, "YOU", new Rectangle(markerX - 18, markerY - 32, 36, 14));
+        gc.setFill(Color.WHITE);
+        Font playerFont = Font.font("System", FontWeight.BOLD, 14);
+        gc.setFont(playerFont);
+        drawCenteredText(gc, "YOU", markerX - 16, markerY - 16, 32, 32);
 
-        // 5) 현재 단어 텍스트 (로프 아래쪽에 크게)
+        // 5) 현재 단어 텍스트
         String word = logic.getCurrentWord();
-        Font wordFont = g.getFont().deriveFont(Font.BOLD, 28f);
-        g.setFont(wordFont);
+        Font wordFont = Font.font("System", FontWeight.BOLD, 32);
+        gc.setFont(wordFont);
 
-        FontMetrics fmWord = g.getFontMetrics();
-        int wordWidth = fmWord.stringWidth(word);
-        int wordX = (w - wordWidth) / 2;
-        int wordBaseY = centerY + 140; // 말판 아래쪽에 배치
+        Text wordNode = new Text(word);
+        wordNode.setFont(wordFont);
+        double wordWidth = wordNode.getLayoutBounds().getWidth();
+        double wordHeight = wordNode.getLayoutBounds().getHeight();
+        double wordX = (w - wordWidth) / 2.0;
+        double wordBaseY = centerY + 140;
 
-        // 단어 글자 (밑에 먹물 깔기 전, 원래 텍스트)
-        Color wordColor = new Color(30, 30, 30);
+        Color wordColor = TEXT_DEFAULT;
         GameLogic.WordModifier modifier = logic.getCurrentWordModifier();
         if (modifier == GameLogic.WordModifier.BUFF) {
-            wordColor = new Color(46, 160, 92);
+            wordColor = Color.rgb(46, 160, 92);
         } else if (modifier == GameLogic.WordModifier.TRAP) {
-            wordColor = new Color(208, 68, 68);
+            wordColor = Color.rgb(208, 68, 68);
         }
-        g.setColor(wordColor);
-        g.drawString(word, wordX, wordBaseY);
+        gc.setFill(wordColor);
+        gc.fillText(word, wordX, wordBaseY);
 
-        // 6) 먹물(blind) 효과가 활성화되면
-        // 단어가 표시되는 그 사각형만 까맣게 덮는다.
-        if (eff.isBlindActive()) {
-            int pad = 8;
-            int rectX = wordX - pad;
-            int rectY = wordBaseY - fmWord.getAscent() - pad;
-            int rectW = wordWidth + pad * 2;
-            int rectH = fmWord.getHeight() + pad * 2;
+        // 6) 먹물 효과
+        if (effects.isBlindActive()) {
+            double pad = 12;
+            double rectX = wordX - pad;
+            double rectY = wordBaseY - wordHeight - pad;
+            double rectW = wordWidth + pad * 2;
+            double rectH = wordHeight + pad * 2;
 
-            // 반투명 검은 박스
-            g.setColor(new Color(0, 0, 0, 180));
-            g.fillRoundRect(rectX, rectY, rectW, rectH, 16, 16);
+            gc.setGlobalAlpha(0.85);
+            gc.setFill(Color.rgb(0, 0, 0, 0.85));
+            gc.fillRoundRect(rectX, rectY, rectW, rectH, 16, 16);
+            gc.setGlobalAlpha(1.0);
 
-            // "먹물!" 텍스트 표시
-            g.setColor(Color.WHITE);
-            g.setFont(g.getFont().deriveFont(Font.BOLD, 14f));
-            FontMetrics fm2 = g.getFontMetrics();
-            String blindMsg = "먹물!";
-            int msgW = fm2.stringWidth(blindMsg);
-            int msgX = rectX + (rectW - msgW) / 2;
-            int msgY = rectY + (rectH - fm2.getHeight()) / 2 + fm2.getAscent();
-            g.drawString(blindMsg, msgX, msgY);
+            gc.setFill(Color.WHITE);
+            Font blindFont = Font.font("System", FontWeight.BOLD, 16);
+            gc.setFont(blindFont);
+            Text blindText = new Text("먹물!");
+            blindText.setFont(blindFont);
+            double txtW = blindText.getLayoutBounds().getWidth();
+            double txtH = blindText.getLayoutBounds().getHeight();
+            double txtX = rectX + (rectW - txtW) / 2.0;
+            double txtY = rectY + (rectH - txtH) / 2.0 + txtH;
+            gc.fillText("먹물!", txtX, txtY - 4);
         }
 
-        // 7) 정답/오답 플래시 (전체 화면 살짝 번쩍)
         long now = System.currentTimeMillis();
+
+        // 7) 정답/오답 플래시
         if (flashColor != null && now < flashUntil) {
-            g.setColor(flashColor);
-            g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.15f));
-            g.fillRect(0, 0, w, h);
-            g.setComposite(AlphaComposite.SrcOver);
+            gc.setGlobalAlpha(0.18);
+            gc.setFill(flashColor);
+            gc.fillRect(0, 0, w, h);
+            gc.setGlobalAlpha(1.0);
         }
 
-        // 8) 아이템 사용 순간 플래시
+        // 8) 아이템 플래시
         if (buffFlashColor != null && now < buffFlashUntil) {
-            g.setColor(buffFlashColor);
-            g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.15f));
-            g.fillRect(0, 0, w, h);
-            g.setComposite(AlphaComposite.SrcOver);
+            gc.setGlobalAlpha(0.18);
+            gc.setFill(buffFlashColor);
+            gc.fillRect(0, 0, w, h);
+            gc.setGlobalAlpha(1.0);
         }
     }
 
-    private void drawCenteredString(Graphics2D g, String text, Rectangle rect) {
-        FontMetrics fm = g.getFontMetrics();
-        int x = rect.x + (rect.width - fm.stringWidth(text)) / 2;
-        int y = rect.y + ((rect.height - fm.getHeight()) / 2) + fm.getAscent();
-        g.drawString(text, x, y);
+    private void drawCenteredText(GraphicsContext gc, String text, double x, double y, double width, double height) {
+        Text helper = new Text(text);
+        helper.setFont(gc.getFont());
+        double textWidth = helper.getLayoutBounds().getWidth();
+        double textHeight = helper.getLayoutBounds().getHeight();
+        double drawX = x + (width - textWidth) / 2.0;
+        double drawY = y + (height - textHeight) / 2.0 + textHeight;
+        gc.fillText(text, drawX, drawY - 2);
     }
 
     // 정답 시 (초록 번쩍)
     public void flashRight() {
-        flashColor = new Color(50, 200, 120);
+        if (disposed || getScene() == null) return;
+        flashColor = FLASH_HIT;
         flashUntil = System.currentTimeMillis() + 120;
-        repaint();
+        redraw();
     }
 
     // 오답 시 (빨강 번쩍)
     public void flashLeft() {
-        flashColor = new Color(220, 80, 80);
+        if (disposed || getScene() == null) return;
+        flashColor = FLASH_MISS;
         flashUntil = System.currentTimeMillis() + 120;
-        repaint();
+        redraw();
     }
 
-    // 아이템 눌렀을 때 (파워그립/앵커/먹물 버튼)
-    public void flashBuffColor(Color c) {
-        buffFlashColor = c;
+    // 아이템 사용
+    public void flashBuffColor(Color color) {
+        if (disposed || getScene() == null) return;
+        buffFlashColor = color;
         buffFlashUntil = System.currentTimeMillis() + 200;
-        repaint();
+        redraw();
+    }
+
+    public void dispose() {
+        disposed = true;
+        flashColor = null;
+        buffFlashColor = null;
+    }
+
+    public void activate() {
+        disposed = false;
+        flashColor = null;
+        buffFlashColor = null;
     }
 }
