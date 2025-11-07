@@ -7,8 +7,9 @@ import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Label;
+import javafx.scene.image.Image;
 import javafx.scene.layout.Pane;
-import javafx.scene.layout.StackPane; // [신규] 임포트
+import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontPosture;
@@ -16,24 +17,23 @@ import javafx.scene.text.FontWeight;
 import javafx.scene.text.TextAlignment;
 import javafx.util.Duration;
 
+import java.io.InputStream;
+import java.util.List; // [신규] List 임포트
+
 /**
  * [대규모 수정됨]
- * 1. [룰 1] TILE_NEUTRAL_COLOR (회색) 제거
- * 2. [수정] extends Canvas -> extends StackPane (애니메이션을 위해)
- * 3. [수정] Canvas를 StackPane의 자식 멤버로 변경
- * 4. [수정] 애니메이션용 Pane (animationPane) 추가
- * 5. [룰 2] "스플래시!" 텍스트 그리는 로직 제거
- * 6. [룰 2] showSplashAnimation(r, c) 메서드 (애니메이션) 신규 추가
+ * 1. ... (이전 수정 사항들) ...
+ * 15. [신규] 창 크기 조절 시 애니메이션 위치가 어긋나는 버그 수정 (offsetX, offsetY 계산 추가)
+ * 16. [신규] 여러 개의 먹물 타일을 동시에 그릴 수 있도록 draw() 메서드 수정 (List<BlindedTile> 사용)
  */
-public class LandGrabPanel extends StackPane { // [수정] extends StackPane
+public class LandGrabPanel extends StackPane {
 
-    // ===== 1. 색상 정의 (수정) =====
+    // ===== 1. 색상 정의 (동일) =====
     private static final Color BG_COLOR = Color.rgb(240, 240, 240);
     private static final Color GRID_LINE_COLOR = Color.rgb(200, 200, 200);
-    private static final Color TILE_EMPTY_COLOR = Color.rgb(255, 255, 255); // [룰 1] 이게 기본
+    private static final Color TILE_EMPTY_COLOR = Color.rgb(255, 255, 255);
     private static final Color TILE_PLAYER_COLOR = Color.rgb(60, 120, 255);
     private static final Color TILE_AI_COLOR = Color.rgb(220, 80, 80);
-    // private static final Color TILE_NEUTRAL_COLOR = Color.rgb(200, 200, 200); // [수정] 제거
 
     private static final Color TEXT_EMPTY_COLOR = Color.rgb(30, 30, 30);
     private static final Color TEXT_ON_CAPTURED_TILE = Color.rgb(100, 100, 100);
@@ -43,7 +43,7 @@ public class LandGrabPanel extends StackPane { // [수정] extends StackPane
     private static final Color FLASH_HIT = Color.rgb(50, 200, 120);
     private static final Color FLASH_MISS = Color.rgb(220, 80, 80);
 
-    // ===== 2. 상태 (수정) =====
+    // ===== 2. 상태 (동일) =====
     private final LandGrabLogic logic;
     private boolean disposed = false;
     private Color flashColor = null;
@@ -51,33 +51,62 @@ public class LandGrabPanel extends StackPane { // [수정] extends StackPane
     private Color buffFlashColor = null;
     private long buffFlashUntil = 0L;
 
-    // [신규] StackPane의 자식으로 Canvas와 AnimationPane을 둠
     private final Canvas canvas = new Canvas();
-    private final Pane animationPane = new Pane(); // 애니메이션 라벨이 올라갈 곳
+    private final Pane animationPane = new Pane();
 
     private final Font wordFont = Font.font("System", FontWeight.BOLD, 14);
     private final Font itemFont = Font.font("System", FontWeight.BOLD, FontPosture.ITALIC, 15);
     private final Font feedbackFont = Font.font("System", FontWeight.BOLD, 48);
-    private final Font splashAnimationFont = Font.font("System", FontWeight.BOLD, 36); // [신규] 애니메이션용 폰트
+
+    private final Font splashAnimationFont = loadCustomFont("fonts/CookieRun Regular.otf", 32);
+
+    private final Image inkSplatImage = loadImage("images/ink_splat.png");
+
+    // (loadCustomFont, loadImage 헬퍼 메서드들은 동일)
+    private Font loadCustomFont(String fontPath, double size) {
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream(fontPath)) {
+            if (is == null) {
+                System.err.println("커스텀 폰트 로드 실패 (파일 없음): " + fontPath);
+                return Font.font("System", FontWeight.BOLD, size);
+            }
+            Font loadedFont = Font.loadFont(is, size);
+            if (loadedFont == null) {
+                System.err.println("커스텀 폰트 파싱 실패: " + fontPath);
+                return Font.font("System", FontWeight.BOLD, size);
+            }
+            System.out.println("커스텀 폰트 로드 성공: " + loadedFont.getName());
+            return loadedFont;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Font.font("System", FontWeight.BOLD, size);
+        }
+    }
+
+    private Image loadImage(String imagePath) {
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream(imagePath)) {
+            if (is == null) {
+                System.err.println("이미지 로드 실패 (파일 없음): " + imagePath);
+                return null;
+            }
+            return new Image(is);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
 
     public LandGrabPanel(LandGrabLogic logic) {
         this.logic = logic;
 
-        // [신규] Canvas와 AnimationPane을 StackPane(this)에 추가
-        // animationPane이 Canvas 위에 오도록 순서 중요
-        // animationPane은 마우스 이벤트를 가로채지 않도록 설정
         animationPane.setMouseTransparent(true);
         getChildren().addAll(canvas, animationPane);
         setAlignment(Pos.CENTER);
 
-        // [수정] 리스너가 Canvas의 크기를 조절하도록 변경
         widthProperty().addListener((obs, oldV, newV) -> resizeCanvas(newV.doubleValue(), getHeight()));
         heightProperty().addListener((obs, oldV, newV) -> resizeCanvas(getWidth(), newV.doubleValue()));
     }
 
-    /**
-     * [신규] StackPane 크기에 맞춰 내부 Canvas 크기 조절
-     */
     private void resizeCanvas(double w, double h) {
         if (w <= 0 || h <= 0) return;
         double size = Math.min(w, h);
@@ -91,14 +120,14 @@ public class LandGrabPanel extends StackPane { // [수정] extends StackPane
         draw();
     }
 
+    // (draw 메서드는 NullPointerException 수정된 버전과 동일)
     private void draw() {
         if (disposed) return;
-        // [수정] canvas의 크기를 가져옴
+
         double w = canvas.getWidth();
         double h = canvas.getHeight();
         if (w <= 0 || h <= 0) return;
 
-        // [수정] canvas의 GraphicsContext를 가져옴
         GraphicsContext gc = canvas.getGraphicsContext2D();
         gc.clearRect(0, 0, w, h);
 
@@ -108,17 +137,16 @@ public class LandGrabPanel extends StackPane { // [수정] extends StackPane
         double tileSizeW = w / LandGrabLogic.GRID_SIZE;
         double tileSizeH = h / LandGrabLogic.GRID_SIZE;
 
-        // 2) 10x10 타일 그리기 (상태에 따라)
         for (int r = 0; r < LandGrabLogic.GRID_SIZE; r++) {
             for (int c = 0; c < LandGrabLogic.GRID_SIZE; c++) {
                 double x = c * tileSizeW;
                 double y = r * tileSizeH;
                 LandGrabLogic.TileState state = logic.getTileState(r, c);
+
                 if (state == null) {
-                    state = LandGrabLogic.TileState.EMPTY;
+                    continue;
                 }
 
-                // [수정] 중립 타일 제거
                 switch (state) {
                     case PLAYER: gc.setFill(TILE_PLAYER_COLOR); break;
                     case AI:     gc.setFill(TILE_AI_COLOR);     break;
@@ -126,7 +154,6 @@ public class LandGrabPanel extends StackPane { // [수정] extends StackPane
                 }
                 gc.fillRect(x, y, tileSizeW, tileSizeH);
 
-                // 단어 텍스트 그리기 (동일)
                 String word = logic.getWord(r, c);
                 if (word == null || word.isEmpty()) continue;
                 LandGrabLogic.WordModifier modifier = logic.getModifier(r, c);
@@ -150,7 +177,6 @@ public class LandGrabPanel extends StackPane { // [수정] extends StackPane
             }
         }
 
-        // 3) 그리드 선 그리기 (동일)
         gc.setStroke(GRID_LINE_COLOR);
         gc.setLineWidth(1);
         for (int i = 0; i <= LandGrabLogic.GRID_SIZE; i++) {
@@ -158,20 +184,26 @@ public class LandGrabPanel extends StackPane { // [수정] extends StackPane
             gc.strokeLine(0, i * tileSizeH, w, i * tileSizeH);
         }
 
-        // --- [룰 2] 피드백 그리기 (제거) ---
-        // [수정] logic.getEffects().isSplashTextActive() 관련 코드 모두 제거
+        // ===== 4) 먹물 효과 (대규모 수정) =====
 
-        // 4) 먹물 효과 (동일)
-        if (logic.getEffects().isBlindActive()) {
-            gc.setGlobalAlpha(0.85);
-            gc.setFill(Color.rgb(0, 0, 0, 0.85));
-            gc.fillRoundRect(0, 0, w, h, 16, 16);
-            gc.setGlobalAlpha(1.0);
-            gc.setFill(Color.WHITE);
-            gc.setFont(feedbackFont); // [수정] 더 큰 폰트
-            gc.setTextAlign(TextAlignment.CENTER);
-            gc.fillText("먹물!", w / 2, h / 2); // [수정] 중앙 정렬
+        // [수정] 단일 좌표 -> List<BlindedTile>로 변경
+        List<LandGrabEffects.BlindedTile> blindedTiles = logic.getEffects().getActiveBlindedTiles();
+        if (blindedTiles != null && !blindedTiles.isEmpty() && inkSplatImage != null) {
+
+            // [수정] List에 있는 모든 타일에 대해 반복
+            for (LandGrabEffects.BlindedTile tile : blindedTiles) {
+                int r = tile.r();
+                int c = tile.c();
+
+                double x = c * tileSizeW;
+                double y = r * tileSizeH;
+
+                // 먹물 이미지를 타일 크기에 정확히 맞춰서 그리기
+                gc.drawImage(inkSplatImage, x, y, tileSizeW, tileSizeH);
+            }
         }
+        // ===================================
+
 
         // 5) 정답/오답/아이템 플래시 (동일)
         long now = System.currentTimeMillis();
@@ -190,63 +222,113 @@ public class LandGrabPanel extends StackPane { // [수정] extends StackPane
     }
 
     /**
-     * [신규] 스플래시 애니메이션을 (r, c) 좌표에서 시작
+     * [신규] '스플래시!' 애니메이션
      */
     public void showSplashAnimation(int r, int c) {
         if (disposed || getScene() == null) return;
 
-        // 1. Label 생성
         Label splashLabel = new Label("스플래시!");
         splashLabel.setFont(splashAnimationFont);
-        splashLabel.setTextFill(Color.rgb(80, 160, 255));
-        splashLabel.setCache(true); // 애니메이션 성능 향상
+        splashLabel.setCache(true);
 
-        // 2. 좌표 계산
+        splashLabel.setStyle(
+                "-fx-text-fill: linear-gradient(from 0% 0% to 0% 100%, white 20%, #90C8FF 80%); " +
+                        "-fx-stroke: #003366; " +
+                        "-fx-stroke-width: 2;" +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 4, 0.4, 0, 2);"
+        );
+
         double w = canvas.getWidth();
         double h = canvas.getHeight();
-        if (w <= 0 || h <= 0) return; // 캔버스 크기가 0이면 중단
+        if (w <= 0 || h <= 0) return;
+
+        double offsetX = (this.getWidth() - w) / 2.0;
+        double offsetY = (this.getHeight() - h) / 2.0;
 
         double tileSizeW = w / LandGrabLogic.GRID_SIZE;
         double tileSizeH = h / LandGrabLogic.GRID_SIZE;
 
-        // 타일의 중앙 좌표
         double startX = c * tileSizeW + (tileSizeW / 2);
         double startY = r * tileSizeH + (tileSizeH / 2);
 
-        // Label의 너비/높이를 고려하여 중앙 정렬
-        // (Label이 생성된 직후에는 너비/높이가 0일 수 있으므로 Pos.CENTER 사용)
-        // 여기서는 animationPane에 바로 추가하므로 LayoutX/Y 사용
-        splashLabel.setLayoutX(startX - 50); // (텍스트 너비에 맞게 대략적인 오프셋)
-        splashLabel.setLayoutY(startY - 20); // (텍스트 높이에 맞게 대략적인 오프셋)
+        splashLabel.setLayoutX(offsetX + startX - 45);
+        splashLabel.setLayoutY(offsetY + startY - 15);
 
-        // 3. 애니메이션 설정
-        Duration duration = Duration.millis(1200); // 1.2초간 지속
+        Duration duration = Duration.millis(1200);
 
-        // Fade: 1.0 -> 0.0 (사라지기)
         FadeTransition ft = new FadeTransition(duration, splashLabel);
         ft.setFromValue(1.0);
         ft.setToValue(0.0);
-        ft.setDelay(Duration.millis(300)); // 0.3초 대기 후 사라지기 시작
+        ft.setDelay(Duration.millis(300));
 
-        // Translate: Y축으로 -80 픽셀 이동 (위로 올라가기)
         TranslateTransition tt = new TranslateTransition(duration, splashLabel);
         tt.setByY(-80);
         tt.setCycleCount(1);
 
-        // 4. 애니메이션 결합 및 실행
         ParallelTransition pt = new ParallelTransition(splashLabel, ft, tt);
         pt.setOnFinished(e -> {
-            // 애니메이션 종료 시 Pane에서 제거
             animationPane.getChildren().remove(splashLabel);
         });
 
-        // 5. Label을 Pane에 추가하고 애니메이션 시작
         animationPane.getChildren().add(splashLabel);
         pt.play();
     }
 
+    /**
+     * [신규] '먹물!' 애니메이션
+     */
+    public void showInkSplashAnimation(int r, int c) {
+        if (disposed || getScene() == null) return;
 
-    // (이하 동일)
+        Label inkLabel = new Label("먹물!");
+        inkLabel.setFont(splashAnimationFont);
+        inkLabel.setCache(true);
+
+        inkLabel.setStyle(
+                "-fx-text-fill: linear-gradient(from 0% 0% to 0% 100%, #BBBBBB 20%, #444444 80%); " +
+                        "-fx-stroke: #000000; " +
+                        "-fx-stroke-width: 2.5;" +
+                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.8), 6, 0.6, 0, 3);"
+        );
+
+        double w = canvas.getWidth();
+        double h = canvas.getHeight();
+        if (w <= 0 || h <= 0) return;
+
+        double offsetX = (this.getWidth() - w) / 2.0;
+        double offsetY = (this.getHeight() - h) / 2.0;
+
+        double tileSizeW = w / LandGrabLogic.GRID_SIZE;
+        double tileSizeH = h / LandGrabLogic.GRID_SIZE;
+
+        double startX = c * tileSizeW + (tileSizeW / 2);
+        double startY = r * tileSizeH + (tileSizeH / 2);
+
+        inkLabel.setLayoutX(offsetX + startX - 45);
+        inkLabel.setLayoutY(offsetY + startY - 15);
+
+        Duration duration = Duration.millis(1200);
+
+        FadeTransition ft = new FadeTransition(duration, inkLabel);
+        ft.setFromValue(1.0);
+        ft.setToValue(0.0);
+        ft.setDelay(Duration.millis(300));
+
+        TranslateTransition tt = new TranslateTransition(duration, inkLabel);
+        tt.setByY(-80);
+        tt.setCycleCount(1);
+
+        ParallelTransition pt = new ParallelTransition(inkLabel, ft, tt);
+        pt.setOnFinished(e -> {
+            animationPane.getChildren().remove(inkLabel);
+        });
+
+        animationPane.getChildren().add(inkLabel);
+        pt.play();
+    }
+
+
+    // (flashHit, flashMiss, flashBuffColor, dispose, activate 메서드 동일)
     public void flashHit() {
         if (disposed || getScene() == null) return;
         flashColor = FLASH_HIT;
@@ -270,13 +352,13 @@ public class LandGrabPanel extends StackPane { // [수정] extends StackPane
         disposed = true;
         flashColor = null;
         buffFlashColor = null;
-        animationPane.getChildren().clear(); // [신규] 애니메이션 정리
+        animationPane.getChildren().clear();
     }
 
     public void activate() {
         disposed = false;
         flashColor = null;
         buffFlashColor = null;
-        redraw(); // [수정] 활성화 시 다시 그리기
+        redraw();
     }
 }
