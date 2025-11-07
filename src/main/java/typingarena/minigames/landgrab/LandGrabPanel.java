@@ -114,6 +114,9 @@ public class LandGrabPanel extends StackPane { // [수정] extends StackPane
                 double x = c * tileSizeW;
                 double y = r * tileSizeH;
                 LandGrabLogic.TileState state = logic.getTileState(r, c);
+                if (state == null) {
+                    state = LandGrabLogic.TileState.EMPTY;
+                }
 
                 // [수정] 중립 타일 제거
                 switch (state) {
