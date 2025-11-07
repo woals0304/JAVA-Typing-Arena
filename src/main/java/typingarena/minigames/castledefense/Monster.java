@@ -10,7 +10,7 @@ import javafx.scene.text.Text;
 // 1. VBox를 상속받아 "머리"와 "몸통"을 수직으로 쌓습니다.
 public class Monster extends VBox { 
     private final String keyword;
-    private final double speed = 2.0;
+    private final double speed = 1.75;
     private boolean isAlive = true;
     private boolean isTargeted = false;
 

@@ -6,6 +6,8 @@ import javafx.animation.TranslateTransition;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
+import javafx.scene.control.Alert; // [추가] 팝업창
+import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
@@ -16,9 +18,12 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Polygon;
 import javafx.scene.shape.Rectangle;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.util.Duration;
+
 
 // ( 단어 로딩(Gson) 임포트)
 import com.google.gson.Gson;
@@ -50,35 +55,47 @@ public class CastleDefenseGame extends Stage {
     private Castle castle = new Castle();
     private List<Monster> activeMonsters = new ArrayList<>();
     
+    // [추가] 하트 아이템 리스트
+    private List<HeartItem> activeHearts = new ArrayList<>(); 
+    
     private final double GAME_WIDTH = 800;
     private final double GAME_HEIGHT = 500;
     
-    private final double CASTLE_WALL_X_BOUNDARY = 80.0;
+    private final double CASTLE_WALL_X_BOUNDARY = 120.0;
 
-    private final double SPAWN_Y_MIN = GAME_HEIGHT * 0.25; // 25% ~ 75% 사이
+    private final double SPAWN_Y_MIN = GAME_HEIGHT * 0.25; // 몬스터 스폰 영역 (아래쪽)
     private final double SPAWN_Y_MAX = GAME_HEIGHT * 0.75;
     
-    private final long SPAWN_INTERVAL_NS = 2_000_000_000L;
+    // [추가] 하트 스폰 영역 (위쪽)
+    private final double SPAWN_HEART_Y = GAME_HEIGHT * 0.1; // 상단 10% 위치
+    
+    private final long SPAWN_INTERVAL_NS = 2_000_000_000L; // 2초 (몬스터)
     private long lastMonsterSpawnTime = 0;
     
-    private AnimationTimer gameLoop;
-    private long gameStartTime; // 게임 시작 시간 기록
+    // [추가] 하트 스폰 간격 (예: 15초)
+    private final long SPAWN_HEART_INTERVAL_NS = 15_000_000_000L; 
+    private long lastHeartSpawnTime = 0;
+    
+    private final long GAME_DURATION_SECONDS = 60;
 
-    // 줄다리기 게임의 '번쩍' 효과 로직
-    private Rectangle flashOverlay; // 화면 전체를 덮을 빨간 사각형
-    private long damageFlashUntil = 0L; // 번쩍 효과가 끝나는 시간
+    private AnimationTimer gameLoop;
+    private long gameStartTime; 
+
+    private Rectangle flashOverlay; 
+    private long damageFlashUntil = 0L; 
 
     // ----------------------- 2. 뷰 요소 (UI) -----------------------
     private Pane gamePane = new Pane();
     
-    // UI 요소들
-    private Label timerLabel = new Label("00:00"); // 상단 중앙
-    private Label scoreLabel = new Label("Score: 0"); // 우측 상단
-    private HBox heartsBox = new HBox(5); // 우측 상단 (하트 담을 곳)
+    private Label timerLabel = new Label("00:00"); 
+    private Label scoreLabel = new Label("Score: 0"); 
+    private HBox heartsBox = new HBox(5); 
     
     private TextField inputField = new TextField();
     
-    private Rectangle player; 
+    private final Button startButton = new Button("게임 시작");
+    
+    private Circle player; // [수정] 네모를 원으로
     private int score = 0;
     
     public CastleDefenseGame() {
@@ -86,73 +103,107 @@ public class CastleDefenseGame extends Stage {
         
         BorderPane root = new BorderPane();
 
-        // 1. 상단 UI (시간)
+        // (상단 UI 바 설정 ... 기존과 동일)
         HBox topLeftUI = new HBox(timerLabel);
         topLeftUI.setAlignment(Pos.CENTER);
         topLeftUI.setPadding(new Insets(5));
         timerLabel.setStyle("-fx-font-size: 20px; -fx-text-fill: white; -fx-font-weight: bold;");
-
-        // 2. 상단 UI (점수, 하트)
         HBox topRightUI = new HBox(10, scoreLabel, heartsBox);
         topRightUI.setAlignment(Pos.CENTER_RIGHT);
         topRightUI.setPadding(new Insets(5));
         scoreLabel.setStyle("-fx-font-size: 20px; -fx-text-fill: white; -fx-font-weight: bold;");
-        updateHeartsUI(); // 초기 하트 3개 그리기
-
-        // 3. BorderPane을 사용해 상단 UI를 양쪽으로 배치
+        updateHeartsUI(); 
         BorderPane topUIBar = new BorderPane();
-        topUIBar.setLeft(topLeftUI); // 시간(좌측 상단처럼 보이지만 중앙 정렬됨)
-        topUIBar.setCenter(new Label("")); // 빈 공간
-        topUIBar.setRight(topRightUI); // 점수, 하트 (우측 상단)
-        topUIBar.setStyle("-fx-background-color: #1bbc4eff;"); // 상단 바 배경색
+        topUIBar.setLeft(topLeftUI); 
+        topUIBar.setCenter(new Label("")); 
+        topUIBar.setRight(topRightUI); 
+        topUIBar.setStyle("-fx-background-color: #57ff8cff;"); 
+        root.setTop(topUIBar); 
         
-        root.setTop(topUIBar); // BorderPane 상단에 배치
-        
+        // (중앙 게임 화면 ... 기존과 동일)
         gamePane.setPrefSize(GAME_WIDTH, GAME_HEIGHT);
-        gamePane.setStyle("-fx-background-color: #5e8b5fff;");
-        
+        gamePane.setStyle("-fx-background-color: #ffffffff;");
         flashOverlay = new Rectangle(GAME_WIDTH, GAME_HEIGHT);
-        flashOverlay.setFill(Color.rgb(220, 80, 80, 0.4)); // 반투명 빨간색 (0.4 = 40%)
-        flashOverlay.setVisible(false); // 처음엔 숨김
-
-        // 성 벽 그리기
+        flashOverlay.setFill(Color.rgb(220, 80, 80, 0.4)); 
+        flashOverlay.setVisible(false); 
         drawCastleWalls();
-
-        // 6. 플레이어(초록 네모) 위치 (성 벽 안)
-        player = new Rectangle(40, 40,  Color.web("#62b2e8ff"));
+       player = new Circle(20, Color.web("#87c7f1ff"));
         player.setStroke(Color.BLACK);
-        player.setTranslateX(CASTLE_WALL_X_BOUNDARY - 50); // 성 벽 안쪽(X=30)
-        player.setTranslateY(GAME_HEIGHT / 2 - 20); // 화면 중앙
+        player.setId("PLAYER"); // [추가] ★★★ 플레이어에게 "PLAYER"라는 이름표를 붙여줍니다 ★★★
+        player.setTranslateX(CASTLE_WALL_X_BOUNDARY - 60);
+        player.setTranslateY(GAME_HEIGHT / 2);
         gamePane.getChildren().add(player);
-
         gamePane.getChildren().add(flashOverlay);
-        
-        root.setCenter(gamePane); // BorderPane 중앙에 배치
+        root.setCenter(gamePane); 
 
-        // 7. 하단 입력 바
+        // (하단 입력 바 ... 기존과 동일)
         inputField.setOnAction(e -> handleUserInput(inputField.getText()));
         inputField.setPromptText("여기에 단어를 입력하세요...");
-        
         inputField.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;"); 
-        
-        inputField.setPrefHeight(50); // 높이 50으로 키움
-        inputField.setMaxWidth(GAME_WIDTH * 0.2); // 최대 너비를 게임 화면의 60%로 제한
-        inputField.setMinWidth(GAME_WIDTH * 0.2); //  최소 너비도 동일하게 설정
+        inputField.setDisable(true); 
+        inputField.setPrefHeight(50); 
+        inputField.setMaxWidth(GAME_WIDTH * 0.4); 
+        inputField.setMinWidth(GAME_WIDTH * 0.4); 
+        startButton.setFont(Font.font("System", FontWeight.BOLD, 18));
+        startButton.setOnAction(e -> startGame());
+        HBox bottomBox = new HBox(10, inputField, startButton); 
+        bottomBox.setAlignment(Pos.CENTER); 
+        bottomBox.setPadding(new Insets(10, 20, 10, 20)); 
+        bottomBox.setStyle("-fx-background-color: #ffffffff;");
+        root.setBottom(bottomBox); 
 
-        // 입력창을 담을 HBox 생성 (하단 중앙 정렬용)
-        HBox bottomBox = new HBox(inputField);
-        bottomBox.setAlignment(Pos.CENTER); // HBox 내부에서 inputField를 중앙 정렬
-        bottomBox.setPadding(new Insets(10, 20, 10, 20)); // 상하좌우 여백
-        bottomBox.setStyle("-fx-background-color: #1bbc4eff;"); // 상단 바와 동일한 배경색
-
-        root.setBottom(bottomBox); // BorderPane 하단에 배치
-
+        // 6. 리스너 및 게임 루프 정의
         castle.hpProperty().addListener((obs, oldVal, newVal) -> updateHeartsUI());
         
-        startGameLoop();
+        gameLoop = new AnimationTimer() {
+            @Override
+            public void handle(long now) {
+                // (승/패 조건 확인 ... 기존과 동일)
+                if (castle.isDestroyed()) {
+                    stop();
+                    showGameOver(false); 
+                    return;
+                }
+                long elapsedSeconds = (now - gameStartTime) / 1_000_000_000;
+                if (elapsedSeconds >= GAME_DURATION_SECONDS) {
+                    stop();
+                    showGameOver(true); 
+                    return;
+                }
+                
+                updateTimer(now); 
+                 
+                // (번쩍 효과 ... 기존과 동일)
+                if (damageFlashUntil > 0L) {
+                    if (now < damageFlashUntil) {
+                        flashOverlay.setVisible(true); 
+                    } else {
+                        flashOverlay.setVisible(false); 
+                        damageFlashUntil = 0L; 
+                    }
+                }
+
+                // (몬스터 스폰 ... 기존과 동일)
+                if (now - lastMonsterSpawnTime > SPAWN_INTERVAL_NS) {
+                    spawnMonster();
+                    lastMonsterSpawnTime = now;
+                }
+                
+                // [추가] 하트 스폰 로직
+                if (now - lastHeartSpawnTime > SPAWN_HEART_INTERVAL_NS) {
+                    spawnHeartItem();
+                    lastHeartSpawnTime = now;
+                }
+
+                moveAndCheckMonsters();
+                
+                // [추가] 하트 이동 로직
+                moveAndCheckHeartItems();
+            }
+        };
 
         setTitle("🏰 성 방어 타자 게임");
-        setScene(new Scene(root, GAME_WIDTH, GAME_HEIGHT + 36 + 70)); // 상단 UI바, 하단 UI바 높이 반영
+        setScene(new Scene(root, GAME_WIDTH, GAME_HEIGHT + 36 + 70)); 
         
         setOnCloseRequest(e -> {
             if (gameLoop != null) {
@@ -161,104 +212,96 @@ public class CastleDefenseGame extends Stage {
         });
     }
 
-    // 성 벽을 그리는 메서드
     private void drawCastleWalls() {
-        Color wallColor = Color.web("#3498db"); // 파란색
-        double wallThickness = 20;
-
-        // 성 벽 그리기 (간략화된 버전)
-        // 오른쪽 기둥 (판정선)
+        // (기존과 동일)
+        Color wallColor = Color.web("#3498db"); 
+        double wallThickness = 30;
         Rectangle rightPillar = new Rectangle(CASTLE_WALL_X_BOUNDARY - wallThickness, 0, wallThickness, GAME_HEIGHT);
         rightPillar.setFill(wallColor);
-        
-        // 위쪽 지붕
         Rectangle topRoof = new Rectangle(wallThickness, 0, CASTLE_WALL_X_BOUNDARY - wallThickness, wallThickness);
         topRoof.setFill(wallColor);
-        // 아래쪽 바닥
         Rectangle bottomRoof = new Rectangle(wallThickness, GAME_HEIGHT - wallThickness, CASTLE_WALL_X_BOUNDARY - wallThickness, wallThickness);
         bottomRoof.setFill(wallColor);
-
         gamePane.getChildren().addAll( rightPillar, topRoof, bottomRoof);
     }
     
-    // ----------------------- 3. 게임 루프 (핵심) -----------------------
-    private void startGameLoop() {
-        gameStartTime = System.nanoTime(); // 게임 시작 시간 기록
-        gameLoop = new AnimationTimer() {
-            @Override
-            public void handle(long now) {
-                if (castle.isDestroyed()) {
-                    stop();
-                    showGameOver();
-                    return;
-                }
-                
-                updateTimer(now); 
-                // 하트가 닳았을 때 '번쩍' 효과 처리 
-                if (damageFlashUntil > 0L) {
-                    if (now < damageFlashUntil) {
-                        flashOverlay.setVisible(true); // 1. 보여주기
-                    } else {
-                        flashOverlay.setVisible(false); // 2. 숨기기
-                        damageFlashUntil = 0L; // 3. 타이머 리셋
-                    }
-                }
+    // ----------------------- 3. 게임 시작 메서드 -----------------------
+    private void startGame() {
+        // (기존 리셋 로직 ... )
+        score = 0;
+        damageFlashUntil = 0L;
+        castle.hpProperty().set(3);
+        updateScoreLabel();
+        updateHeartsUI();
+        timerLabel.setText("00:00");
+        scoreLabel.setTextFill(Color.WHITE); 
+        flashOverlay.setVisible(false);
+        
+        // [수정] 몬스터뿐만 아니라 하트 아이템도 모두 제거
+        gamePane.getChildren().removeIf(node -> node instanceof Monster || (node instanceof Circle && !"PLAYER".equals(node.getId())));
+        activeHearts.clear(); // [추가]
 
-                if (now - lastMonsterSpawnTime > SPAWN_INTERVAL_NS) {
-                    spawnMonster();
-                    lastMonsterSpawnTime = now;
-                }
-                moveAndCheckMonsters();
-            }
-        };
-        gameLoop.start();
+        // [추가] 스폰 타이머 리셋
+        lastMonsterSpawnTime = 0L;
+        lastHeartSpawnTime = 0L; // [추가]
+
+        // (게임 시작 ... 기존과 동일)
+        startButton.setDisable(true); 
+        inputField.setDisable(false); 
+        inputField.requestFocus(); 
+        
+        gameStartTime = System.nanoTime(); 
+        gameLoop.start(); 
     }
-    
-    // 타이머 업데이트 메서드 (상단 중앙)
+
+    // (타이머 업데이트 ... 기존과 동일)
     private void updateTimer(long now) {
         long elapsedSeconds = (now - gameStartTime) / 1_000_000_000;
         long minutes = elapsedSeconds / 60;
         long seconds = elapsedSeconds % 60;
-        timerLabel.setText(String.format("%02d:%02d", minutes, seconds));
+        
+        if (elapsedSeconds >= GAME_DURATION_SECONDS) {
+            timerLabel.setText(String.format("%02d:%02d", GAME_DURATION_SECONDS / 60, GAME_DURATION_SECONDS % 60));
+        } else {
+            timerLabel.setText(String.format("%02d:%02d", minutes, seconds));
+        }
     }
     
-    // ----------------------- 4. 몬스터 관리 로직 -----------------------
+    // ----------------------- 4. 몬스터/아이템 관리 로직 -----------------------
     
+    // (spawnMonster ... 기존과 동일)
     private void spawnMonster() {
         Random random = new Random();
-        
         if (WORD_POOL.isEmpty()) return;
         String keyword = WORD_POOL.get(random.nextInt(WORD_POOL.size()));
-        
         double startX = GAME_WIDTH - 50;
-
-        // 스폰 영역 내에서만 스폰
         double spawnHeightRange = SPAWN_Y_MAX - SPAWN_Y_MIN;
         double startY = SPAWN_Y_MIN + random.nextDouble() * spawnHeightRange;
-
         Monster monster = new Monster(keyword, startX, startY);
         activeMonsters.add(monster);
         gamePane.getChildren().add(monster);
-
-        // 몬스터가 다른 요소(플레이어, 벽) 뒤에 그려지도록 맨 뒤로 보냄
         monster.toBack();
     }
     
+    // [추가] 하트 아이템 스폰 메서드
+    private void spawnHeartItem() {
+        double startX = GAME_WIDTH - 50; // 오른쪽 끝
+        double startY = SPAWN_HEART_Y;   // 화면 상단 (10%)
+        
+        HeartItem heart = new HeartItem(startX, startY);
+        activeHearts.add(heart);
+        gamePane.getChildren().add(heart);
+    }
+    
+    // (moveAndCheckMonsters ... 기존과 동일)
     private void moveAndCheckMonsters() {
         List<Monster> monstersToRemove = new ArrayList<>();
-        
         for (Monster monster : activeMonsters) {
             if (monster.isAlive()) {
                 monster.move();
-
-                // 몬스터가 성 벽(CASTLE_WALL_X_BOUNDARY)에 닿았을 때 HP 감소 판정
                 if (monster.getTranslateX() <= CASTLE_WALL_X_BOUNDARY) { 
                     castle.takeDamage();
-
-                    // '번쩍' 효과 타이머 시작 (0.15초)
                     damageFlashUntil = System.nanoTime() + 150_000_000L;
-
-                    System.out.println("⚠️ 성이 공격 받았습니다! 남은 HP: " + castle.getHp());
                     monstersToRemove.add(monster);
                 }
             } else {
@@ -268,6 +311,26 @@ public class CastleDefenseGame extends Stage {
         removeMonsters(monstersToRemove);
     }
     
+    // [추가] 하트 아이템 이동 및 제거 메서드
+    private void moveAndCheckHeartItems() {
+        List<HeartItem> itemsToRemove = new ArrayList<>();
+        for (HeartItem item : activeHearts) {
+            if (item.isAlive()) {
+                item.move();
+                // [추가] 화면 왼쪽 밖으로 나가면 제거 (성에는 충돌 안 함)
+                if (item.getTranslateX() < -50) { 
+                    itemsToRemove.add(item);
+                }
+            } else {
+                // (kill() 당한 하트도 제거)
+                itemsToRemove.add(item);
+            }
+        }
+        // 화면과 리스트에서 제거
+        gamePane.getChildren().removeAll(itemsToRemove);
+        activeHearts.removeAll(itemsToRemove);
+    }
+    
     private void removeMonsters(List<Monster> monsters) {
         gamePane.getChildren().removeAll(monsters);
         activeMonsters.removeAll(monsters);
@@ -275,10 +338,38 @@ public class CastleDefenseGame extends Stage {
 
     // ----------------------- 5. 사용자 입력 및 처치 로직 -----------------------
     
+    // [대폭 수정] 
     private void handleUserInput(String input) {
+        if (inputField.isDisabled()) return;
         String trimmedInput = input.trim();
-        if (trimmedInput.isEmpty()) return;
-        
+        if (trimmedInput.isEmpty()) {
+            inputField.clear(); // 입력창이 비어도 클리어
+            return;
+        }
+
+        // --- [추가] 1. '하트' 아이템 먼저 확인 ---
+        if (trimmedInput.equals("하트")) {
+            // 살아있는 하트 아이템을 찾음 (선착순 1개)
+            HeartItem matchedHeart = activeHearts.stream()
+                .filter(HeartItem::isAlive)
+                .findFirst()
+                .orElse(null);
+                
+            if (matchedHeart != null) {
+                matchedHeart.kill(); // 1. 하트 아이템 제거 (다음 루프에서 정리됨)
+                castle.addHp();      // 2. HP 1 증가 (Castle.java에 추가된 메서드)
+                updateHeartsUI();    // 3. 하트 UI 갱신
+                
+                // (명중 이펙트 - 하트를 흰색으로 번쩍이게 함)
+                matchedHeart.setStyle("-fx-effect: dropshadow(gaussian, white, 10, 0.8, 0, 0);");
+
+                inputField.clear();
+                return; // 하트 처리 완료, 몬스터 검색 안 함
+            }
+        }
+        // --- 하트 처리 끝 ---
+
+        // 2. (기존 로직) 몬스터 확인
         Monster matchedMonster = activeMonsters.stream()
             .filter(monster -> monster.isAlive() && !monster.isTargeted() && monster.getKeyword().equals(trimmedInput))
             .findFirst()
@@ -287,75 +378,82 @@ public class CastleDefenseGame extends Stage {
         if (matchedMonster != null) {
             matchedMonster.setTargeted(true);
             launchProjectile(matchedMonster);
-            
-        } else {
-            System.out.println("❌ 오타 또는 대상이 없습니다.");
         }
         
         inputField.clear();
     }
     
+    // (launchProjectile ... 기존과 동일)
     private void launchProjectile(Monster targetMonster) {
         Circle projectile = new Circle(5, Color.CYAN);
-        projectile.setTranslateX(player.getTranslateX() + player.getWidth() / 2);
-        projectile.setTranslateY(player.getTranslateY() + player.getHeight() / 2);
-        
+        projectile.setTranslateX(player.getTranslateX());
+        projectile.setTranslateY(player.getTranslateY());
         gamePane.getChildren().add(projectile);
-
         TranslateTransition tt = new TranslateTransition(Duration.millis(400), projectile);
-        
         tt.setToX(targetMonster.getTranslateX() + targetMonster.getWidth() / 2);
         tt.setToY(targetMonster.getTranslateY() + targetMonster.getHeight() / 2);
-
         tt.setOnFinished(e -> {
             gamePane.getChildren().remove(projectile);
-            
             targetMonster.kill();
             targetMonster.setStyle("-fx-background-color: green; -fx-opacity: 0.5;");
-            
             score += 10;
-            updateScoreLabel(); // 스코어만 갱신
-            
-            System.out.println("✅ 명중! '" + targetMonster.getKeyword() + "' 몬스터 처치!");
+            updateScoreLabel();
         });
-
         tt.play();
     }
     
     // ----------------------- 6. UI 및 게임 종료 -----------------------
 
-    // 스코어만 갱신하는 메서드 (우측 상단)
+    // (updateScoreLabel ... 기존과 동일)
     private void updateScoreLabel() {
         scoreLabel.setText(String.format("Score: %d", score));
     }
 
-    // 하트 UI를 그리는 메서드 (우측 상단)
+    // (updateHeartsUI ... 기존과 동일)
     private void updateHeartsUI() {
-        heartsBox.getChildren().clear(); // 기존 하트 모두 제거
+        heartsBox.getChildren().clear(); 
         for (int i = 0; i < castle.getHp(); i++) {
             heartsBox.getChildren().add(createHeartIcon());
         }
     }
 
-    // 하트 아이콘 생성 메서드 (간단한 '❤️' 이모지 사용)
+    // (createHeartIcon ... 기존과 동일)
     private Label createHeartIcon() {
         Label heartLabel = new Label("❤️");
         heartLabel.setStyle("-fx-font-size: 20px;");
         return heartLabel;
     }
     
-    private void showGameOver() {
-        if (gameLoop != null) {
-            gameLoop.stop();
-        }
-        inputField.setDisable(true);
-        // 게임 오버 시 상단 UI에 최종 점수 표시
-        scoreLabel.setText(String.format("최종 점수: %d", score));
-        scoreLabel.setTextFill(Color.YELLOW); // 노란색으로 강조
-        System.out.println("게임 오버! 최종 점수: " + score);
-    }
+   // (showGameOver ... 님의 요청대로 '승/패' 분기)
+   private void showGameOver(boolean isVictory) { 
+       if (gameLoop != null) {
+           gameLoop.stop();
+       }
+       inputField.setDisable(true);
+       startButton.setDisable(false); 
+       
+       String finalMessage = String.format("최종 점수: %d", score);
+       scoreLabel.setText(finalMessage);
+       scoreLabel.setTextFill(Color.YELLOW); 
+       
+       if (isVictory) {
+           showResultDialog("승리! 성을 지켰습니다.", finalMessage);
+       } else {
+           showResultDialog("패배! 성이 부서졌습니다.", finalMessage);
+       }
+   }
+   
+   // [추가] 님의 요청: '게임 종료' 팝업창 띄우기 (줄다리기 게임 참조)
+   private void showResultDialog(String header, String content) {
+       Alert alert = new Alert(Alert.AlertType.INFORMATION);
+       alert.setTitle("결과");
+       alert.setHeaderText(header); 
+       alert.setContentText(content); 
+       alert.initOwner(this);
+       alert.show();
+   }
 
-    // ----------------------- 7. 단어 로딩-----------------------
+    // ----------------------- 7. 단어 로딩 (기존과 동일) -----------------------
     
     private static List<String> loadWordPool() {
         List<String> words = loadWordsFromClasspath();
