@@ -14,17 +14,15 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
+import java.util.List; // [신규] List 임포트
 import java.util.Random;
-import java.util.function.Consumer; // [신규] 콜백을 위해 임포트
+import java.util.function.Consumer;
 
 /**
  * [대규모 수정됨]
- * 1. [룰 1] TileState에서 'NEUTRAL' (회색) 제거
- * 2. [룰 1] submitAnswer/aiCapture: 땅 뺏기 룰을 'EMPTY'(흰색)로 변경
- * 3. [룰 2] applySplashCapture: 스플래시 효과도 'EMPTY'(흰색)로 변경
- * 4. [수정] '스플래시!' 텍스트 피드백을 'effects.activateSplashText()' 대신 'onSplashCallback' 콜백 호출로 변경
- * 5. '중립' 점수 관련 로직 모두 제거
+ * 1. ... (이전 수정 사항들) ...
+ * 7. [신규] '먹물!' 텍스트 애니메이션 콜백 (onInkSplashCallback) 추가
+ * 8. [신규] 먹물 효과가 여러 개 중첩되도록 List<BlindedTile> 로직 반영
  */
 public class LandGrabLogic {
 
@@ -34,8 +32,7 @@ public class LandGrabLogic {
     private static final List<String> WORD_POOL = loadWordPool();
     private final Random rnd = new Random();
 
-    // ===== 2. 게임 상태 정의 (수정) =====
-    // [수정] NEUTRAL (회색 중립 지대) 제거
+    // ===== 2. 게임 상태 정의 (동일) =====
     public enum TileState { EMPTY, PLAYER, AI }
     public enum WordModifier { NEUTRAL, TRAP, BUFF }
 
@@ -46,43 +43,42 @@ public class LandGrabLogic {
 
     private int scorePlayer = 0;
     private int scoreAI = 0;
-    // private int scoreNeutral = 0; // [수정] 중립 타일 카운트 제거
     private int combo = 0;
     private int timeMs = 60_000;
     private boolean running = false;
     private final LandGrabEffects effects = new LandGrabEffects();
 
-    // [신규] 애니메이션 콜백 (좌표 [r, c]를 전달)
-    private Consumer<int[]> onSplashCallback = (coords) -> {}; // Null 방지
+    private Consumer<int[]> onSplashCallback = (coords) -> {};
+    private Consumer<int[]> onInkSplashCallback = (coords) -> {};
 
     // ===== 3. 게임 밸런스 값 (동일) =====
     private int aiTickTimerMs = 0;
     private static final int AI_CAPTURE_INTERVAL_MS = 2_000;
+    private static final int BLIND_DURATION_MS = 3_000;
 
-    // ===== 4. 공개 Getter/Setter (수정) =====
+    // ===== 4. 공개 Getter/Setter (동일) =====
     public TileState getTileState(int r, int c) { return grid[r][c]; }
     public String getWord(int r, int c) { return wordGrid[r][c]; }
     public WordModifier getModifier(int r, int c) { return modifierGrid[r][c]; }
     public int getScorePlayer() { return scorePlayer; }
     public int getScoreAI() { return scoreAI; }
-    // public int getScoreNeutral() { return scoreNeutral; } // [수정] 제거
     public int getCombo() { return combo; }
     public int getTimeMs() { return timeMs; }
     public boolean isRunning() { return running; }
     public LandGrabEffects getEffects() { return effects; }
 
-    /**
-     * [신규] LandGrabGame에서 애니메이션 콜백을 주입하기 위한 메서드
-     */
     public void setOnSplashCallback(Consumer<int[]> callback) {
         this.onSplashCallback = (callback != null) ? callback : (coords) -> {};
     }
 
-    // ===== 5. 게임 흐름 제어 (수정) =====
+    public void setOnInkSplashCallback(Consumer<int[]> callback) {
+        this.onInkSplashCallback = (callback != null) ? callback : (coords) -> {};
+    }
+
+    // ===== 5. 게임 흐름 제어 (동일) =====
     public void startGame() {
         scorePlayer = 0;
         scoreAI = 0;
-        // scoreNeutral = 0; // [수정] 제거
         combo = 0;
         timeMs = 60_000;
         running = true;
@@ -92,7 +88,7 @@ public class LandGrabLogic {
         for (int r = 0; r < GRID_SIZE; r++) {
             for (int c = 0; c < GRID_SIZE; c++) {
                 grid[r][c] = TileState.EMPTY;
-                setNewWord(r, c, TileState.EMPTY); // 새 단어로 채우기
+                setNewWord(r, c, TileState.EMPTY);
             }
         }
     }
@@ -114,7 +110,6 @@ public class LandGrabLogic {
             return "무승부!";
         }
 
-        // [수정] 중립 점수 제거
         if (scorePlayer + scoreAI == GRID_SIZE * GRID_SIZE) {
             running = false;
             if (scorePlayer > scoreAI) return "승리! 모든 땅을 차지했습니다.";
@@ -125,22 +120,24 @@ public class LandGrabLogic {
     }
 
     /**
-     * [수정됨] AI가 땅 뺏기 룰에 따라 타일을 점령
+     * [수정됨] AI가 먹물 타일을 피해서 점령하도록 (List 기반)
      */
     private void aiCaptureTile() {
         if (!running) return;
 
-        // AI는 자신에게 유리한 타일(EMPTY, PLAYER 순)을 우선 점령
         List<int[]> emptyTiles = new ArrayList<>();
         List<int[]> playerTiles = new ArrayList<>();
-        // List<int[]> neutralTiles = new ArrayList<>(); // [수정] 제거
 
         for (int r = 0; r < GRID_SIZE; r++) {
             for (int c = 0; c < GRID_SIZE; c++) {
+                // [수정] effects.isTileBlinded(r, c)로 해당 타일이 가려졌는지 확인
+                if (effects.isTileBlinded(r, c)) {
+                    continue;
+                }
+
                 switch(grid[r][c]) {
                     case EMPTY: emptyTiles.add(new int[]{r,c}); break;
                     case PLAYER: playerTiles.add(new int[]{r,c}); break;
-                    // case NEUTRAL: neutralTiles.add(new int[]{r,c}); break; // [수정] 제거
                     default: break;
                 }
             }
@@ -149,48 +146,51 @@ public class LandGrabLogic {
         int[] target = null;
         if (!emptyTiles.isEmpty()) {
             target = emptyTiles.get(rnd.nextInt(emptyTiles.size()));
-        } else if (!playerTiles.isEmpty()) { // 뺏을 플레이어 땅이 있다면
+        } else if (!playerTiles.isEmpty()) {
             target = playerTiles.get(rnd.nextInt(playerTiles.size()));
         }
-        // [수정] 중립 타일 점령 로직 제거
 
         if (target != null) {
             int r = target[0];
             int c = target[1];
             TileState oldState = grid[r][c];
-            TileState newState = TileState.AI; // 기본은 AI 땅으로
+            TileState newState = TileState.AI;
 
             switch(oldState) {
                 case EMPTY:
                     grid[r][c] = TileState.AI;
                     scoreAI++;
                     break;
-                case PLAYER: // [룰 1 수정] 플레이어 땅 -> '흰색'(EMPTY)으로
+                case PLAYER:
                     grid[r][c] = TileState.EMPTY;
                     scorePlayer--;
                     newState = TileState.EMPTY;
                     break;
-                // [수정] 중립 점령 로직 제거
                 default: break;
             }
-            setNewWord(r, c, newState); // 새 단어 생성
+            setNewWord(r, c, newState);
         }
     }
 
     /**
-     * [대규모 수정] 플레이어 입력 처리 (새 룰 + 콜백 적용)
+     * [대규모 수정] 플레이어 입력 처리 (List 기반 먹물 타일 확인)
      */
     public boolean submitAnswer(String typed) {
         if (!running || typed == null || typed.isEmpty()) return false;
 
         for (int r = 0; r < GRID_SIZE; r++) {
             for (int c = 0; c < GRID_SIZE; c++) {
-                // 이미 내 땅인 곳은 무시 (단어는 보이지만 칠 필요 없음)
+                // 이미 내 땅인 곳은 무시
                 if (grid[r][c] == TileState.PLAYER) continue;
+
+                // [수정] effects.isTileBlinded(r, c)로 해당 타일이 가려졌는지 확인
+                if (effects.isTileBlinded(r, c)) {
+                    continue;
+                }
 
                 if (typed.equalsIgnoreCase(wordGrid[r][c])) {
                     TileState oldState = grid[r][c];
-                    TileState newState = TileState.PLAYER; // 기본은 내 땅으로
+                    TileState newState = TileState.PLAYER;
                     boolean captured = false;
 
                     switch(oldState) {
@@ -199,30 +199,30 @@ public class LandGrabLogic {
                             scorePlayer++;
                             captured = true;
                             break;
-                        case AI: // [룰 1 수정] AI 땅 -> '흰색'(EMPTY)으로
+                        case AI:
                             grid[r][c] = TileState.EMPTY;
                             scoreAI--;
                             newState = TileState.EMPTY;
-                            captured = true; // (흰색으로 뺏은 것도 성공)
+                            captured = true;
                             break;
-                        // [수정] 중립 점령 로직 제거
                         default: break;
                     }
 
                     if (captured) {
                         combo++;
-                        WordModifier modifier = modifierGrid[r][c]; // 캡처 전 모디파이어 기억
+                        WordModifier modifier = modifierGrid[r][c];
 
                         setNewWord(r, c, newState);
 
                         if (modifier == WordModifier.TRAP) {
-                            effects.activateBlind(3_000);
+                            // [수정] applyBlindTileEffect가 이제 List를 보고 빈 곳에 추가함
+                            applyBlindTileEffect();
                             effects.recordItemActivation(ItemType.TRAP_BLIND);
+                            onInkSplashCallback.accept(new int[]{r, c});
+
                         } else if (modifier == WordModifier.BUFF) {
                             applySplashCapture(r, c);
                             effects.recordItemActivation(ItemType.BUFF_SPLASH);
-
-                            // [수정] 텍스트 타이머 대신, 애니메이션 콜백 호출 (좌표 전달)
                             onSplashCallback.accept(new int[]{r, c});
                         }
 
@@ -235,6 +235,27 @@ public class LandGrabLogic {
         combo = 0;
         return false; // 오답
     }
+
+    /**
+     * [수정됨] 먹물 트랩 발동 시, '내 땅이 아니고' + '이미 가려지지 않은' 타일 중 하나를 랜덤하게 가림
+     */
+    private void applyBlindTileEffect() {
+        List<int[]> validTargets = new ArrayList<>();
+        for (int r = 0; r < GRID_SIZE; r++) {
+            for (int c = 0; c < GRID_SIZE; c++) {
+                // [수정] 내 땅(PLAYER)이 아니고, 현재 이미 가려진 타일도 아닌 경우
+                if (grid[r][c] != TileState.PLAYER && !effects.isTileBlinded(r, c)) {
+                    validTargets.add(new int[]{r, c});
+                }
+            }
+        }
+
+        if (!validTargets.isEmpty()) {
+            int[] target = validTargets.get(rnd.nextInt(validTargets.size()));
+            effects.activateBlindTile(target[0], target[1], BLIND_DURATION_MS);
+        }
+    }
+
 
     /**
      * [수정됨] 룰 2: 인접 타일 획득 (버프 아이템)
@@ -266,20 +287,19 @@ public class LandGrabLogic {
                     grid[nr][nc] = TileState.PLAYER;
                     scorePlayer++;
                     break;
-                case AI: // [룰 1 수정] 스플래시로 AI 땅 칠 때도 '흰색'(EMPTY)으로
+                case AI:
                     grid[nr][nc] = TileState.EMPTY;
                     scoreAI--;
                     newState = TileState.EMPTY;
                     break;
-                // [수정] 중립 로직 제거
                 default: break;
             }
-            setNewWord(nr, nc, newState); // 스플래시 타격된 곳도 새 단어
+            setNewWord(nr, nc, newState);
         }
     }
 
 
-    // ===== 6. 단어 생성 로직 (동일) =====
+    // ===== 6. 단어 생성 로직 (수정) =====
 
     private void setNewWord(int r, int c, TileState currentState) {
         String newWord;
@@ -298,10 +318,19 @@ public class LandGrabLogic {
         modifierGrid[r][c] = randomWordModifier(currentState);
     }
 
+    /**
+     * [수정됨] 단어 중복 검사 (List 기반 먹물 타일 확인)
+     */
     private boolean isWordDuplicateOnGrid(String word, int r, int c) {
         for (int i = 0; i < GRID_SIZE; i++) {
             for (int j = 0; j < GRID_SIZE; j++) {
                 if (i == r && j == c) continue;
+
+                // [수정] effects.isTileBlinded(i, j)로 해당 타일이 가려졌는지 확인
+                if (effects.isTileBlinded(i, j)) {
+                    continue;
+                }
+
                 if (grid[i][j] != TileState.PLAYER) {
                     if (word.equalsIgnoreCase(wordGrid[i][j])) {
                         return true;

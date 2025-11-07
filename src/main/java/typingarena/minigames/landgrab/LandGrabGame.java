@@ -26,6 +26,7 @@ import typingarena.minigames.landgrab.LandGrabEffects.ItemType;
  * 1. [룰 1] '중립' 점수판(lblNeutralScore) 관련 코드 모두 제거
  * 2. [신규] Logic의 스플래시 콜백을 Panel의 애니메이션 메서드에 연결
  * 3. [수정] Panel이 StackPane으로 변경됨에 따라 불필요한 resizePanel 메서드 및 리스너 제거
+ * 4. [신규] Logic의 '먹물' 콜백을 Panel의 '먹물!' 애니메이션 메서드에 연결
  */
 public class LandGrabGame extends Stage {
 
@@ -37,7 +38,7 @@ public class LandGrabGame extends Stage {
     private final Label lblMyScore = new Label("나: 0칸");
     private final Label lblAiScore = new Label("AI: 0칸");
     // private final Label lblNeutralScore = new Label("중립: 0칸"); // [수정] 제거
-    private final Label lblCombo = new Label("콤보: 0"); // (어제 추가한 것)
+    private final Label lblCombo = new Label("콤보: 0");
     private final Label lblEffects = new Label("효과: 없음");
     private final Label lblLastItem = new Label("최근 아이템: 없음");
 
@@ -53,7 +54,6 @@ public class LandGrabGame extends Stage {
         BorderPane root = new BorderPane();
 
         // [신규] Logic에서 스플래시 이벤트가 발생하면 Panel의 애니메이션을 호출하도록 연결
-        // (UI 요소가 생성된 후, 게임 루프가 시작되기 전에 설정)
         logic.setOnSplashCallback((coords) -> {
             if (landGrabPanel != null && landGrabPanel.getScene() != null) {
                 // coords[0] = r, coords[1] = c
@@ -61,8 +61,16 @@ public class LandGrabGame extends Stage {
             }
         });
 
+        // ===== [신규] '먹물!' 애니메이션 콜백 연결 =====
+        logic.setOnInkSplashCallback((coords) -> {
+            if (landGrabPanel != null && landGrabPanel.getScene() != null) {
+                // coords[0] = r, coords[1] = c
+                landGrabPanel.showInkSplashAnimation(coords[0], coords[1]);
+            }
+        });
+        // =============================================
+
         // ===== 상단 HUD (수정) =====
-        // [수정] lblNeutralScore 제거
         HBox top = new HBox(18, lblTime, lblMyScore, lblAiScore, lblCombo, lblEffects, lblLastItem);
         top.setAlignment(Pos.CENTER);
         top.setPadding(new Insets(12, 24, 12, 24));
@@ -70,20 +78,14 @@ public class LandGrabGame extends Stage {
         lblTime.setFont(hudFont);
         lblMyScore.setFont(hudFont);
         lblAiScore.setFont(hudFont);
-        // lblNeutralScore.setFont(hudFont); // [수정] 제거
-        lblCombo.setFont(hudFont); // (어제 추가한 것)
+        lblCombo.setFont(hudFont);
         lblEffects.setFont(hudFont);
         lblLastItem.setFont(hudFont);
 
         // ===== 중앙(경기장) (수정) =====
-        // LandGrabPanel이 StackPane이 되었고, 내부에서 Canvas 크기를 스스로 조절함.
-        // 따라서 centerWrapper는 패딩 역할만 하도록 하고, 수동 리사이즈 로직(resizePanel) 제거.
         StackPane centerWrapper = new StackPane(landGrabPanel);
         centerWrapper.setPadding(new Insets(0, 24, 0, 24));
         centerWrapper.setMinSize(300, 300);
-        // [수정] resizePanel() 및 관련 리스너 제거 (StackPane이 자동 처리)
-        // centerWrapper.widthProperty().addListener(...);
-        // centerWrapper.heightProperty().addListener(...);
 
         // ===== 하단(입력창 + 시작 버튼) (동일) =====
         inputField.setFont(Font.font("System", FontWeight.NORMAL, 22));
@@ -111,7 +113,6 @@ public class LandGrabGame extends Stage {
         });
         setOnShown(e -> {
             landGrabPanel.activate();
-            // landGrabPanel.redraw(); // activate()가 redraw()를 호출하도록 3단계에서 수정됨
         });
         gameLoop = new Timeline(new KeyFrame(Duration.millis(100), e -> onTick()));
         gameLoop.setCycleCount(Timeline.INDEFINITE);
@@ -124,9 +125,6 @@ public class LandGrabGame extends Stage {
         updateHUD();
     }
 
-    // [수정] resizePanel 메서드 전체 제거
-    // (LandGrabPanel(StackPane)이 내부의 Canvas 크기를 스스로 조절함)
-
     private void startGame() {
         logic.startGame();
         startButton.setDisable(true);
@@ -135,7 +133,7 @@ public class LandGrabGame extends Stage {
         inputField.requestFocus();
         lastItemNotifiedAt = 0L;
         updateHUD();
-        landGrabPanel.redraw(); // 게임 시작 시 패널 즉시 갱신
+        landGrabPanel.redraw();
         gameLoop.playFromStart();
     }
 
@@ -148,7 +146,6 @@ public class LandGrabGame extends Stage {
         boolean correct = logic.submitAnswer(typed);
         if (correct) {
             landGrabPanel.flashHit();
-            // Panel 갱신은 다음 onTick (0.1초 이내)에서 처리됨
         } else {
             landGrabPanel.flashMiss();
         }
@@ -164,7 +161,7 @@ public class LandGrabGame extends Stage {
         }
         String result = logic.tick();
         updateHUD();
-        landGrabPanel.redraw(); // 0.1초마다 패널 갱신 (애니메이션과 무관하게 상태 변경)
+        landGrabPanel.redraw();
         if (result != null) {
             gameLoop.stop();
             startButton.setDisable(false);
@@ -177,7 +174,6 @@ public class LandGrabGame extends Stage {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("결과");
         alert.setHeaderText("게임 종료");
-        // [수정] 중립 점수 제거
         alert.setContentText(message + "\n나: " + logic.getScorePlayer() + "칸 / AI: " + logic.getScoreAI() + "칸");
         alert.initOwner(getOwner() != null ? getOwner() : this);
         alert.show();
@@ -194,7 +190,6 @@ public class LandGrabGame extends Stage {
         lblTime.setText(String.format("남은 시간: %.1fs", logic.getTimeMs() / 1000.0));
         lblMyScore.setText("나: " + logic.getScorePlayer() + "칸");
         lblAiScore.setText("AI: " + logic.getScoreAI() + "칸");
-        // lblNeutralScore.setText("중립: " + logic.getScoreNeutral() + "칸"); // [수정] 제거
         lblCombo.setText("콤보: " + logic.getCombo());
         lblEffects.setText(logic.getEffects().describeEffects());
 
@@ -210,7 +205,7 @@ public class LandGrabGame extends Stage {
 
     private String formatItemLabel(ItemType itemType) {
         return switch (itemType) {
-            case BUFF_SPLASH -> "스플래시"; // [수정] 이름 변경
+            case BUFF_SPLASH -> "스플래시";
             case TRAP_BLIND -> "먹물";
             default -> "없음";
         };
