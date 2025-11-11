@@ -43,6 +43,24 @@ mvn clean javafx:run
    ```
    (`%PATH_TO_FX%`는 JavaFX SDK의 `lib` 경로)
 
+### 멀티 플레이 실행
+1. 서버 실행
+   - Maven exec 플러그인으로 의존성을 포함해 실행:
+     ```bash
+     mvn -q exec:java -Dexec.mainClass=typingarena.server.ServerMain
+     ```
+   - 또는 직접 클래스패스를 지정:
+     ```bash
+     mvn -q clean compile
+     java -cp "target/classes;%USERPROFILE%\.m2\repository\com\google\code\gson\gson\2.11.0\gson-2.11.0.jar" typingarena.server.ServerMain
+     ```
+     (macOS/Linux는 `:` 구분자 사용)
+   기본 포트는 `7777`이며 방화벽 허용이 필요할 수 있습니다.
+2. 클라이언트 로비 → `멀티 플레이` 버튼을 눌러 MultiLobbyStage를 엽니다.
+3. Host/Port/Nickname을 입력하고 `연결`을 누르면 방 목록을 받을 수 있습니다.
+4. `방 만들기`, `방 들어가기` 버튼으로 실험적인 방 생성/입장 로직을 테스트할 수 있습니다. (아직 실제 게임 연동 전 단계입니다.)
+
+
 ## 디렉터리 구조
 ```
 JAVA프로젝트/
