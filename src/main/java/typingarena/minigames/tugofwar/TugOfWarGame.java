@@ -2,39 +2,25 @@ package typingarena.minigames.tugofwar;
 
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
-import javafx.geometry.Insets;
-import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
-import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
-import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.util.Duration;
+import typingarena.core.tugofwar.GameLogic;
 
+/**
+ * 기존 싱글 플레이 줄다리기 Stage.
+ * UI는 TugOfWarMatchView를 재활용해 멀티 버전과 공통으로 유지한다.
+ */
 public class TugOfWarGame extends Stage {
 
     private final GameLogic logic = new GameLogic();
-    private final RopePanel ropePanel = new RopePanel(logic);
-
-    // HUD 라벨들
-    private final Label lblTime = new Label("남은 시간: 60.0s");
-    private final Label lblScore = new Label("점수: 0");
-    private final Label lblCombo = new Label("콤보: 0");
-    private final Label lblPos = new Label("위치: 0.0");
-    private final Label lblEffects = new Label("효과: 없음");
-    private final Label lblLastItem = new Label("최근 아이템: 없음");
-
-    // 입력창 / 버튼들
-    private final TextField inputField = new TextField();
+    private final TugOfWarMatchView view = new TugOfWarMatchView();
+    private final RopePanel ropePanel = view.getRopePanel();
+    private final TextField inputField = view.getInputField();
     private final Button startButton = new Button("게임 시작");
 
     private final Timeline gameLoop;
@@ -42,63 +28,15 @@ public class TugOfWarGame extends Stage {
 
     public TugOfWarGame() {
         setTitle("Typing Arena - 줄다리기");
-        initModality(Modality.NONE);
 
-        BorderPane root = new BorderPane();
-
-        // ===== 상단 HUD =====
-        HBox top = new HBox(18, lblTime, lblScore, lblCombo, lblPos, lblEffects, lblLastItem);
-        top.setAlignment(Pos.CENTER);
-        top.setPadding(new Insets(12, 24, 12, 24));
-        Font hudFont = Font.font("System", FontWeight.BOLD, 16);
-        lblTime.setFont(hudFont);
-        lblScore.setFont(hudFont);
-        lblCombo.setFont(hudFont);
-        lblPos.setFont(hudFont);
-        lblEffects.setFont(hudFont);
-        lblLastItem.setFont(hudFont);
-
-        // ===== 중앙(경기장) =====
-        ropePanel.setWidth(900);
-        ropePanel.setHeight(380);
-        StackPane centerWrapper = new StackPane(ropePanel);
-        centerWrapper.setPadding(new Insets(0, 24, 0, 24));
-        centerWrapper.setMinSize(300, 200);
-        centerWrapper.widthProperty().addListener((obs, oldV, newV) -> {
-            double width = Math.max(1, newV.doubleValue());
-            ropePanel.setWidth(width);
-            ropePanel.redraw();
-        });
-        centerWrapper.heightProperty().addListener((obs, oldV, newV) -> {
-            double height = Math.max(1, newV.doubleValue());
-            ropePanel.setHeight(height);
-            ropePanel.redraw();
-        });
-
-        // ===== 하단(입력창 + 시작 버튼) =====
-        inputField.setFont(Font.font("System", FontWeight.NORMAL, 22));
-        inputField.setPromptText("단어를 입력하고 Enter 키를 누르세요");
         inputField.setDisable(true);
-
-        startButton.setFont(Font.font("System", FontWeight.BOLD, 18));
         startButton.setOnAction(e -> startGame());
+        startButton.setFont(inputField.getFont());
+        view.getControlBox().getChildren().add(startButton);
 
-        HBox bottomContent = new HBox(12, inputField, startButton);
-        bottomContent.setAlignment(Pos.CENTER);
-        HBox.setHgrow(inputField, Priority.ALWAYS);
-
-        BorderPane bottom = new BorderPane();
-        bottom.setPadding(new Insets(16, 24, 16, 24));
-        bottom.setCenter(bottomContent);
-
-        root.setTop(top);
-        root.setCenter(centerWrapper);
-        root.setBottom(bottom);
-
-        Scene scene = new Scene(root, 1000, 600);
+        Scene scene = new Scene(view.getRoot(), 1000, 600);
         setScene(scene);
 
-        // ===== 이벤트 바인딩 =====
         inputField.setOnAction(e -> handleSubmit());
         scene.setOnMouseClicked(e -> {
             if (!inputField.isDisabled()) {
@@ -108,10 +46,9 @@ public class TugOfWarGame extends Stage {
 
         setOnShown(e -> {
             ropePanel.activate();
-            ropePanel.redraw();
+            updateView();
         });
 
-        // 게임 루프: 100ms마다 tick
         gameLoop = new Timeline(new KeyFrame(Duration.millis(100), e -> onTick()));
         gameLoop.setCycleCount(Timeline.INDEFINITE);
         setOnCloseRequest(e -> gameLoop.stop());
@@ -121,6 +58,7 @@ public class TugOfWarGame extends Stage {
         });
 
         updateHUD();
+        updateView();
     }
 
     private void startGame() {
@@ -132,7 +70,7 @@ public class TugOfWarGame extends Stage {
         lastItemNotifiedAt = 0L;
 
         updateHUD();
-        ropePanel.redraw();
+        updateView();
         gameLoop.playFromStart();
     }
 
@@ -146,27 +84,22 @@ public class TugOfWarGame extends Stage {
         boolean correct = logic.submitAnswer(typed);
 
         if (correct) {
-            ropePanel.flashRight();
+            view.flashCorrect();
         } else {
-            ropePanel.flashLeft();
+            view.flashWrong();
         }
 
         inputField.clear();
         inputField.requestFocus();
 
         updateHUD();
-        ropePanel.redraw();
+        updateView();
     }
 
     private void onTick() {
-        if (!isShowing()) {
-            gameLoop.stop();
-            return;
-        }
-
         String result = logic.tick();
         updateHUD();
-        ropePanel.redraw();
+        updateView();
 
         if (result != null) {
             gameLoop.stop();
@@ -186,24 +119,30 @@ public class TugOfWarGame extends Stage {
     }
 
     private void updateHUD() {
-        if (!isShowing()) {
-            return;
-        }
-
-        lblTime.setText(String.format("남은 시간: %.1fs", logic.getTimeMs() / 1000.0));
-        lblScore.setText("점수: " + logic.getScore());
-        lblCombo.setText("콤보: " + logic.getCombo());
-        lblPos.setText(String.format("위치: %.1f", logic.getPos()));
-        lblEffects.setText(logic.getEffects().describeEffects());
+        view.setTimeText(String.format("남은 시간: %.1fs", logic.getTimeMs() / 1000.0));
+        view.setScoreText("점수: " + logic.getScore());
+        view.setComboText("콤보: " + logic.getCombo());
+        view.setPosText(String.format("위치: %.1f", logic.getPos()));
+        view.setEffectsText(logic.getEffects().describeEffects());
 
         GameLogic.ItemType itemType = logic.getLastActivatedItem();
-        lblLastItem.setText("최근 아이템: " + formatItemLabel(itemType));
+        view.setLastItemText("최근 아이템: " + formatItemLabel(itemType));
 
         long activatedAt = logic.getLastItemActivatedAt();
         if (itemType != GameLogic.ItemType.NONE && activatedAt > lastItemNotifiedAt) {
             lastItemNotifiedAt = activatedAt;
-            ropePanel.flashBuffColor(colorForItem(itemType));
+            view.flashItem(colorForItem(itemType));
         }
+    }
+
+    private void updateView() {
+        TugOfWarViewState state = new TugOfWarViewState(
+                logic.getPos(),
+                logic.getCurrentWord(),
+                logic.getCurrentWordModifier(),
+                logic.getEffects().isBlindActive()
+        );
+        ropePanel.updateState(state);
     }
 
     private String formatItemLabel(GameLogic.ItemType itemType) {

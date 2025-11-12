@@ -6,6 +6,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
+import typingarena.core.tugofwar.GameLogic;
 
 public class RopePanel extends Canvas {
 
@@ -21,8 +22,8 @@ public class RopePanel extends Canvas {
     private static final Color FLASH_HIT = Color.rgb(50, 200, 120);
     private static final Color FLASH_MISS = Color.rgb(220, 80, 80);
 
-    private final GameLogic logic;
     private boolean disposed = false;
+    private TugOfWarViewState state = new TugOfWarViewState();
 
     // 정답/오답 순간 번쩍 (초록/빨강)
     private Color flashColor = null;
@@ -32,11 +33,20 @@ public class RopePanel extends Canvas {
     private Color buffFlashColor = null;
     private long buffFlashUntil = 0L;
 
-    public RopePanel(GameLogic logic) {
-        this.logic = logic;
-
+    public RopePanel() {
         widthProperty().addListener((obs, oldV, newV) -> redraw());
         heightProperty().addListener((obs, oldV, newV) -> redraw());
+    }
+
+    public void updateState(TugOfWarViewState newState) {
+        if (newState == null) return;
+        this.state = new TugOfWarViewState(
+                Math.max(-100, Math.min(100, newState.pos)),
+                newState.currentWord != null ? newState.currentWord : "",
+                newState.modifier != null ? newState.modifier : GameLogic.WordModifier.NEUTRAL,
+                newState.blindActive
+        );
+        redraw();
     }
 
     public void redraw() {
@@ -63,7 +73,6 @@ public class RopePanel extends Canvas {
         gc.fillRect(0, 0, w, h);
 
         double centerY = h / 2.0;
-        ActiveEffects effects = logic.getEffects();
 
         // 1) 왼/오른쪽 영역 & 중앙선
         double zoneHeight = 120;
@@ -92,7 +101,7 @@ public class RopePanel extends Canvas {
 
         // 4) "YOU" 말판
         double rangePx = (w - 160) / 2.0;
-        double markerX = w / 2.0 + (logic.getPos() / 100.0) * rangePx;
+        double markerX = w / 2.0 + (state.pos / 100.0) * rangePx;
         double markerY = centerY;
 
         gc.setFill(PLAYER_COLOR);
@@ -104,7 +113,7 @@ public class RopePanel extends Canvas {
         drawCenteredText(gc, "YOU", markerX - 16, markerY - 16, 32, 32);
 
         // 5) 현재 단어 텍스트
-        String word = logic.getCurrentWord();
+        String word = state.currentWord;
         Font wordFont = Font.font("System", FontWeight.BOLD, 32);
         gc.setFont(wordFont);
 
@@ -116,7 +125,7 @@ public class RopePanel extends Canvas {
         double wordBaseY = centerY + 140;
 
         Color wordColor = TEXT_DEFAULT;
-        GameLogic.WordModifier modifier = logic.getCurrentWordModifier();
+        GameLogic.WordModifier modifier = state.modifier;
         if (modifier == GameLogic.WordModifier.BUFF) {
             wordColor = Color.rgb(46, 160, 92);
         } else if (modifier == GameLogic.WordModifier.TRAP) {
@@ -126,7 +135,7 @@ public class RopePanel extends Canvas {
         gc.fillText(word, wordX, wordBaseY);
 
         // 6) 먹물 효과
-        if (effects.isBlindActive()) {
+        if (state.blindActive) {
             double pad = 12;
             double rectX = wordX - pad;
             double rectY = wordBaseY - wordHeight - pad;

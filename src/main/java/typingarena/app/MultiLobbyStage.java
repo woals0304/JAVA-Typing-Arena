@@ -1,55 +1,55 @@
 package typingarena.app;
 
 import javafx.application.Platform;
-import javafx.beans.property.IntegerProperty;
-import javafx.beans.property.SimpleIntegerProperty;
-import javafx.beans.property.SimpleStringProperty;
-import javafx.beans.property.StringProperty;
-import javafx.collections.FXCollections;
-import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
-import javafx.scene.control.*;
-import javafx.scene.control.cell.PropertyValueFactory;
-import javafx.scene.layout.*;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.Label;
+import javafx.scene.control.TextField;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import typingarena.net.Message;
 import typingarena.net.NetClient;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
- * 간단한 멀티플레이 로비: 서버에 연결해 방 목록을 보고 생성/입장한다.
+ * 멀티플레이 매칭 창: 서버와 연결해서 게임 타입을 선택하고 자동 매칭을 요청한다.
  */
 public class MultiLobbyStage extends Stage {
 
     private final TextField hostField = new TextField("127.0.0.1");
     private final TextField portField = new TextField("7777");
     private final TextField nicknameField = new TextField(defaultNickname());
-    private final Label statusLabel = new Label("서버에 연결되지 않았습니다.");
-
-    private final TableView<RoomEntry> roomTable = new TableView<>();
-    private final ObservableList<RoomEntry> rooms = FXCollections.observableArrayList();
+    private final Label connectionLabel = new Label("서버에 연결되지 않았습니다.");
+    private final Label matchStatusLabel = new Label("매칭할 게임을 선택하세요.");
+    private final Button cancelMatchBtn = new Button("매칭 취소");
 
     private NetClient client;
+    private String currentGameType;
+    private TugOfWarOnlineStage tugStage;
 
     public MultiLobbyStage(Stage owner) {
         initOwner(owner);
         initModality(Modality.NONE);
-        setTitle("멀티 플레이 로비");
+        setTitle("멀티 플레이 매칭");
 
         BorderPane root = new BorderPane();
-        root.setPadding(new Insets(20));
+        root.setPadding(new Insets(24));
         root.setTop(buildConnectionPane());
-        root.setCenter(buildRoomTable());
-        root.setBottom(buildActionPane());
+        root.setCenter(buildGameSelectPane());
+        root.setBottom(buildStatusPane());
 
-        Scene scene = new Scene(root, 760, 520);
+        Scene scene = new Scene(root, 640, 420);
         setScene(scene);
 
         setOnShown(e -> connect());
@@ -60,7 +60,7 @@ public class MultiLobbyStage extends Stage {
     private VBox buildConnectionPane() {
         GridPane grid = new GridPane();
         grid.setHgap(10);
-        grid.setVgap(8);
+        grid.setVgap(6);
 
         grid.add(new Label("Host"), 0, 0);
         grid.add(hostField, 1, 0);
@@ -72,7 +72,7 @@ public class MultiLobbyStage extends Stage {
 
         hostField.setPrefWidth(160);
         portField.setPrefWidth(80);
-        nicknameField.setPrefWidth(200);
+        nicknameField.setPrefWidth(160);
 
         Button connectBtn = new Button("연결");
         connectBtn.setOnAction(e -> connect());
@@ -81,53 +81,46 @@ public class MultiLobbyStage extends Stage {
         HBox controls = new HBox(10, connectBtn, disconnectBtn);
         controls.setAlignment(Pos.CENTER_LEFT);
 
-        VBox box = new VBox(10, grid, controls, statusLabel);
-        box.setAlignment(Pos.CENTER_LEFT);
-        statusLabel.setStyle("-fx-text-fill: #555555;");
+        VBox box = new VBox(8, grid, controls, connectionLabel);
+        connectionLabel.setStyle("-fx-text-fill: #555555;");
         return box;
     }
 
-    private TableView<RoomEntry> buildRoomTable() {
-        TableColumn<RoomEntry, String> nameCol = new TableColumn<>("방 이름");
-        nameCol.setCellValueFactory(new PropertyValueFactory<>("name"));
-        nameCol.setPrefWidth(360);
+    private VBox buildGameSelectPane() {
+        Label title = new Label("자동 매칭");
+        title.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
 
-        TableColumn<RoomEntry, Number> playersCol = new TableColumn<>("인원");
-        playersCol.setCellValueFactory(new PropertyValueFactory<>("players"));
-        playersCol.setPrefWidth(120);
+        Button tugBtn = createGameButton("줄다리기 (Tug of War)", "TUG_OF_WAR");
+        Button castleBtn = createGameButton("성 지키기 (준비 중)", "CASTLE_DEFENSE");
+        castleBtn.setDisable(true);
+        Button landBtn = createGameButton("땅따먹기 (준비 중)", "LAND_GRAB");
+        landBtn.setDisable(true);
 
-        roomTable.getColumns().addAll(nameCol, playersCol);
-        roomTable.setItems(rooms);
-        roomTable.setPlaceholder(new Label("표시할 방이 없습니다. 새로고침을 눌러보세요."));
-        roomTable.getSelectionModel().setSelectionMode(SelectionMode.SINGLE);
-        return roomTable;
+        VBox box = new VBox(15, title, tugBtn, castleBtn, landBtn);
+        box.setPadding(new Insets(16, 0, 16, 0));
+        return box;
     }
 
-    private VBox buildActionPane() {
-        Button refreshBtn = new Button("방 새로고침");
-        refreshBtn.setOnAction(e -> requestRoomList());
+    private Button createGameButton(String label, String gameType) {
+        Button btn = new Button(label);
+        btn.setPrefWidth(320);
+        btn.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
+        btn.setOnAction(e -> startMatchmaking(gameType));
+        return btn;
+    }
 
-        Button createBtn = new Button("방 만들기");
-        createBtn.setOnAction(e -> createRoom());
+    private VBox buildStatusPane() {
+        cancelMatchBtn.setDisable(true);
+        cancelMatchBtn.setOnAction(e -> cancelMatchmaking());
+        matchStatusLabel.setStyle("-fx-text-fill: #0078FF;");
 
-        Button joinBtn = new Button("방 들어가기");
-        joinBtn.setOnAction(e -> joinSelectedRoom());
-
-        Button closeBtn = new Button("닫기");
-        closeBtn.setOnAction(e -> close());
-
-        HBox row1 = new HBox(10, refreshBtn, createBtn, joinBtn);
-        row1.setAlignment(Pos.CENTER_LEFT);
-        HBox row2 = new HBox(closeBtn);
-        row2.setAlignment(Pos.CENTER_RIGHT);
-        VBox box = new VBox(10, row1, row2);
-        box.setPadding(new Insets(15, 0, 0, 0));
+        VBox box = new VBox(10, matchStatusLabel, cancelMatchBtn);
         return box;
     }
 
     private void connect() {
         if (client != null) {
-            setStatus("이미 서버에 연결되어 있습니다.");
+            connectionLabel.setText("이미 서버에 연결되어 있습니다.");
             return;
         }
         try {
@@ -135,23 +128,22 @@ public class MultiLobbyStage extends Stage {
             client = new NetClient(hostField.getText().trim(), port);
             client.setOnMessage(this::handleServerMessage);
             client.connect();
-            setStatus("서버에 연결되었습니다.");
-            requestRoomList();
+            connectionLabel.setText("서버에 연결되었습니다.");
         } catch (NumberFormatException e) {
-            showError("포트 번호가 올바르지 않습니다.");
+            connectionLabel.setText("포트 번호가 올바르지 않습니다.");
         } catch (IOException e) {
-            setStatus("연결 실패: " + e.getMessage());
+            connectionLabel.setText("연결 실패: " + e.getMessage());
             client = null;
         }
     }
 
     private void disconnect() {
+        cancelMatchmaking(false);
         if (client != null) {
-            try {
-                client.close();
-            } catch (IOException ignored) {}
+            try { client.close(); } catch (IOException ignored) {}
             client = null;
         }
+        connectionLabel.setText("서버 연결이 종료되었습니다.");
     }
 
     private boolean ensureConnected() {
@@ -160,119 +152,106 @@ public class MultiLobbyStage extends Stage {
         return client != null;
     }
 
-    private void requestRoomList() {
+    private void startMatchmaking(String gameType) {
         if (!ensureConnected()) return;
-        Message msg = Message.of("list_rooms");
+        cancelMatchmaking(false);
+        currentGameType = gameType;
+        String nickname = nicknameField.getText().trim().isEmpty()
+                ? defaultNickname()
+                : nicknameField.getText().trim();
+        Message msg = Message.of("MATCH_REQUEST");
+        msg.data = Map.of("gameType", gameType, "nickname", nickname);
         client.send(msg);
-        setStatus("방 목록 요청 중...");
+        cancelMatchBtn.setDisable(false);
+        matchStatusLabel.setText("[" + gameType + "] 매칭을 찾는 중...");
     }
 
-    private void createRoom() {
-        if (!ensureConnected()) return;
-        TextInputDialog dialog = new TextInputDialog("새 방");
-        dialog.setTitle("방 만들기");
-        dialog.setHeaderText("생성할 방 이름을 입력하세요.");
-        dialog.initOwner(this);
-        dialog.initModality(Modality.WINDOW_MODAL);
-        dialog.showAndWait().ifPresent(name -> {
-            if (name.isBlank()) name = "새 방";
-            Message msg = Message.of("create_room");
-            msg.roomName = name.trim();
+    private void cancelMatchmaking() {
+        cancelMatchmaking(true);
+    }
+
+    private void cancelMatchmaking(boolean informServer) {
+        if (currentGameType == null) return;
+        if (informServer && client != null) {
+            Message msg = Message.of("MATCH_CANCEL");
+            msg.data = Map.of("gameType", currentGameType);
             client.send(msg);
-            setStatus("방 생성 요청: " + name.trim());
-        });
-    }
-
-    private void joinSelectedRoom() {
-        RoomEntry selected = roomTable.getSelectionModel().getSelectedItem();
-        if (selected == null) {
-            showError("입장할 방을 선택하세요.");
-            return;
         }
-        if (!ensureConnected()) return;
-        Message msg = Message.of("join_room");
-        msg.roomId = selected.getRoomId();
-        msg.nickname = nicknameField.getText().trim().isEmpty() ? defaultNickname() : nicknameField.getText().trim();
-        client.send(msg);
-        setStatus("방 입장 요청: " + selected.getName());
+        currentGameType = null;
+        cancelMatchBtn.setDisable(true);
+        matchStatusLabel.setText("매칭할 게임을 선택하세요.");
     }
 
     private void handleServerMessage(Message msg) {
-        if (msg == null) return;
+        if (msg == null || msg.type == null) return;
+        String type = msg.type.toUpperCase(Locale.ROOT);
         Platform.runLater(() -> {
-            switch (msg.type) {
-                case "rooms" -> updateRoomTable(msg);
-                case "joined" -> {
-                    setStatus("방에 입장했습니다. roomId=" + msg.roomId);
-                    Alert alert = new Alert(Alert.AlertType.INFORMATION,
-                            "방에 입장했습니다.\nroomId: " + msg.roomId + "\n(실제 게임 시작 로직은 추후 연동)");
-                    alert.initOwner(this);
-                    alert.show();
+            switch (type) {
+                case "MATCH_WAITING" -> matchStatusLabel.setText("상대를 찾는 중입니다...");
+                case "MATCH_SUCCESS" -> matchStatusLabel.setText("매칭 성공! 게임 시작을 기다리는 중...");
+                case "MATCH_CANCELLED" -> {
+                    cancelMatchBtn.setDisable(true);
+                    matchStatusLabel.setText("매칭이 취소되었습니다.");
                 }
+                case "MATCH_REQUEST_ERROR" -> showWarning("매칭 오류", messageOf(msg));
+                case "GAME_START_BROADCAST" -> handleGameStart(msg);
+                case "GAME_UPDATE_BROADCAST" -> handleGameUpdate(msg);
+                case "GAME_END_BROADCAST" -> handleGameEnd(msg);
+                case "MATCH_SUCCESS_ERROR" -> showWarning("매칭 오류", messageOf(msg));
                 default -> {}
             }
         });
     }
 
-    private void updateRoomTable(Message msg) {
-        List<RoomEntry> updated = new ArrayList<>();
-        if (msg.data != null) {
-            Object listObj = msg.data.get("list");
-            if (listObj instanceof List<?> list) {
-                for (Object item : list) {
-                    if (item instanceof Map<?, ?> map) {
-                        String roomId = String.valueOf(map.get("roomId"));
-                        String name = String.valueOf(map.get("name"));
-                        int players = toInt(map.get("players"));
-                        updated.add(new RoomEntry(roomId, name, players));
-                    }
-                }
-            }
-        }
-        rooms.setAll(updated);
-        setStatus("방 목록 갱신 (" + updated.size() + "개)");
-    }
-
-    private int toInt(Object value) {
-        if (value instanceof Number n) return n.intValue();
-        try {
-            return Integer.parseInt(String.valueOf(value));
-        } catch (Exception e) {
-            return 0;
+    private void ensureTugStage() {
+        if (tugStage == null) {
+            tugStage = new TugOfWarOnlineStage(client);
         }
     }
 
-    private void setStatus(String text) {
-        statusLabel.setText(text);
+    private boolean isTugMessage(Message msg) {
+        return msg.data != null
+                && "TUG_OF_WAR".equalsIgnoreCase(String.valueOf(msg.data.get("gameType")));
     }
 
-    private void showError(String message) {
+    private void handleGameStart(Message msg) {
+        if (!isTugMessage(msg)) return;
+        ensureTugStage();
+        tugStage.handleMessage(msg);
+        if (!tugStage.isShowing()) tugStage.show();
+        matchStatusLabel.setText("온라인 줄다리기 진행 중...");
+        cancelMatchBtn.setDisable(true);
+        currentGameType = null;
+    }
+
+    private void handleGameUpdate(Message msg) {
+        if (tugStage != null) {
+            tugStage.handleMessage(msg);
+        }
+    }
+
+    private void handleGameEnd(Message msg) {
+        if (tugStage != null) {
+            tugStage.handleMessage(msg);
+        }
+        matchStatusLabel.setText("경기가 종료되었습니다.");
+    }
+
+    private void showWarning(String title, String message) {
         Alert alert = new Alert(Alert.AlertType.WARNING, message, ButtonType.OK);
+        alert.setTitle(title);
         alert.initOwner(this);
         alert.show();
     }
 
-    private String defaultNickname() {
-        return "Player" + (int)(Math.random() * 1000);
+    private String messageOf(Message msg) {
+        if (msg.data != null && msg.data.get("message") != null) {
+            return String.valueOf(msg.data.get("message"));
+        }
+        return "알 수 없는 오류가 발생했습니다.";
     }
 
-    // === RoomEntry DTO ===
-    public static class RoomEntry {
-        private final StringProperty roomId = new SimpleStringProperty();
-        private final StringProperty name = new SimpleStringProperty();
-        private final IntegerProperty players = new SimpleIntegerProperty();
-
-        public RoomEntry(String roomId, String name, int players) {
-            this.roomId.set(roomId);
-            this.name.set(name);
-            this.players.set(players);
-        }
-
-        public String getRoomId() { return roomId.get(); }
-        public String getName() { return name.get(); }
-        public int getPlayers() { return players.get(); }
-
-        public StringProperty nameProperty() { return name; }
-        public IntegerProperty playersProperty() { return players; }
+    private String defaultNickname() {
+        return "Player" + (int) (Math.random() * 1000);
     }
 }
