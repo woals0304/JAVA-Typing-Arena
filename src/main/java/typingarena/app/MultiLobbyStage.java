@@ -36,7 +36,10 @@ public class MultiLobbyStage extends Stage {
 
     private NetClient client;
     private String currentGameType;
+
+    // [신규] 각 온라인 게임 Stage를 관리
     private TugOfWarOnlineStage tugStage;
+    private LandGrabOnlineStage landGrabStage;
 
     public MultiLobbyStage(Stage owner) {
         initOwner(owner);
@@ -91,10 +94,13 @@ public class MultiLobbyStage extends Stage {
         title.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;");
 
         Button tugBtn = createGameButton("줄다리기 (Tug of War)", "TUG_OF_WAR");
+
         Button castleBtn = createGameButton("성 지키기 (준비 중)", "CASTLE_DEFENSE");
         castleBtn.setDisable(true);
-        Button landBtn = createGameButton("땅따먹기 (준비 중)", "LAND_GRAB");
-        landBtn.setDisable(true);
+
+        // [수정] 땅따먹기 버튼 활성화
+        Button landBtn = createGameButton("땅따먹기 (Land Grab)", "LAND_GRAB");
+        // landBtn.setDisable(true); // [제거]
 
         VBox box = new VBox(15, title, tugBtn, castleBtn, landBtn);
         box.setPadding(new Insets(16, 0, 16, 0));
@@ -117,6 +123,9 @@ public class MultiLobbyStage extends Stage {
         VBox box = new VBox(10, matchStatusLabel, cancelMatchBtn);
         return box;
     }
+
+    // (connect, disconnect, ensureConnected, startMatchmaking, cancelMatchmaking
+    //  ... 메서드는 원본과 동일)
 
     private void connect() {
         if (client != null) {
@@ -182,6 +191,7 @@ public class MultiLobbyStage extends Stage {
         matchStatusLabel.setText("매칭할 게임을 선택하세요.");
     }
 
+
     private void handleServerMessage(Message msg) {
         if (msg == null || msg.type == null) return;
         String type = msg.type.toUpperCase(Locale.ROOT);
@@ -203,39 +213,65 @@ public class MultiLobbyStage extends Stage {
         });
     }
 
-    private void ensureTugStage() {
-        if (tugStage == null) {
-            tugStage = new TugOfWarOnlineStage(client);
-        }
-    }
+    // [제거] ensureTugStage(), isTugMessage() 메서드 제거
 
-    private boolean isTugMessage(Message msg) {
-        return msg.data != null
-                && "TUG_OF_WAR".equalsIgnoreCase(String.valueOf(msg.data.get("gameType")));
-    }
-
+    /**
+     * [수정] handleGameStart: 게임 타입에 따라 적절한 Stage를 띄움
+     */
     private void handleGameStart(Message msg) {
-        if (!isTugMessage(msg)) return;
-        ensureTugStage();
-        tugStage.handleMessage(msg);
-        if (!tugStage.isShowing()) tugStage.show();
-        matchStatusLabel.setText("온라인 줄다리기 진행 중...");
+        String gameType = msg.data != null ? String.valueOf(msg.data.get("gameType")) : null;
+
+        if ("TUG_OF_WAR".equalsIgnoreCase(gameType)) {
+            if (tugStage == null) {
+                tugStage = new TugOfWarOnlineStage(client);
+            }
+            tugStage.handleMessage(msg);
+            if (!tugStage.isShowing()) tugStage.show();
+
+        } else if ("LAND_GRAB".equalsIgnoreCase(gameType)) {
+            if (landGrabStage == null) {
+                landGrabStage = new LandGrabOnlineStage(client);
+            }
+            landGrabStage.handleMessage(msg);
+            if (!landGrabStage.isShowing()) landGrabStage.show();
+
+        } else {
+            // (지원하지 않는 게임 타입)
+            showWarning("게임 시작 오류", "알 수 없는 게임 타입입니다: " + gameType);
+            return;
+        }
+
+        matchStatusLabel.setText("온라인 " + gameType + " 진행 중...");
         cancelMatchBtn.setDisable(true);
         currentGameType = null;
     }
 
+    /**
+     * [수정] handleGameUpdate: 모든 활성 게임 Stage에 메시지 전달
+     */
     private void handleGameUpdate(Message msg) {
         if (tugStage != null) {
             tugStage.handleMessage(msg);
         }
+        if (landGrabStage != null) {
+            landGrabStage.handleMessage(msg);
+        }
     }
 
+    /**
+     * [수정] handleGameEnd: 모든 활성 게임 Stage에 메시지 전달
+     */
     private void handleGameEnd(Message msg) {
         if (tugStage != null) {
             tugStage.handleMessage(msg);
         }
+        if (landGrabStage != null) {
+            landGrabStage.handleMessage(msg);
+        }
         matchStatusLabel.setText("경기가 종료되었습니다.");
     }
+
+    // (showWarning, messageOf, defaultNickname 헬퍼 메서드는 원본과 동일)
 
     private void showWarning(String title, String message) {
         Alert alert = new Alert(Alert.AlertType.WARNING, message, ButtonType.OK);

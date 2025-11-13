@@ -2,108 +2,60 @@ package typingarena.minigames.landgrab;
 
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
-import javafx.geometry.Insets;
-import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
-import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontWeight;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.util.Duration;
-import typingarena.minigames.landgrab.LandGrabEffects.ItemType;
+
+// [신규] 핵심 엔진(Model)과 UI View를 import 합니다.
+import typingarena.core.landgrab.LandGrabLogic;
+import typingarena.core.landgrab.LandGrabEffects.ItemType;
+import typingarena.core.landgrab.LandGrabViewState; // [신규] ViewState import
+import typingarena.minigames.landgrab.LandGrabMatchView; // UI 뼈대
 
 /**
- * [수정됨]
- * 1. [룰 1] '중립' 점수판(lblNeutralScore) 관련 코드 모두 제거
- * 2. [신규] Logic의 스플래시 콜백을 Panel의 애니메이션 메서드에 연결
- * 3. [수정] Panel이 StackPane으로 변경됨에 따라 불필요한 resizePanel 메서드 및 리스너 제거
- * 4. [신규] Logic의 '먹물' 콜백을 Panel의 '먹물!' 애니메이션 메서드에 연결
+ * [대규모 리팩토링됨]
+ * 1. 'TugOfWarGame'처럼 이 클래스가 '싱글 플레이 제어기(Controller)' 역할을 합니다.
+ * 2. 'core.landgrab.LandGrabLogic' (엔진)을 생성합니다.
+ * 3. 'LandGrabMatchView' (UI 뼈대)를 생성합니다. (View는 이제 '바보'입니다.)
+ * 4. [수정] AI 타이머(onTick)가 'coreLogic'의 상태를 'viewState'로 복사하여 'panel'에 주입합니다.
  */
 public class LandGrabGame extends Stage {
 
-    private final LandGrabLogic logic = new LandGrabLogic();
-    private final LandGrabPanel landGrabPanel = new LandGrabPanel(logic); // Panel이 StackPane임
+    // --- Model ---
+    private final LandGrabLogic coreLogic = new LandGrabLogic();
 
-    // ===== 2. HUD 라벨 (수정) =====
-    private final Label lblTime = new Label("남은 시간: 60.0s");
-    private final Label lblMyScore = new Label("나: 0칸");
-    private final Label lblAiScore = new Label("AI: 0칸");
-    // private final Label lblNeutralScore = new Label("중립: 0칸"); // [수정] 제거
-    private final Label lblCombo = new Label("콤보: 0");
-    private final Label lblEffects = new Label("효과: 없음");
-    private final Label lblLastItem = new Label("최근 아이템: 없음");
-
-    private final TextField inputField = new TextField();
+    // --- View ---
+    // [수정] View 생성자 변경 (이제 logic을 주입받지 않음)
+    private final LandGrabMatchView view = new LandGrabMatchView();
+    private final LandGrabPanel landGrabPanel = view.getLandGrabPanel();
+    private final TextField inputField = view.getInputField();
     private final Button startButton = new Button("게임 시작");
-    private final Timeline gameLoop;
 
+    // --- Controller ---
+    private final Timeline gameLoop;
+    private int timeMs = 60_000;
+    private boolean running = false;
+    private int aiTickTimerMs = 0;
+    private static final int AI_CAPTURE_INTERVAL_MS = 2_000;
     private long lastItemNotifiedAt = 0L;
 
     public LandGrabGame() {
         setTitle("Typing Arena - 땅따먹기");
         initModality(Modality.NONE);
-        BorderPane root = new BorderPane();
 
-        // [신규] Logic에서 스플래시 이벤트가 발생하면 Panel의 애니메이션을 호출하도록 연결
-        logic.setOnSplashCallback((coords) -> {
-            if (landGrabPanel != null && landGrabPanel.getScene() != null) {
-                // coords[0] = r, coords[1] = c
-                landGrabPanel.showSplashAnimation(coords[0], coords[1]);
-            }
-        });
-
-        // ===== [신규] '먹물!' 애니메이션 콜백 연결 =====
-        logic.setOnInkSplashCallback((coords) -> {
-            if (landGrabPanel != null && landGrabPanel.getScene() != null) {
-                // coords[0] = r, coords[1] = c
-                landGrabPanel.showInkSplashAnimation(coords[0], coords[1]);
-            }
-        });
-        // =============================================
-
-        // ===== 상단 HUD (수정) =====
-        HBox top = new HBox(18, lblTime, lblMyScore, lblAiScore, lblCombo, lblEffects, lblLastItem);
-        top.setAlignment(Pos.CENTER);
-        top.setPadding(new Insets(12, 24, 12, 24));
-        Font hudFont = Font.font("System", FontWeight.BOLD, 16);
-        lblTime.setFont(hudFont);
-        lblMyScore.setFont(hudFont);
-        lblAiScore.setFont(hudFont);
-        lblCombo.setFont(hudFont);
-        lblEffects.setFont(hudFont);
-        lblLastItem.setFont(hudFont);
-
-        // ===== 중앙(경기장) (수정) =====
-        StackPane centerWrapper = new StackPane(landGrabPanel);
-        centerWrapper.setPadding(new Insets(0, 24, 0, 24));
-        centerWrapper.setMinSize(300, 300);
-
-        // ===== 하단(입력창 + 시작 버튼) (동일) =====
-        inputField.setFont(Font.font("System", FontWeight.NORMAL, 22));
-        inputField.setPromptText("단어를 입력하고 Enter 키를 누르세요");
+        // [수정] 'startButton'을 view의 controlBox에 추가합니다.
         inputField.setDisable(true);
-        startButton.setFont(Font.font("System", FontWeight.BOLD, 18));
+        startButton.setFont(inputField.getFont());
         startButton.setOnAction(e -> startGame());
-        HBox bottomContent = new HBox(12, inputField, startButton);
-        bottomContent.setAlignment(Pos.CENTER);
-        HBox.setHgrow(inputField, Priority.ALWAYS);
-        BorderPane bottom = new BorderPane();
-        bottom.setPadding(new Insets(16, 24, 16, 24));
-        bottom.setCenter(bottomContent);
+        view.getControlBox().getChildren().add(startButton);
 
-        root.setTop(top);
-        root.setCenter(centerWrapper);
-        root.setBottom(bottom);
-        Scene scene = new Scene(root, 700, 800);
+        // [수정] view.getRoot()를 Scene으로 사용합니다.
+        Scene scene = new Scene(view.getRoot(), 700, 800);
         setScene(scene);
 
         // ===== 이벤트 바인딩 (동일) =====
@@ -113,6 +65,7 @@ public class LandGrabGame extends Stage {
         });
         setOnShown(e -> {
             landGrabPanel.activate();
+            updateView(); // [신규] 켜질 때 View 갱신
         });
         gameLoop = new Timeline(new KeyFrame(Duration.millis(100), e -> onTick()));
         gameLoop.setCycleCount(Timeline.INDEFINITE);
@@ -123,45 +76,107 @@ public class LandGrabGame extends Stage {
         });
 
         updateHUD();
+        updateView(); // [신규] 초기 View 상태 갱신
     }
 
+    /**
+     * [수정] startGame: coreLogic 초기화 후 view도 갱신
+     */
     private void startGame() {
-        logic.startGame();
+        // 1. Controller 상태 초기화
+        timeMs = 60_000;
+        running = true;
+        aiTickTimerMs = AI_CAPTURE_INTERVAL_MS;
+        lastItemNotifiedAt = 0L;
+
+        // 2. Model(엔진) 상태 초기화
+        coreLogic.startGame();
+
+        // 3. UI 초기화
         startButton.setDisable(true);
         inputField.setDisable(false);
         inputField.clear();
         inputField.requestFocus();
-        lastItemNotifiedAt = 0L;
+
+        // 4. View 갱신
         updateHUD();
-        landGrabPanel.redraw();
+        updateView(); // [신규]
+
         gameLoop.playFromStart();
     }
 
+    /**
+     * [수정] handleSubmit: coreLogic 호출 후 view 갱신
+     */
     private void handleSubmit() {
-        if (!logic.isRunning()) {
+        if (!running) {
             inputField.clear();
             return;
         }
         String typed = inputField.getText().trim();
-        boolean correct = logic.submitAnswer(typed);
-        if (correct) {
-            landGrabPanel.flashHit();
-        } else {
-            landGrabPanel.flashMiss();
+
+        LandGrabLogic.SubmitResult result = coreLogic.submitAnswer(typed);
+
+        if (result.resultCode() > 0) { // 1, 2, 3 (성공)
+            view.flashHit();
+
+            if (result.resultCode() == 2) { // 2 = 버프
+                landGrabPanel.showSplashAnimation(result.r(), result.c());
+            } else if (result.resultCode() == 3) { // 3 = 트랩
+                landGrabPanel.showInkSplashAnimation(result.r(), result.c());
+            }
+
+        } else { // 0 (실패)
+            view.flashMiss();
         }
+
         inputField.clear();
         inputField.requestFocus();
         updateHUD();
+        updateView(); // [신규]
     }
 
+    /**
+     * [수정] onTick: coreLogic 호출 후 view 갱신
+     */
     private void onTick() {
-        if (!isShowing()) {
+        if (!isShowing() || !running) {
             gameLoop.stop();
             return;
         }
-        String result = logic.tick();
+
+        // 1. 시간 감소
+        timeMs -= 100;
+
+        // 2. AI 타이머 작동
+        aiTickTimerMs -= 100;
+        if (aiTickTimerMs <= 0) {
+            coreLogic.aiCaptureTile(); // 엔진의 AI 로직 호출
+            aiTickTimerMs = AI_CAPTURE_INTERVAL_MS;
+        }
+
+        // 3. HUD 및 View 갱신
         updateHUD();
-        landGrabPanel.redraw();
+        updateView(); // [신규]
+
+        // 4. 게임 종료 조건 확인
+        String result = null;
+        if (timeMs <= 0) {
+            running = false;
+            // (승패 판정 로직 동일)
+            if (coreLogic.getScorePlayer() > coreLogic.getScoreAI()) result = "승리! 더 많은 땅을 차지했습니다.";
+            else if (coreLogic.getScoreAI() > coreLogic.getScorePlayer()) result = "패배... AI가 더 많습니다.";
+            else result = "무승부!";
+        }
+        if (coreLogic.getScorePlayer() + coreLogic.getScoreAI() == LandGrabLogic.GRID_SIZE * LandGrabLogic.GRID_SIZE) {
+            running = false;
+            // (승패 판정 로직 동일)
+            if (coreLogic.getScorePlayer() > coreLogic.getScoreAI()) result = "승리! 모든 땅을 차지했습니다.";
+            else if (coreLogic.getScoreAI() > coreLogic.getScorePlayer()) result = "패배... AI에게 모두 빼앗겼습니다.";
+            else result = "무승부!";
+        }
+
+        // 5. 게임 종료 처리
         if (result != null) {
             gameLoop.stop();
             startButton.setDisable(false);
@@ -170,39 +185,51 @@ public class LandGrabGame extends Stage {
         }
     }
 
+    /**
+     * [신규] 'TugOfWarGame.updateView'와 동일한 역할
+     * Model(coreLogic)의 현재 상태를 ViewState로 복사하여 Panel(View)에 주입
+     */
+    private void updateView() {
+        // 1. Model의 현재 상태를 기반으로 ViewState 객체를 생성
+        LandGrabViewState currentState = new LandGrabViewState(coreLogic);
+        // 2. View(Panel)에 ViewState 주입
+        landGrabPanel.updateState(currentState);
+    }
+
     private void showResultDialog(String message) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("결과");
         alert.setHeaderText("게임 종료");
-        alert.setContentText(message + "\n나: " + logic.getScorePlayer() + "칸 / AI: " + logic.getScoreAI() + "칸");
+        alert.setContentText(message + "\n나: " + coreLogic.getScorePlayer() + "칸 / AI: " + coreLogic.getScoreAI() + "칸");
         alert.initOwner(getOwner() != null ? getOwner() : this);
         alert.show();
     }
 
     /**
-     * [수정됨] HUD 갱신 (중립 점수 제거)
+     * [수정] HUD 갱신 (view의 Setter 사용)
      */
     private void updateHUD() {
         if (!isShowing()) {
             return;
         }
 
-        lblTime.setText(String.format("남은 시간: %.1fs", logic.getTimeMs() / 1000.0));
-        lblMyScore.setText("나: " + logic.getScorePlayer() + "칸");
-        lblAiScore.setText("AI: " + logic.getScoreAI() + "칸");
-        lblCombo.setText("콤보: " + logic.getCombo());
-        lblEffects.setText(logic.getEffects().describeEffects());
+        view.setTimeText(String.format("남은 시간: %.1fs", timeMs / 1000.0));
+        view.setMyScoreText("나: " + coreLogic.getScorePlayer() + "칸");
+        view.setAiScoreText("AI: " + coreLogic.getScoreAI() + "칸");
+        view.setComboText("콤보: " + coreLogic.getCombo());
+        view.setEffectsText(coreLogic.getEffects().describeEffects());
 
-        ItemType itemType = logic.getEffects().getLastActivatedItem();
-        lblLastItem.setText("최근 아이템: " + formatItemLabel(itemType));
+        ItemType itemType = coreLogic.getEffects().getLastItemActivatedItem();
+        view.setLastItemText("최근 아이템: " + formatItemLabel(itemType));
 
-        long activatedAt = logic.getEffects().getLastItemActivatedAt();
+        long activatedAt = coreLogic.getEffects().getLastItemActivatedAt();
         if (itemType != ItemType.NONE && activatedAt > lastItemNotifiedAt) {
             lastItemNotifiedAt = activatedAt;
-            landGrabPanel.flashBuffColor(colorForItem(itemType));
+            view.flashItem(colorForItem(itemType));
         }
     }
 
+    // (formatItemLabel, colorForItem 헬퍼 메서드는 동일)
     private String formatItemLabel(ItemType itemType) {
         return switch (itemType) {
             case BUFF_SPLASH -> "스플래시";

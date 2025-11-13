@@ -1,10 +1,10 @@
-package typingarena.minigames.landgrab;
+package typingarena.core.landgrab; // [수정] 패키지 경로
 
-import java.util.ArrayList; // [신규]
-import java.util.List; // [신규]
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * [수정됨]
+ * [수정] 땅따먹기 핵심 로직의 '효과' 부분 (core로 이동됨)
  * 1. '스플래시' 텍스트 타이머 제거
  * 2. [신규] '먹물' 효과를 단일 타일 -> '여러 타일'을 동시에 가릴 수 있도록 List<BlindedTile>로 변경
  */
@@ -79,8 +79,15 @@ public class LandGrabEffects {
         lastItemActivatedAt = System.currentTimeMillis();
     }
 
-    public ItemType getLastActivatedItem() { return lastActivatedItem; }
-    public long getLastItemActivatedAt() { return lastItemActivatedAt; }
+    // ===== [중요] 컴파일 오류가 나는 바로 그 메서드 =====
+    public ItemType getLastItemActivatedItem() {
+        return lastActivatedItem;
+    }
+
+    public long getLastItemActivatedAt() {
+        return lastItemActivatedAt;
+    }
+    // ==============================================
 
     // --- 3. 공용 ---
     public void clearAll() {
