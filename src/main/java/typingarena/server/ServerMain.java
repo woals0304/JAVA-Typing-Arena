@@ -5,6 +5,7 @@ import typingarena.net.Message;
 import typingarena.server.core.ServerContext;
 import typingarena.server.match.Matchmaker;
 import typingarena.server.session.TugOfWarSession;
+import typingarena.server.db.DatabaseManager;
 
 import java.io.IOException;
 import java.net.ServerSocket;
@@ -26,8 +27,11 @@ public class ServerMain implements Matchmaker.Listener {
     public ServerMain(int port) {
         this.port = port;
     }
-
+    
     public static void main(String[] args) throws Exception {
+
+        DatabaseManager.getInstance();
+        
         int port = 7777;
         System.out.println("[Server] Listening on " + port);
         new ServerMain(port).run();

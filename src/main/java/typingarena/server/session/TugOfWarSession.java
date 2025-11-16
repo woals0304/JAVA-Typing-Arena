@@ -6,6 +6,9 @@ import typingarena.core.tugofwar.TugOfWarWordGenerator;
 import typingarena.net.Message;
 import typingarena.server.ClientHandler;
 import typingarena.server.core.ServerContext;
+import typingarena.server.ClientHandler;
+import typingarena.server.core.ServerContext;
+import typingarena.server.db.DatabaseManager; // ⬅️ [추가]
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -26,7 +29,8 @@ public class TugOfWarSession {
     private int timeMs = 60_000;
     private boolean running = true;
     private ScheduledFuture<?> ticker;
-
+    private final String gameType = "tug_of_war";
+    
     public TugOfWarSession(ServerContext context, ClientHandler a, ClientHandler b) {
         this.context = context;
         this.left = new PlayerState(a);
@@ -160,6 +164,8 @@ public class TugOfWarSession {
         running = false;
         dispose();
 
+        recordGameResults(winner, loser);
+
         sendEnd(left, winner == left, reason);
         sendEnd(right, winner == right, reason);
     }
@@ -219,6 +225,35 @@ public class TugOfWarSession {
 
         private void setCurrentSession(String sessionId) {
             client.setCurrentSession(sessionId);
+        }
+    }
+    
+    private void recordGameResults(PlayerState winner, PlayerState loser) {
+        try {
+            DatabaseManager dbManager = DatabaseManager.getInstance();
+            
+            // 승자/패자 ID 가져오기 (무승부일 경우 winner, loser가 null일 수 있음)
+            String winnerId = (winner != null) ? winner.getClient().getLoggedInUserId() : null;
+            String loserId = (loser != null) ? loser.getClient().getLoggedInUserId() : null;
+
+            if (winnerId != null && loserId != null) {
+                // 승패가 갈린 경우
+                dbManager.updateGameRecord(winnerId, gameType, true); // 승리
+                dbManager.updateGameRecord(loserId, gameType, false); // 패배
+                System.out.println("[전적 기록] " + winnerId + " (승) vs " + loserId + " (패)");
+            } else if (winner == null && loser == null) {
+                // 무승부 (둘 다 null)
+                System.out.println("[전적 기록] 무승부. (" + left.getNickname() + " vs " + right.getNickname() + ")");
+                // (무승부는 기록하지 않거나, 필요시 별도 로직 추가)
+            } else {
+                // 한 명만 있는 비정상 종료 (예: 기권)
+                if (winnerId != null) dbManager.updateGameRecord(winnerId, gameType, true);
+                if (loserId != null) dbManager.updateGameRecord(loserId, gameType, false);
+            }
+
+        } catch (Exception e) {
+            System.err.println("전적 기록 중 심각한 오류 발생: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 }
