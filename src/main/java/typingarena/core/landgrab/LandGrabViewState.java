@@ -1,5 +1,6 @@
 package typingarena.core.landgrab;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -52,20 +53,98 @@ public class LandGrabViewState {
                 this.modifierGrid[r][c] = coreLogic.getModifier(r, c);
             }
         }
+        // [수정] getActiveBlindedTiles()는 List<BlindedTile>을 반환하므로 바로 할당
         this.blindedTiles = coreLogic.getEffects().getActiveBlindedTiles();
     }
 
     /**
-     * (멀티플레이용) Map에서 상태를 복사하는 생성자 (나중에 5단계에서 사용)
+     * [신규] (멀티플레이용) Map에서 상태를 복사하는 생성자
      * @param data 서버가 보낸 JSON의 data Map
      */
+    @SuppressWarnings("unchecked") // (Map/List 캐스팅 경고 무시)
     public LandGrabViewState(Map<String, Object> data) {
-        // TODO: 멀티플레이 연동 시, 'TugOfWarOnlineStage'처럼
-        //       서버가 보낸 Map에서 'tiles_changed', 'ink_tiles_added' 등을 파싱하여
-        //       grid, wordGrid, modifierGrid, blindedTiles를 채우는 로직 구현 필요
-        //
-        // (일단 지금은 싱글플레이용 빈 생성자만 둠)
-        this(); // 임시로 기본 생성자 호출
+        int size = LandGrabLogic.GRID_SIZE;
+        this.grid = new LandGrabLogic.TileState[size][size];
+        this.wordGrid = new String[size][size];
+        this.modifierGrid = new LandGrabLogic.WordModifier[size][size];
+
+        // 1. 그리드 상태 파싱
+        parseGrid(data.get("grid"), this.grid, LandGrabLogic.TileState.class, LandGrabLogic.TileState.EMPTY);
+        // 2. 단어 그리드 파싱
+        parseGrid(data.get("words"), this.wordGrid, String.class, "");
+        // 3. 모디파이어 그리드 파싱
+        parseGrid(data.get("modifiers"), this.modifierGrid, LandGrabLogic.WordModifier.class, LandGrabLogic.WordModifier.NEUTRAL);
+
+        // 4. 먹물 타일 리스트 파싱
+        this.blindedTiles = parseBlindedTiles(data.get("ink_tiles"));
+    }
+
+    // --- 헬퍼 메서드: Map에서 List<List<String>>으로 온 그리드 데이터를 파싱 ---
+
+    @SuppressWarnings("unchecked")
+    private <T> void parseGrid(Object gridData, T[][] targetGrid, Class<T> enumClass, T defaultValue) {
+        if (!(gridData instanceof List)) {
+            fillGrid(targetGrid, defaultValue); // 데이터 없으면 기본값으로 채움
+            return;
+        }
+
+        try {
+            List<List<String>> rows = (List<List<String>>) gridData;
+            int size = LandGrabLogic.GRID_SIZE;
+
+            for (int r = 0; r < size; r++) {
+                if (r >= rows.size()) break;
+                List<String> cols = rows.get(r);
+                for (int c = 0; c < size; c++) {
+                    if (c >= cols.size()) break;
+                    String val = cols.get(c);
+
+                    if (val == null) {
+                        targetGrid[r][c] = defaultValue;
+                        continue;
+                    }
+
+                    if (enumClass == String.class) {
+                        targetGrid[r][c] = (T) val;
+                    } else { // Enum 타입 파싱 (TileState, WordModifier)
+                        targetGrid[r][c] = (T) Enum.valueOf((Class<Enum>) enumClass, val);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Grid 파싱 실패: " + e.getMessage());
+            fillGrid(targetGrid, defaultValue);
+        }
+    }
+
+    private <T> void fillGrid(T[][] targetGrid, T defaultValue) {
+        for (int r = 0; r < targetGrid.length; r++) {
+            for (int c = 0; c < targetGrid[r].length; c++) {
+                targetGrid[r][c] = defaultValue;
+            }
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<LandGrabEffects.BlindedTile> parseBlindedTiles(Object inkData) {
+        if (!(inkData instanceof List)) {
+            return Collections.emptyList();
+        }
+
+        List<LandGrabEffects.BlindedTile> tiles = new ArrayList<>();
+        try {
+            List<Map<String, Object>> inkList = (List<Map<String, Object>>) inkData;
+            for (Map<String, Object> tileData : inkList) {
+                // JSON은 숫자를 Double로 파싱하므로, Number로 받아 int로 변환
+                int r = ((Number) tileData.get("r")).intValue();
+                int c = ((Number) tileData.get("c")).intValue();
+                long until = ((Number) tileData.get("until")).longValue(); // (until은 사실 클라에선 불필요)
+                tiles.add(new LandGrabEffects.BlindedTile(r, c, until));
+            }
+        } catch (Exception e) {
+            System.err.println("먹물 타일 파싱 실패: " + e.getMessage());
+        }
+        return tiles;
     }
 
 

@@ -3,6 +3,7 @@ package typingarena.server.core;
 import com.google.gson.Gson;
 import typingarena.server.ClientHandler;
 import typingarena.server.lobby.Room;
+import typingarena.server.session.LandGrabSession; // [신규] LandGrabSession import
 import typingarena.server.session.TugOfWarSession;
 
 // [추가] 3단계에서 추가된 임포트
@@ -23,6 +24,8 @@ public class ServerContext {
     private final ScheduledExecutorService scheduler;
     private final Map<String, Room> rooms = new ConcurrentHashMap<>();
     private final Map<String, TugOfWarSession> tugSessions = new ConcurrentHashMap<>();
+    // [신규] LandGrab 세션을 저장할 Map 추가
+    private final Map<String, LandGrabSession> landGrabSessions = new ConcurrentHashMap<>();
     private final Set<ClientHandler> clients = ConcurrentHashMap.newKeySet();
 
     private final AuthService authService; // [추가] 인증 서비스
@@ -30,7 +33,7 @@ public class ServerContext {
     public ServerContext(Gson gson, ScheduledExecutorService scheduler) {
         this.gson = gson;
         this.scheduler = scheduler;
-        
+
         // [추가] 서버 시작 시 DB와 인증 서비스 초기화
         DatabaseManager.getInstance(); // DB 파일/테이블 생성 보장
         this.authService = new AuthService();
@@ -55,6 +58,13 @@ public class ServerContext {
 
     public Map<String, TugOfWarSession> getTugSessions() {
         return tugSessions;
+    }
+
+    /**
+     * [신규] LandGrab 세션 Map의 Getter
+     */
+    public Map<String, LandGrabSession> getLandGrabSessions() {
+        return landGrabSessions;
     }
 
     public Set<ClientHandler> getClients() {

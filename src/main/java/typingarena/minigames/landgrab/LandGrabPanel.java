@@ -18,7 +18,7 @@ import javafx.scene.text.TextAlignment;
 import javafx.util.Duration;
 
 // [신규] core 패키지의 클래스들을 import
-import typingarena.core.landgrab.LandGrabLogic;
+import typingarena.core.landgrab.LandGrabLogic; // (Enum을 사용하기 위해 import)
 import typingarena.core.landgrab.LandGrabEffects;
 import typingarena.core.landgrab.LandGrabViewState; // [신규] ViewState import
 
@@ -28,8 +28,9 @@ import java.util.List;
 /**
  * [대규모 리팩토링됨]
  * 1. 'RopePanel'처럼 '바보' View 역할만 수행
- * 2. 생성자에서 'coreLogic' 대신 'LandGrabViewState'를 받도록 수정
- * 3. draw() 메서드가 'coreLogic'이 아닌 'state' 변수를 참조하여 그림
+ * 2. 생성자에서 'coreLogic' 참조 제거
+ * 3. 'updateState(LandGrabViewState state)' 메서드 신규 추가
+ * 4. draw() 메서드가 'coreLogic'이 아닌 'state' 변수를 참조하여 그림
  */
 public class LandGrabPanel extends StackPane {
 
@@ -48,6 +49,7 @@ public class LandGrabPanel extends StackPane {
 
     // ===== 2. 상태 (수정) =====
     // [제거] coreLogic 참조 제거
+    // private final LandGrabLogic logic;
 
     // [신규] 'RopePanel'처럼 ViewState를 가짐
     private LandGrabViewState state = new LandGrabViewState(); // (빈 화면으로 초기화)
@@ -105,6 +107,8 @@ public class LandGrabPanel extends StackPane {
      * [수정] 생성자: 이제 아무것도 주입받지 않음
      */
     public LandGrabPanel() {
+        // [제거] this.logic = logic;
+
         animationPane.setMouseTransparent(true);
         getChildren().addAll(canvas, animationPane);
         setAlignment(Pos.CENTER);
@@ -128,6 +132,7 @@ public class LandGrabPanel extends StackPane {
 
     /**
      * [신규] 'RopePanel.updateState'와 동일한 역할
+     * Controller가 이 메서드를 호출하여 화면을 갱신합니다.
      */
     public void updateState(LandGrabViewState newState) {
         if (newState == null) {

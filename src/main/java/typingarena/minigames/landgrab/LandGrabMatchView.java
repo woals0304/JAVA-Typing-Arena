@@ -17,7 +17,7 @@ import javafx.scene.text.FontWeight;
 /**
  * [신규] 땅따먹기 게임의 공통 UI (View)
  * (TugOfWarMatchView.java와 동일한 역할)
- * '바보' View이므로, 생성자에서 coreLogic을 받지 않습니다.
+ * [수정] '바보' View가 되었으므로, 생성자에서 coreLogic을 받지 않습니다.
  */
 public class LandGrabMatchView {
 
@@ -37,9 +37,9 @@ public class LandGrabMatchView {
 
     /**
      * [수정] LandGrabMatchView는 '바보' View이므로 엔진이 필요 없습니다.
+     * LandGrabPanel() 생성자가 비었으므로, 그냥 생성합니다.
      */
     public LandGrabMatchView() {
-        // [수정] LandGrabPanel 생성자가 비었으므로, 그냥 생성합니다.
         this.landGrabPanel = new LandGrabPanel();
 
         // ===== 상단 HUD =====

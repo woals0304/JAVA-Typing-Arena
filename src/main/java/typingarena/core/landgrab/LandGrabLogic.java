@@ -3,7 +3,7 @@ package typingarena.core.landgrab;
 import com.google.gson.Gson;
 import com.google.gson.JsonIOException;
 import com.google.gson.JsonSyntaxException;
-import typingarena.core.landgrab.LandGrabEffects.ItemType; // [수정] Effects 경로 변경
+import typingarena.core.landgrab.LandGrabEffects.ItemType;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -20,7 +20,6 @@ import java.util.Random;
 /**
  * [신규] 땅따먹기 게임의 핵심 로직 (싱글/멀티 공용 엔진)
  * UI, 타이머, 네트워크에 의존하지 않습니다.
- * (기존 LandGrabLogic.java에서 AI, 시간, UI 콜백을 제거)
  */
 public class LandGrabLogic {
 
@@ -52,14 +51,9 @@ public class LandGrabLogic {
     private int scoreAI = 0;
     private int combo = 0;
 
-    // [제거] timeMs, running, aiTickTimerMs (Controller의 역할이므로 제거)
-
     private final LandGrabEffects effects = new LandGrabEffects();
 
-    // [제거] onSplashCallback, onInkSplashCallback (Controller의 역할이므로 제거)
-
     // ===== 3. 게임 밸런스 값 (동일) =====
-    // [제거] AI_CAPTURE_INTERVAL_MS (Controller의 역할이므로 제거)
     private static final int BLIND_DURATION_MS = 3_000;
 
     // ===== 4. 공개 Getter (Model 상태) =====
@@ -71,8 +65,16 @@ public class LandGrabLogic {
     public int getCombo() { return combo; }
     public LandGrabEffects getEffects() { return effects; }
 
-    // [제거] getTimeMs, isRunning (Controller가 관리)
-    // [제거] 콜백 Setter (Controller가 관리)
+    // [신규] 서버가 그리드 전체를 직렬화할 수 있도록 public getter 추가
+    public TileState[][] getGrid() {
+        return grid;
+    }
+    public String[][] getWordGrid() {
+        return wordGrid;
+    }
+    public WordModifier[][] getModifierGrid() {
+        return modifierGrid;
+    }
 
     // ===== 5. 게임 흐름 제어 (Model) =====
     public void startGame() {
@@ -88,8 +90,6 @@ public class LandGrabLogic {
             }
         }
     }
-
-    // [제거] tick() 메서드 (AI 타이머/시간/승패 판정은 Controller가 담당)
 
     /**
      * [신규] AI가 타일을 캡처하는 '엔진' 로직

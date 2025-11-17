@@ -168,8 +168,8 @@ public class LandGrabGame extends Stage {
             else if (coreLogic.getScoreAI() > coreLogic.getScorePlayer()) result = "패배... AI가 더 많습니다.";
             else result = "무승부!";
         }
-        if (coreLogic.getScorePlayer() + coreLogic.getScoreAI() == LandGrabLogic.GRID_SIZE * LandGrabLogic.GRID_SIZE) {
-            running = false;
+        if (!running && (coreLogic.getScorePlayer() + coreLogic.getScoreAI() == LandGrabLogic.GRID_SIZE * LandGrabLogic.GRID_SIZE)) {
+            running = false; // (timeMs > 0 이어도 종료)
             // (승패 판정 로직 동일)
             if (coreLogic.getScorePlayer() > coreLogic.getScoreAI()) result = "승리! 모든 땅을 차지했습니다.";
             else if (coreLogic.getScoreAI() > coreLogic.getScorePlayer()) result = "패배... AI에게 모두 빼앗겼습니다.";
