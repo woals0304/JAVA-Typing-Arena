@@ -140,7 +140,8 @@ public class TugOfWarGame extends Stage {
                 logic.getPos(),
                 logic.getCurrentWord(),
                 logic.getCurrentWordModifier(),
-                logic.getEffects().isBlindActive()
+                logic.getEffects().isBlindActive(),
+                logic.getEffects().isJamoSplitActive()
         );
         ropePanel.updateState(state);
     }
@@ -150,6 +151,7 @@ public class TugOfWarGame extends Stage {
             case POWER_GRIP -> "파워 그립";
             case ANCHOR -> "앵커";
             case BLIND -> "먹물";
+            case JAMO_SPLIT -> "자소 분리";
             default -> "없음";
         };
     }
@@ -159,6 +161,7 @@ public class TugOfWarGame extends Stage {
             case POWER_GRIP -> Color.rgb(80, 160, 255);
             case ANCHOR -> Color.rgb(80, 200, 120);
             case BLIND -> Color.rgb(30, 30, 30);
+            case JAMO_SPLIT -> Color.rgb(120, 90, 200);
             default -> Color.TRANSPARENT;
         };
     }

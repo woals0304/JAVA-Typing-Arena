@@ -18,7 +18,8 @@ public class GameLogic {
         NONE,
         POWER_GRIP,
         ANCHOR,
-        BLIND
+        BLIND,
+        JAMO_SPLIT
     }
 
     private final Random rnd = new Random();
@@ -151,7 +152,11 @@ public class GameLogic {
     }
 
     private void activateRandomTrap() {
-        useBlind();
+        if (rnd.nextBoolean()) {
+            useBlind();
+        } else {
+            useJamoSplit();
+        }
     }
 
     private void recordItemActivation(ItemType itemType) {
@@ -176,5 +181,11 @@ public class GameLogic {
         if (!running) return;
         effects.activateBlind(3_000);
         recordItemActivation(ItemType.BLIND);
+    }
+
+    public void useJamoSplit() {
+        if (!running) return;
+        effects.activateJamoSplit(4_000);
+        recordItemActivation(ItemType.JAMO_SPLIT);
     }
 }

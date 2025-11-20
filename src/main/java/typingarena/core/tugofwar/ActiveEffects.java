@@ -7,6 +7,7 @@ public class ActiveEffects {
     private long powerGripUntil = 0L;
     private long anchorUntil = 0L;
     private long blindUntil = 0L;
+    private long jamoSplitUntil = 0L;
 
     public boolean isPowerGripActive() {
         return System.currentTimeMillis() < powerGripUntil;
@@ -18,6 +19,10 @@ public class ActiveEffects {
 
     public boolean isBlindActive() {
         return System.currentTimeMillis() < blindUntil;
+    }
+
+    public boolean isJamoSplitActive() {
+        return System.currentTimeMillis() < jamoSplitUntil;
     }
 
     public void activatePowerGrip(long durationMs) {
@@ -35,10 +40,16 @@ public class ActiveEffects {
         blindUntil = Math.max(blindUntil, now + durationMs);
     }
 
+    public void activateJamoSplit(long durationMs) {
+        long now = System.currentTimeMillis();
+        jamoSplitUntil = Math.max(jamoSplitUntil, now + durationMs);
+    }
+
     public void clearAll() {
         powerGripUntil = 0L;
         anchorUntil = 0L;
         blindUntil = 0L;
+        jamoSplitUntil = 0L;
     }
 
     public String describeEffects() {
@@ -46,6 +57,7 @@ public class ActiveEffects {
         if (isPowerGripActive()) sb.append("[파워그립] ");
         if (isAnchorActive()) sb.append("[앵커] ");
         if (isBlindActive()) sb.append("[먹물] ");
+        if (isJamoSplitActive()) sb.append("[자소분리] ");
         if (sb.length() == 0) return "효과: 없음";
         return "효과: " + sb.toString().trim();
     }

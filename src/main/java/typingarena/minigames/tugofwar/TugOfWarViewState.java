@@ -10,17 +10,20 @@ public class TugOfWarViewState {
     public String currentWord;
     public GameLogic.WordModifier modifier;
     public boolean blindActive;
+    public boolean jamoSplitActive;
 
     public TugOfWarViewState() {
-        this(0.0, "", GameLogic.WordModifier.NEUTRAL, false);
+        this(0.0, "", GameLogic.WordModifier.NEUTRAL, false, false);
     }
 
     public TugOfWarViewState(double pos, String currentWord,
                              GameLogic.WordModifier modifier,
-                             boolean blindActive) {
+                             boolean blindActive,
+                             boolean jamoSplitActive) {
         this.pos = pos;
         this.currentWord = currentWord;
         this.modifier = modifier;
         this.blindActive = blindActive;
+        this.jamoSplitActive = jamoSplitActive;
     }
 }

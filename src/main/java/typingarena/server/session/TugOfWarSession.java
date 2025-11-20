@@ -106,8 +106,13 @@ public class TugOfWarSession {
                 player.lastItem = "앵커";
             }
         } else if (modifier == GameLogic.WordModifier.TRAP) {
-            opponent.effects.activateBlind(3_000);
-            opponent.lastItem = "먹물";
+            if (rnd.nextBoolean()) {
+                opponent.effects.activateBlind(3_000);
+                opponent.lastItem = "먹물";
+            } else {
+                opponent.effects.activateJamoSplit(4_000);
+                opponent.lastItem = "자소 분리";
+            }
         }
     }
 
@@ -124,6 +129,7 @@ public class TugOfWarSession {
         payload.put("effectsSelf", player.effects.describeEffects());
         payload.put("lastItemSelf", player.lastItem);
         payload.put("blindSelf", player.effects.isBlindActive());
+        payload.put("jamoSplitSelf", player.effects.isJamoSplitActive());
         start.data = payload;
         player.send(start);
         player.setCurrentSession(id);
@@ -149,6 +155,7 @@ public class TugOfWarSession {
         payload.put("effectsSelf", self.effects.describeEffects());
         payload.put("lastItemSelf", self.lastItem);
         payload.put("blindSelf", self.effects.isBlindActive());
+        payload.put("jamoSplitSelf", self.effects.isJamoSplitActive());
         update.data = payload;
         self.send(update);
     }

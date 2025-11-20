@@ -81,7 +81,8 @@ public class TugOfWarOnlineStage extends Stage {
                     0.0,
                     valueOf(data.get("yourWord")),
                     parseModifier(data.get("modifierSelf")),
-                    Boolean.TRUE.equals(data.get("blindSelf"))
+                    Boolean.TRUE.equals(data.get("blindSelf")),
+                    Boolean.TRUE.equals(data.get("jamoSplitSelf"))
             );
             updateRopeState(state);
         }
@@ -107,7 +108,8 @@ public class TugOfWarOnlineStage extends Stage {
                 pos,
                 valueOf(data.get("yourWord")),
                 parseModifier(data.get("modifierSelf")),
-                Boolean.TRUE.equals(data.get("blindSelf"))
+                Boolean.TRUE.equals(data.get("blindSelf")),
+                Boolean.TRUE.equals(data.get("jamoSplitSelf"))
         );
         updateRopeState(state);
     }

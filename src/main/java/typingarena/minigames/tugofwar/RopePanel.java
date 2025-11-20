@@ -21,6 +21,9 @@ public class RopePanel extends Canvas {
     private static final Color TEXT_DEFAULT = Color.rgb(30, 30, 30);
     private static final Color FLASH_HIT = Color.rgb(50, 200, 120);
     private static final Color FLASH_MISS = Color.rgb(220, 80, 80);
+    private static final char[] CHO = {'\u3131','\u3132','\u3134','\u3137','\u3138','\u3139','\u3141','\u3142','\u3143','\u3145','\u3146','\u3147','\u3148','\u3149','\u314a','\u314b','\u314c','\u314d','\u314e'};
+    private static final char[] JUNG = {'\u314f','\u3150','\u3151','\u3152','\u3153','\u3154','\u3155','\u3156','\u3157','\u3158','\u3159','\u315a','\u315b','\u315c','\u315d','\u315e','\u315f','\u3160','\u3161','\u3162','\u3163'};
+    private static final char[] JONG = {'\0','\u3131','\u3132','\u3133','\u3134','\u3135','\u3136','\u3137','\u3139','\u313a','\u313b','\u313c','\u313d','\u313e','\u313f','\u3140','\u3141','\u3142','\u3144','\u3145','\u3146','\u3147','\u3148','\u314a','\u314b','\u314c','\u314d','\u314e'};
 
     private boolean disposed = false;
     private TugOfWarViewState state = new TugOfWarViewState();
@@ -44,7 +47,8 @@ public class RopePanel extends Canvas {
                 Math.max(-100, Math.min(100, newState.pos)),
                 newState.currentWord != null ? newState.currentWord : "",
                 newState.modifier != null ? newState.modifier : GameLogic.WordModifier.NEUTRAL,
-                newState.blindActive
+                newState.blindActive,
+                newState.jamoSplitActive
         );
         redraw();
     }
@@ -114,6 +118,9 @@ public class RopePanel extends Canvas {
 
         // 5) 현재 단어 텍스트
         String word = state.currentWord;
+        if (state.jamoSplitActive) {
+            word = splitHangulToJamo(word);
+        }
         Font wordFont = Font.font("System", FontWeight.BOLD, 32);
         gc.setFont(wordFont);
 
@@ -222,5 +229,30 @@ public class RopePanel extends Canvas {
         disposed = false;
         flashColor = null;
         buffFlashColor = null;
+    }
+
+    private String splitHangulToJamo(String text) {
+        StringBuilder sb = new StringBuilder();
+        boolean first = true;
+        for (int i = 0; i < text.length(); i++) {
+            char ch = text.charAt(i);
+            int code = ch - 0xAC00;
+            if (code >= 0 && code < 11172) { // 현대 한글 범위
+                int choIndex = code / (21 * 28);
+                int jungIndex = (code % (21 * 28)) / 28;
+                int jongIndex = code % 28;
+                if (!first) sb.append(' ');
+                sb.append(CHO[choIndex]).append(' ').append(JUNG[jungIndex]);
+                if (jongIndex > 0) {
+                    sb.append(' ').append(JONG[jongIndex]);
+                }
+                first = false;
+            } else {
+                if (!first) sb.append(' ');
+                sb.append(ch);
+                first = false;
+            }
+        }
+        return sb.toString();
     }
 }

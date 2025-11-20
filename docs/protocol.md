@@ -248,7 +248,12 @@ JSON
   "type": "GAME_UPDATE_BROADCAST",
   "data": {
     "game": "TugOfWar",
-    "rope_position": -15.5,
+    "pos": -15.5,
+    "timeMs": 42100,
+    "yourWord": "바람",
+    "modifierSelf": "NEUTRAL",
+    "blindSelf": false,
+    "jamoSplitSelf": false,
     "animation_trigger": null
   }
 }`
