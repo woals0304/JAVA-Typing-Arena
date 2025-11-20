@@ -41,10 +41,13 @@ public final class TugOfWarWordGenerator {
         }
         String text = WORD_POOL.get(rnd.nextInt(WORD_POOL.size()));
         GameLogic.WordModifier modifier;
-        if (rnd.nextDouble() >= 0.3) {
+        double roll = rnd.nextDouble();
+        if (roll < 0.5) { // 50%
             modifier = GameLogic.WordModifier.NEUTRAL;
-        } else {
-            modifier = rnd.nextBoolean() ? GameLogic.WordModifier.BUFF : GameLogic.WordModifier.TRAP;
+        } else if (roll < 0.75) { // 25%
+            modifier = GameLogic.WordModifier.BUFF;
+        } else { // 25%
+            modifier = GameLogic.WordModifier.TRAP;
         }
         return new Word(text, modifier);
     }
