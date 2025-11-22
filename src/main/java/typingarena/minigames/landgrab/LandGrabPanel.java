@@ -17,44 +17,38 @@ import javafx.scene.text.FontWeight;
 import javafx.scene.text.TextAlignment;
 import javafx.util.Duration;
 
-// [신규] core 패키지의 클래스들을 import
-import typingarena.core.landgrab.LandGrabLogic; // (Enum을 사용하기 위해 import)
+import typingarena.core.landgrab.LandGrabLogic;
 import typingarena.core.landgrab.LandGrabEffects;
-import typingarena.core.landgrab.LandGrabViewState; // [신규] ViewState import
+import typingarena.core.landgrab.LandGrabViewState;
 
 import java.io.InputStream;
 import java.util.List;
 
-/**
- * [대규모 리팩토링됨]
- * 1. 'RopePanel'처럼 '바보' View 역할만 수행
- * 2. 생성자에서 'coreLogic' 참조 제거
- * 3. 'updateState(LandGrabViewState state)' 메서드 신규 추가
- * 4. draw() 메서드가 'coreLogic'이 아닌 'state' 변수를 참조하여 그림
- */
 public class LandGrabPanel extends StackPane {
 
-    // ===== 1. 색상 정의 (동일) =====
     private static final Color BG_COLOR = Color.rgb(240, 240, 240);
     private static final Color GRID_LINE_COLOR = Color.rgb(200, 200, 200);
     private static final Color TILE_EMPTY_COLOR = Color.rgb(255, 255, 255);
-    private static final Color TILE_PLAYER_COLOR = Color.rgb(60, 120, 255);
-    private static final Color TILE_AI_COLOR = Color.rgb(220, 80, 80);
+    private static final Color TILE_PLAYER_A_COLOR = Color.rgb(60, 120, 255);
+    private static final Color TILE_PLAYER_B_COLOR = Color.rgb(220, 80, 80);
+
     private static final Color TEXT_EMPTY_COLOR = Color.rgb(30, 30, 30);
-    private static final Color TEXT_ON_CAPTURED_TILE = Color.rgb(100, 100, 100);
-    private static final Color TEXT_TRAP_COLOR = Color.rgb(208, 68, 68);
-    private static final Color TEXT_BUFF_COLOR = Color.rgb(0, 100, 200);
+    private static final Color TEXT_ON_CAPTURED_TILE = Color.rgb(240, 240, 240);
+
+    // [수정] 아이템 색상 통일 (진한 금색)
+    private static final Color TEXT_ITEM_COLOR = Color.rgb(218, 165, 32);
+
     private static final Color FLASH_HIT = Color.rgb(50, 200, 120);
     private static final Color FLASH_MISS = Color.rgb(220, 80, 80);
 
-    // ===== 2. 상태 (수정) =====
-    // [제거] coreLogic 참조 제거
-    // private final LandGrabLogic logic;
-
-    // [신규] 'RopePanel'처럼 ViewState를 가짐
-    private LandGrabViewState state = new LandGrabViewState(); // (빈 화면으로 초기화)
-
+    private LandGrabViewState state = new LandGrabViewState();
     private boolean disposed = false;
+
+    private boolean isWordFlipped = false;
+    // [수정] A와 B의 보호막 상태를 각각 관리
+    private boolean barrierActiveA = false;
+    private boolean barrierActiveB = false;
+
     private Color flashColor = null;
     private long flashUntil = 0L;
     private Color buffFlashColor = null;
@@ -63,61 +57,19 @@ public class LandGrabPanel extends StackPane {
     private final Canvas canvas = new Canvas();
     private final Pane animationPane = new Pane();
 
-    // (폰트, 이미지 로딩 동일)
     private final Font wordFont = Font.font("System", FontWeight.BOLD, 14);
     private final Font itemFont = Font.font("System", FontWeight.BOLD, FontPosture.ITALIC, 15);
-    private final Font feedbackFont = Font.font("System", FontWeight.BOLD, 48);
     private final Font splashAnimationFont = loadCustomFont("fonts/CookieRun Regular.otf", 32);
     private final Image inkSplatImage = loadImage("images/ink_splat.png");
 
-
-    // (loadCustomFont, loadImage 헬퍼 메서드들은 동일)
-    private Font loadCustomFont(String fontPath, double size) {
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream(fontPath)) {
-            if (is == null) {
-                System.err.println("커스텀 폰트 로드 실패 (파일 없음): " + fontPath);
-                return Font.font("System", FontWeight.BOLD, size);
-            }
-            Font loadedFont = Font.loadFont(is, size);
-            if (loadedFont == null) {
-                System.err.println("커스텀 폰트 파싱 실패: " + fontPath);
-                return Font.font("System", FontWeight.BOLD, size);
-            }
-            // System.out.println("커스텀 폰트 로드 성공: " + loadedFont.getName());
-            return loadedFont;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return Font.font("System", FontWeight.BOLD, size);
-        }
-    }
-    private Image loadImage(String imagePath) {
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream(imagePath)) {
-            if (is == null) {
-                System.err.println("이미지 로드 실패 (파일 없음): " + imagePath);
-                return null;
-            }
-            return new Image(is);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
-
-    /**
-     * [수정] 생성자: 이제 아무것도 주입받지 않음
-     */
     public LandGrabPanel() {
-        // [제거] this.logic = logic;
-
         animationPane.setMouseTransparent(true);
         getChildren().addAll(canvas, animationPane);
         setAlignment(Pos.CENTER);
-
-        widthProperty().addListener((obs, oldV, newV) -> resizeCanvas(newV.doubleValue(), getHeight()));
-        heightProperty().addListener((obs, oldV, newV) -> resizeCanvas(getWidth(), newV.doubleValue()));
+        widthProperty().addListener((obs, o, n) -> resizeCanvas(n.doubleValue(), getHeight()));
+        heightProperty().addListener((obs, o, n) -> resizeCanvas(getWidth(), n.doubleValue()));
     }
 
-    // (resizeCanvas, redraw 동일)
     private void resizeCanvas(double w, double h) {
         if (w <= 0 || h <= 0) return;
         double size = Math.min(w, h);
@@ -125,31 +77,25 @@ public class LandGrabPanel extends StackPane {
         canvas.setHeight(size);
         redraw();
     }
+
+    // [수정] 배리어 상태 2개 받기
+    public void setExtraEffects(boolean flipWords, boolean barrierA, boolean barrierB) {
+        this.isWordFlipped = flipWords;
+        this.barrierActiveA = barrierA;
+        this.barrierActiveB = barrierB;
+    }
+
+    public void updateState(LandGrabViewState newState) {
+        this.state = (newState == null) ? new LandGrabViewState() : newState;
+        redraw();
+    }
+
     public void redraw() {
         if (disposed) return;
         draw();
     }
 
-    /**
-     * [신규] 'RopePanel.updateState'와 동일한 역할
-     * Controller가 이 메서드를 호출하여 화면을 갱신합니다.
-     */
-    public void updateState(LandGrabViewState newState) {
-        if (newState == null) {
-            this.state = new LandGrabViewState(); // (빈 상태로)
-        } else {
-            this.state = newState;
-        }
-        redraw(); // 새 상태를 받았으니 화면을 다시 그림
-    }
-
-
-    /**
-     * [수정] draw 메서드: 모든 'logic.' 호출을 'this.state.'으로 변경
-     */
     private void draw() {
-        if (disposed) return;
-
         double w = canvas.getWidth();
         double h = canvas.getHeight();
         if (w <= 0 || h <= 0) return;
@@ -167,42 +113,47 @@ public class LandGrabPanel extends StackPane {
             for (int c = 0; c < LandGrabLogic.GRID_SIZE; c++) {
                 double x = c * tileSizeW;
                 double y = r * tileSizeH;
-                // [수정] this.state에서 상태 가져오기
-                LandGrabLogic.TileState state = this.state.getTileState(r, c);
 
-                if (state == null) {
-                    state = LandGrabLogic.TileState.EMPTY; // (NPE 방어)
-                }
+                LandGrabLogic.TileState ts = this.state.getTileState(r, c);
+                if (ts == null) ts = LandGrabLogic.TileState.EMPTY;
 
-                switch (state) {
-                    case PLAYER: gc.setFill(TILE_PLAYER_COLOR); break;
-                    case AI:     gc.setFill(TILE_AI_COLOR);     break;
-                    case EMPTY:  gc.setFill(TILE_EMPTY_COLOR);  break;
+                switch (ts) {
+                    case PLAYER_A: gc.setFill(TILE_PLAYER_A_COLOR); break;
+                    case PLAYER_B: gc.setFill(TILE_PLAYER_B_COLOR); break;
+                    default:       gc.setFill(TILE_EMPTY_COLOR);  break;
                 }
                 gc.fillRect(x, y, tileSizeW, tileSizeH);
 
-                // [수정] this.state에서 상태 가져오기
-                String word = this.state.getWord(r, c);
-                if (word == null || word.isEmpty()) continue;
-                // [수정] this.state에서 상태 가져오기
-                LandGrabLogic.WordModifier modifier = this.state.getModifier(r, c);
-
-                if (modifier == LandGrabLogic.WordModifier.TRAP) {
-                    gc.setFill(TEXT_TRAP_COLOR);
-                    gc.setFont(itemFont);
-                } else if (modifier == LandGrabLogic.WordModifier.BUFF) {
-                    gc.setFill(TEXT_BUFF_COLOR);
-                    gc.setFont(itemFont);
-                } else {
-                    gc.setFont(wordFont);
-                    if (state == LandGrabLogic.TileState.PLAYER || state == LandGrabLogic.TileState.AI) {
-                        gc.setFill(TEXT_ON_CAPTURED_TILE);
-                    } else {
-                        gc.setFill(TEXT_EMPTY_COLOR);
-                    }
+                // [수정] 개별 타일 보호막 테두리 그리기
+                if (ts == LandGrabLogic.TileState.PLAYER_A && barrierActiveA) {
+                    drawBarrierBorder(gc, x, y, tileSizeW, tileSizeH);
+                } else if (ts == LandGrabLogic.TileState.PLAYER_B && barrierActiveB) {
+                    drawBarrierBorder(gc, x, y, tileSizeW, tileSizeH);
                 }
-                gc.setTextAlign(TextAlignment.CENTER);
-                gc.fillText(word, x + tileSizeW / 2, y + tileSizeH / 2 + 5);
+
+                String word = this.state.getWord(r, c);
+                if (word != null && !word.isEmpty()) {
+                    if (isWordFlipped) {
+                        word = new StringBuilder(word).reverse().toString();
+                    }
+
+                    LandGrabLogic.WordModifier modifier = this.state.getModifier(r, c);
+
+                    // [수정] 아이템 색상 통일
+                    if (modifier != LandGrabLogic.WordModifier.NEUTRAL) {
+                        gc.setFill(TEXT_ITEM_COLOR);
+                        gc.setFont(itemFont);
+                    } else {
+                        gc.setFont(wordFont);
+                        if (ts == LandGrabLogic.TileState.PLAYER_A || ts == LandGrabLogic.TileState.PLAYER_B) {
+                            gc.setFill(TEXT_ON_CAPTURED_TILE);
+                        } else {
+                            gc.setFill(TEXT_EMPTY_COLOR);
+                        }
+                    }
+                    gc.setTextAlign(TextAlignment.CENTER);
+                    gc.fillText(word, x + tileSizeW / 2, y + tileSizeH / 2 + 5);
+                }
             }
         }
 
@@ -213,19 +164,15 @@ public class LandGrabPanel extends StackPane {
             gc.strokeLine(0, i * tileSizeH, w, i * tileSizeH);
         }
 
-        // [수정] this.state에서 상태 가져오기
+        // 먹물 그리기
         List<LandGrabEffects.BlindedTile> blindedTiles = this.state.getActiveBlindedTiles();
         if (blindedTiles != null && !blindedTiles.isEmpty() && inkSplatImage != null) {
             for (LandGrabEffects.BlindedTile tile : blindedTiles) {
-                int r = tile.r();
-                int c = tile.c();
-                double x = c * tileSizeW;
-                double y = r * tileSizeH;
-                gc.drawImage(inkSplatImage, x, y, tileSizeW, tileSizeH);
+                gc.drawImage(inkSplatImage, tile.c() * tileSizeW, tile.r() * tileSizeH, tileSizeW, tileSizeH);
             }
         }
 
-        // (플래시 로직 동일)
+        // 플래시
         long now = System.currentTimeMillis();
         if (flashColor != null && now < flashUntil) {
             gc.setGlobalAlpha(0.18);
@@ -241,116 +188,75 @@ public class LandGrabPanel extends StackPane {
         }
     }
 
-    // (showSplashAnimation, showInkSplashAnimation, flashHit, flashMiss,
-    //  flashBuffColor, dispose, activate...
-    //  ...이하 모든 헬퍼 메서드는 원본과 동일)
+    // [신규] 테두리 그리기 헬퍼
+    private void drawBarrierBorder(GraphicsContext gc, double x, double y, double w, double h) {
+        gc.setStroke(Color.GOLD);
+        gc.setLineWidth(4);
+        gc.strokeRect(x + 2, y + 2, w - 4, h - 4); // 안쪽으로 살짝 들여서 그림
+    }
 
-    public void showSplashAnimation(int r, int c) {
+    public void showSplashAnimation(int r, int c) { showFloatingText("스플래시!", r, c, "white", "#90C8FF"); }
+    public void showInkSplashAnimation(int r, int c) { showFloatingText("먹물!", r, c, "#BBBBBB", "#444444"); }
+
+    public void showFloatingText(String text, int r, int c, String color1, String color2) {
         if (disposed || getScene() == null) return;
-        Label splashLabel = new Label("스플래시!");
-        splashLabel.setFont(splashAnimationFont);
-        splashLabel.setCache(true);
-        splashLabel.setStyle(
-                "-fx-text-fill: linear-gradient(from 0% 0% to 0% 100%, white 20%, #90C8FF 80%); " +
-                        "-fx-stroke: #003366; " +
-                        "-fx-stroke-width: 2;" +
-                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 4, 0.4, 0, 2);"
-        );
+        Label label = new Label(text);
+        label.setFont(splashAnimationFont);
+        label.setStyle("-fx-text-fill: linear-gradient(from 0% 0% to 0% 100%, " + color1 + " 20%, " + color2 + " 80%); -fx-stroke: black; -fx-stroke-width: 1px; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.6), 3, 0.5, 0, 2);");
+
         double w = canvas.getWidth();
         double h = canvas.getHeight();
         if (w <= 0 || h <= 0) return;
-        double offsetX = (this.getWidth() - w) / 2.0;
-        double offsetY = (this.getHeight() - h) / 2.0;
         double tileSizeW = w / LandGrabLogic.GRID_SIZE;
         double tileSizeH = h / LandGrabLogic.GRID_SIZE;
-        double startX = c * tileSizeW + (tileSizeW / 2);
-        double startY = r * tileSizeH + (tileSizeH / 2);
-        splashLabel.setLayoutX(offsetX + startX - 45);
-        splashLabel.setLayoutY(offsetY + startY - 15);
-        Duration duration = Duration.millis(1200);
-        FadeTransition ft = new FadeTransition(duration, splashLabel);
-        ft.setFromValue(1.0);
-        ft.setToValue(0.0);
-        ft.setDelay(Duration.millis(300));
-        TranslateTransition tt = new TranslateTransition(duration, splashLabel);
-        tt.setByY(-80);
-        tt.setCycleCount(1);
-        ParallelTransition pt = new ParallelTransition(splashLabel, ft, tt);
-        pt.setOnFinished(e -> {
-            animationPane.getChildren().remove(splashLabel);
-        });
-        animationPane.getChildren().add(splashLabel);
+
+        if (r < 0 || c < 0) {
+            label.setLayoutX((getWidth() - 100) / 2);
+            label.setLayoutY(getHeight() / 2);
+        } else {
+            label.setLayoutX((getWidth()-w)/2 + c*tileSizeW + tileSizeW/2 - 40);
+            label.setLayoutY((getHeight()-h)/2 + r*tileSizeH + tileSizeH/2 - 20);
+        }
+
+        FadeTransition ft = new FadeTransition(Duration.millis(1200), label);
+        ft.setFromValue(1.0); ft.setToValue(0.0);
+        TranslateTransition tt = new TranslateTransition(Duration.millis(1200), label);
+        tt.setByY(-60);
+
+        ParallelTransition pt = new ParallelTransition(label, ft, tt);
+        pt.setOnFinished(e -> animationPane.getChildren().remove(label));
+        animationPane.getChildren().add(label);
         pt.play();
     }
 
-    public void showInkSplashAnimation(int r, int c) {
-        if (disposed || getScene() == null) return;
-        Label inkLabel = new Label("먹물!");
-        inkLabel.setFont(splashAnimationFont);
-        inkLabel.setCache(true);
-        inkLabel.setStyle(
-                "-fx-text-fill: linear-gradient(from 0% 0% to 0% 100%, #BBBBBB 20%, #444444 80%); " +
-                        "-fx-stroke: #000000; " +
-                        "-fx-stroke-width: 2.5;" +
-                        "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.8), 6, 0.6, 0, 3);"
-        );
-        double w = canvas.getWidth();
-        double h = canvas.getHeight();
-        if (w <= 0 || h <= 0) return;
-        double offsetX = (this.getWidth() - w) / 2.0;
-        double offsetY = (this.getHeight() - h) / 2.0;
-        double tileSizeW = w / LandGrabLogic.GRID_SIZE;
-        double tileSizeH = h / LandGrabLogic.GRID_SIZE;
-        double startX = c * tileSizeW + (tileSizeW / 2);
-        double startY = r * tileSizeH + (tileSizeH / 2);
-        inkLabel.setLayoutX(offsetX + startX - 45);
-        inkLabel.setLayoutY(offsetY + startY - 15);
-        Duration duration = Duration.millis(1200);
-        FadeTransition ft = new FadeTransition(duration, inkLabel);
-        ft.setFromValue(1.0);
-        ft.setToValue(0.0);
-        ft.setDelay(Duration.millis(300));
-        TranslateTransition tt = new TranslateTransition(duration, inkLabel);
-        tt.setByY(-80);
-        tt.setCycleCount(1);
-        ParallelTransition pt = new ParallelTransition(inkLabel, ft, tt);
-        pt.setOnFinished(e -> {
-            animationPane.getChildren().remove(inkLabel);
-        });
-        animationPane.getChildren().add(inkLabel);
-        pt.play();
-    }
-
-    public void flashHit() {
-        if (disposed || getScene() == null) return;
-        flashColor = FLASH_HIT;
-        flashUntil = System.currentTimeMillis() + 120;
-        redraw();
-    }
-    public void flashMiss() {
-        if (disposed || getScene() == null) return;
-        flashColor = FLASH_MISS;
-        flashUntil = System.currentTimeMillis() + 120;
-        redraw();
-    }
-    public void flashBuffColor(Color color) {
-        if (disposed || getScene() == null) return;
-        buffFlashColor = color;
+    public void flashHit() { flash(FLASH_HIT, 120); }
+    public void flashMiss() { flash(FLASH_MISS, 120); }
+    public void flashBuffColor(Color c) {
+        buffFlashColor = c;
         buffFlashUntil = System.currentTimeMillis() + 200;
         redraw();
     }
 
-    public void dispose() {
-        disposed = true;
-        flashColor = null;
-        buffFlashColor = null;
-        animationPane.getChildren().clear();
+    private void flash(Color c, int ms) {
+        if (disposed) return;
+        flashColor = c;
+        flashUntil = System.currentTimeMillis() + ms;
+        redraw();
     }
 
-    public void activate() {
-        disposed = false;
-        flashColor = null;
-        buffFlashColor = null;
-        redraw();
+    public void activate() { disposed = false; redraw(); }
+    public void dispose() { disposed = true; animationPane.getChildren().clear(); }
+
+    private Font loadCustomFont(String fontPath, double size) {
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream(fontPath)) {
+            if (is == null) return Font.font("System", FontWeight.BOLD, size);
+            return Font.loadFont(is, size);
+        } catch (Exception e) { return Font.font("System", FontWeight.BOLD, size); }
+    }
+    private Image loadImage(String imagePath) {
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream(imagePath)) {
+            if (is == null) return null;
+            return new Image(is);
+        } catch (Exception e) { return null; }
     }
 }

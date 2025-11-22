@@ -1,49 +1,36 @@
 package typingarena.server.session;
 
-// core (엔진) 및 net(메시지) import
 import typingarena.core.landgrab.LandGrabEffects;
 import typingarena.core.landgrab.LandGrabLogic;
+import typingarena.core.landgrab.LandGrabLogic.TileState;
+import typingarena.core.landgrab.LandGrabEffects.ItemType;
 import typingarena.net.Message;
-// 서버 공용 모듈 import
 import typingarena.server.ClientHandler;
 import typingarena.server.core.ServerContext;
 import typingarena.server.db.DatabaseManager;
 
-// Java 유틸리티 import
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
-/**
- * [신규] 서버 측 '땅따먹기' 멀티플레이 제어기(Controller)
- * - 'TugOfWarSession'과 달리 'core.landgrab.LandGrabLogic' (엔진)을 재사용합니다.
- */
 public class LandGrabSession {
 
     private final String id = UUID.randomUUID().toString();
     private final ServerContext context;
-    private final String gameType = "LAND_GRAB"; // [수정] DB에 기록될 게임 타입
+    private final String gameType = "LAND_GRAB";
 
-    // --- Model ---
-    private final LandGrabLogic coreLogic = new LandGrabLogic(); // [중요] 핵심 엔진 사용
+    private final LandGrabLogic coreLogic = new LandGrabLogic();
+    private final Random rnd = new Random();
 
-    // --- Players ---
     private final ClientHandler playerA;
     private final ClientHandler playerB;
-    // (TODO: 2P(playerB)의 입력을 coreLogic.submitAnswer(word, playerB)처럼
-    //        처리하려면 coreLogic의 대대적인 수정이 필요합니다.
-    //        지금은 1P(playerA) vs AI(coreLogic.aiCaptureTile)로 진행합니다.)
 
-    // --- Controller ---
     private int timeMs = 60_000;
     private boolean running = true;
-    private ScheduledFuture<?> ticker; // 게임 루프 타이머
-    private int aiTickTimerMs = 0; // (TODO: 2P 로직으로 대체 필요)
-    private static final int AI_CAPTURE_INTERVAL_MS = 2_000;
+    private ScheduledFuture<?> ticker;
+
+    private long confusionUntilA = 0L;
+    private long confusionUntilB = 0L;
 
     public LandGrabSession(ServerContext context, ClientHandler a, ClientHandler b) {
         this.context = context;
@@ -51,184 +38,215 @@ public class LandGrabSession {
         this.playerB = b;
     }
 
-    public String getId() {
-        return id;
-    }
+    public String getId() { return id; }
 
-    /**
-     * Matchmaker가 호출: 게임 시작!
-     */
     public void start() {
-        // 1. Model(엔진) 상태 초기화
         coreLogic.startGame();
-
-        // 2. Controller 상태 초기화
         timeMs = 60_000;
         running = true;
-        aiTickTimerMs = AI_CAPTURE_INTERVAL_MS;
-
-        // 3. 게임 루프 시작 (100ms마다 onTick 실행)
         ticker = context.getScheduler().scheduleAtFixedRate(this::onTick, 100, 100, TimeUnit.MILLISECONDS);
-
-        // 4. 모든 클라이언트에게 "게임 시작" 메시지 전파
-        Message startMsg = Message.of("GAME_START_BROADCAST");
-        startMsg.sessionId = this.id;
-
-        // [수정] 게임 시작 시 "현재 그리드 상태"를 함께 보냅니다.
-        startMsg.data = Map.of(
-                "gameType", this.gameType,
-                "timeMs", (double) timeMs,
-                "players", List.of(playerA.getNickname(), playerB.getNickname()),
-                // [신규] 클라이언트가 맵을 그릴 수 있도록 초기 상태 전송
-                "grid", buildGridData(coreLogic.getGrid(), LandGrabLogic.TileState.class),
-                "words", buildGridData(coreLogic.getWordGrid(), String.class),
-                "modifiers", buildGridData(coreLogic.getModifierGrid(), LandGrabLogic.WordModifier.class),
-                "ink_tiles", buildBlindedTilesData()
-        );
-        broadcast(startMsg); // 방의 모두에게 전송
-
-        // 5. 각 클라이언트의 현재 세션 ID 설정
+        sendStartBroadcast();
         playerA.setCurrentSession(id);
         playerB.setCurrentSession(id);
     }
 
-    /**
-     * ClientHandler가 호출: 플레이어의 단어 입력
-     */
+    private void sendStartBroadcast() {
+        List<String> players = List.of(playerA.getNickname(), playerB.getNickname());
+        if (playerA != null && playerA.isConnected()) {
+            Message msg = Message.of("GAME_START_BROADCAST");
+            msg.sessionId = this.id;
+            Map<String, Object> data = buildStateFor(TileState.PLAYER_A, null);
+            data.put("players", players);
+            msg.data = data;
+            playerA.send(msg);
+        }
+        if (playerB != null && playerB.isConnected()) {
+            Message msg = Message.of("GAME_START_BROADCAST");
+            msg.sessionId = this.id;
+            Map<String, Object> data = buildStateFor(TileState.PLAYER_B, null);
+            data.put("players", players);
+            msg.data = data;
+            playerB.send(msg);
+        }
+    }
+
     public void handleWord(ClientHandler client, String word) {
         if (!running) return;
 
-        // TODO: 지금은 1P(playerA)만 입력받음
-        if (client != playerA) {
-            return; // 2P의 입력은 일단 무시
+        TileState who;
+        TileState opponent;
+        boolean isPlayerA;
+
+        if (client == playerA) { who = TileState.PLAYER_A; opponent = TileState.PLAYER_B; isPlayerA = true; }
+        else if (client == playerB) { who = TileState.PLAYER_B; opponent = TileState.PLAYER_A; isPlayerA = false; }
+        else return;
+
+        LandGrabLogic.SubmitResult result = coreLogic.submitAnswer(word, who);
+
+        // [수정] 변수명 명확화: '행동한 사람(Actor)'과 '상대방(Opponent)'에게 보낼 메시지
+        String animForActor = null;
+        String animForOpponent = null;
+
+        if (result.resultCode() > 0) {
+            // 기본 타격음/효과는 각자 처리하되, 여기서는 특수 아이템만 전송
+
+            if (result.itemType() != ItemType.NONE) {
+                switch (result.itemType()) {
+                    case BUFF_SPLASH -> {
+                        animForActor = "BUFF_SPLASH";
+                        animForOpponent = "OPP_SPLASH";
+                    }
+                    case BUFF_BARRIER -> {
+                        animForActor = "BUFF_BARRIER";
+                        animForOpponent = "OPP_BARRIER";
+                    }
+                    case BUFF_COMBO_GUARD -> {
+                        animForActor = "BUFF_COMBO_GUARD";
+                        animForOpponent = "OPP_COMBO_GUARD";
+                    }
+                    case TRAP_INK -> {
+                        animForActor = "ATTACK_INK";        // 시전자는 "먹물 공격!"
+                        animForOpponent = "TRAP_INK";       // 상대는 "먹물 당함!" (화면 가림)
+                        // 상대방(opponent)에게 먹물 타일 추가
+                        applyInkTo(!isPlayerA, 2);
+                    }
+                    case TRAP_EMP -> {
+                        animForActor = "ATTACK_EMP";
+                        animForOpponent = "TRAP_EMP";
+                    }
+                    case TRAP_CONFUSION -> {
+                        animForActor = "ATTACK_CONFUSION";
+                        animForOpponent = "TRAP_CONFUSION";
+                        // 상대방에게 혼란 시간 추가
+                        applyConfusionTo(!isPlayerA, 5000);
+                    }
+                }
+            }
         }
 
-        LandGrabLogic.SubmitResult result = coreLogic.submitAnswer(word);
-
-        Map<String, Object> animationTrigger = null;
-        if (result.resultCode() == 2) { // 2 = 버프
-            animationTrigger = Map.of("type", "SPLASH", "r", result.r(), "c", result.c());
-        } else if (result.resultCode() == 3) { // 3 = 트랩
-            animationTrigger = Map.of("type", "INK_SPLASH", "r", result.r(), "c", result.c());
+        // [핵심 수정] 누가 행동했느냐에 따라 A와 B에게 보내는 메시지를 스왑(Swap)합니다.
+        if (isPlayerA) {
+            // A가 행동함 -> A에게 Actor 메시지, B에게 Opponent 메시지
+            sendUpdate(animForActor, animForOpponent);
+        } else {
+            // B가 행동함 -> A에게 Opponent 메시지, B에게 Actor 메시지
+            sendUpdate(animForOpponent, animForActor);
         }
-
-        // [수정] 변경된 타일만 보낼 수도 있지만, 일단은 '전체 갱신'으로 처리
-        broadcastUpdate(animationTrigger);
     }
 
-    /**
-     * 100ms마다 게임 루프가 호출
-     */
+    private void applyInkTo(boolean targetIsA, int count) {
+        List<int[]> candidates = new ArrayList<>();
+        for (int r = 0; r < LandGrabLogic.GRID_SIZE; r++) {
+            for (int c = 0; c < LandGrabLogic.GRID_SIZE; c++) {
+                if (!coreLogic.getEffects().isTileBlinded(r, c, targetIsA)) {
+                    candidates.add(new int[]{r, c});
+                }
+            }
+        }
+        Collections.shuffle(candidates);
+        int applied = 0;
+        for (int[] coord : candidates) {
+            if (applied >= count) break;
+            coreLogic.getEffects().activateBlindTile(coord[0], coord[1], 3000, targetIsA);
+            applied++;
+        }
+    }
+
+    private void applyConfusionTo(boolean targetIsA, long durationMs) {
+        long until = System.currentTimeMillis() + durationMs;
+        if (targetIsA) confusionUntilA = Math.max(confusionUntilA, until);
+        else confusionUntilB = Math.max(confusionUntilB, until);
+    }
+
     private void onTick() {
         if (!running) return;
         try {
-            // 1. 시간 감소
             timeMs -= 100;
+            if (timeMs <= 0) { finishByScore("시간 종료!"); return; }
+            int totalScore = coreLogic.getScore(TileState.PLAYER_A) + coreLogic.getScore(TileState.PLAYER_B);
+            if (totalScore == LandGrabLogic.GRID_SIZE * LandGrabLogic.GRID_SIZE) { finishByScore("모든 타일 점령!"); return; }
+            if (timeMs % 1000 == 0) sendUpdate(null, null);
+        } catch (Exception e) { if (ticker != null) ticker.cancel(true); }
+    }
 
-            // 2. AI 타이머 작동 (TODO: 이 로직은 Player B의 입력으로 대체되어야 함)
-            aiTickTimerMs -= 100;
+    private void finishByScore(String reason) {
+        int scoreA = coreLogic.getScore(TileState.PLAYER_A);
+        int scoreB = coreLogic.getScore(TileState.PLAYER_B);
+        if (scoreA > scoreB) finish(playerA, playerB, reason);
+        else if (scoreB > scoreA) finish(playerB, playerA, reason);
+        else finish(null, null, reason + " (무승부)");
+    }
 
-            boolean stateChanged = false; // [신규] 상태가 변경됐을 때만 전송
-
-            if (aiTickTimerMs <= 0) {
-                coreLogic.aiCaptureTile(); // 엔진의 AI 로직 호출
-                aiTickTimerMs = AI_CAPTURE_INTERVAL_MS;
-                stateChanged = true; // AI가 타일을 먹어서 상태 변경
-            }
-
-            // 3. 게임 종료 조건 확인
-            String resultMessage = null;
-            ClientHandler winner = null, loser = null;
-
-            if (timeMs <= 0) {
-                running = false;
-                resultMessage = "시간 종료!";
-                if (coreLogic.getScorePlayer() > coreLogic.getScoreAI()) { winner = playerA; loser = playerB; }
-                else if (coreLogic.getScoreAI() > coreLogic.getScorePlayer()) { winner = playerB; loser = playerA; }
-            }
-            // [수정] !running 체크 추가 (시간 종료와 동시에 타일 점령 시 중복 방지)
-            if (!running && (coreLogic.getScorePlayer() + coreLogic.getScoreAI() == LandGrabLogic.GRID_SIZE * LandGrabLogic.GRID_SIZE)) {
-                running = false; // (timeMs > 0 이어도 종료)
-                resultMessage = "모든 타일 점령!";
-                if (coreLogic.getScorePlayer() > coreLogic.getScoreAI()) { winner = playerA; loser = playerB; }
-                else { winner = playerB; loser = playerA; }
-            }
-
-            // 4. 게임 종료 처리
-            if (!running) {
-                finish(winner, loser, resultMessage);
-            } else if (stateChanged) {
-                // (AI가 타일을 먹었으므로) 갱신된 상태 전파
-                broadcastUpdate(null); // 애니메이션 없음
-            }
-            // (아무 일도 없으면 갱신 안 함 -> 네트워크 트래픽 절약)
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            if (ticker != null) ticker.cancel(true); // 오류 시 루프 중지
+    // A에게는 msgA, B에게는 msgB를 보냄
+    private void sendUpdate(String animTriggerA, String animTriggerB) {
+        if (playerA != null && playerA.isConnected()) {
+            Message msgA = Message.of("GAME_UPDATE_BROADCAST");
+            msgA.sessionId = this.id;
+            msgA.data = buildStateFor(TileState.PLAYER_A, animTriggerA);
+            playerA.send(msgA);
+        }
+        if (playerB != null && playerB.isConnected()) {
+            Message msgB = Message.of("GAME_UPDATE_BROADCAST");
+            msgB.sessionId = this.id;
+            msgB.data = buildStateFor(TileState.PLAYER_B, animTriggerB);
+            playerB.send(msgB);
         }
     }
 
-    /**
-     * [신규] 현재 '엔진'의 상태를 JSON(Map)으로 만들어 전파 (TODO 제거 완료)
-     */
-    private void broadcastUpdate(Map<String, Object> animationTrigger) {
-        Map<String, Object> data = new LinkedHashMap<>(); // 순서 보장
-        data.put("game", gameType);
+    private Map<String, Object> buildStateFor(TileState me, String myAnimation) {
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("gameType", gameType);
         data.put("timeMs", (double) timeMs);
 
-        // [신규] LandGrabViewState(Map)이 기대하는 데이터 구조
-        data.put("grid", buildGridData(coreLogic.getGrid(), LandGrabLogic.TileState.class));
+        data.put("grid", buildGridData(coreLogic.getGrid(), TileState.class));
         data.put("words", buildGridData(coreLogic.getWordGrid(), String.class));
         data.put("modifiers", buildGridData(coreLogic.getModifierGrid(), LandGrabLogic.WordModifier.class));
-        data.put("ink_tiles", buildBlindedTilesData());
 
-        data.put("scores", Map.of(
-                playerA.getNickname(), coreLogic.getScorePlayer(),
-                playerB.getNickname(), coreLogic.getScoreAI()
-        ));
-        data.put("animation_trigger", animationTrigger);
+        boolean isMeA = (me == TileState.PLAYER_A);
+        data.put("ink_tiles", buildBlindedTilesData(isMeA));
 
-        Message updateMsg = Message.of("GAME_UPDATE_BROADCAST");
-        updateMsg.sessionId = this.id;
-        updateMsg.data = data;
-        broadcast(updateMsg);
+        TileState opp = (me == TileState.PLAYER_A) ? TileState.PLAYER_B : TileState.PLAYER_A;
+        data.put("scoreSelf", coreLogic.getScore(me));
+        data.put("scoreOpponent", coreLogic.getScore(opp));
+        data.put("comboSelf", coreLogic.getCombo(me));
+        data.put("comboOpponent", coreLogic.getCombo(opp));
+
+        long now = System.currentTimeMillis();
+        long myConfusionUntil = isMeA ? confusionUntilA : confusionUntilB;
+        if (myConfusionUntil > now) data.put("debuff", "FLIP_WORDS");
+
+        data.put("barrier_a", coreLogic.getEffects().isBarrierActive(true));
+        data.put("barrier_b", coreLogic.getEffects().isBarrierActive(false));
+
+        if (myAnimation != null) {
+            data.put("animation_trigger", Map.of("type", myAnimation, "r", -1, "c", -1));
+        }
+        return data;
     }
 
-    // --- [신규] 헬퍼: Grid 데이터를 List<List<String>>으로 변환 ---
     private <T> List<List<String>> buildGridData(T[][] grid, Class<T> enumClass) {
         List<List<String>> rowList = new ArrayList<>();
-        int size = LandGrabLogic.GRID_SIZE;
-        for (int r = 0; r < size; r++) {
+        for (int r = 0; r < LandGrabLogic.GRID_SIZE; r++) {
             List<String> colList = new ArrayList<>();
-            for (int c = 0; c < size; c++) {
-                if (grid[r][c] == null) {
-                    colList.add(""); // (NPE 방어)
-                } else if (enumClass == String.class) {
-                    colList.add((String) grid[r][c]);
-                } else {
-                    colList.add(((Enum) grid[r][c]).name());
-                }
+            for (int c = 0; c < LandGrabLogic.GRID_SIZE; c++) {
+                if (grid[r][c] == null) colList.add("");
+                else if (enumClass == String.class) colList.add((String) grid[r][c]);
+                else colList.add(((Enum) grid[r][c]).name());
             }
             rowList.add(colList);
         }
         return rowList;
     }
 
-    // --- [신규] 헬퍼: 먹물 타일 데이터를 List<Map>으로 변환 ---
-    private List<Map<String, Object>> buildBlindedTilesData() {
+    private List<Map<String, Object>> buildBlindedTilesData(boolean isPlayerA) {
         List<Map<String, Object>> inkList = new ArrayList<>();
-        // [수정] coreLogic에서 effects를 가져옴
-        List<LandGrabEffects.BlindedTile> tiles = coreLogic.getEffects().getActiveBlindedTiles();
+        List<LandGrabEffects.BlindedTile> tiles = coreLogic.getEffects().getActiveBlindedTiles(isPlayerA);
         for (LandGrabEffects.BlindedTile tile : tiles) {
             inkList.add(Map.of("r", tile.r(), "c", tile.c(), "until", tile.until()));
         }
         return inkList;
     }
 
-    /**
-     * 'TugOfWarSession'의 'forfeit' 메서드와 유사
-     */
     public void forfeit(ClientHandler quitter, String reason) {
         if (!running) return;
         ClientHandler winner = (quitter == playerA) ? playerB : playerA;
@@ -236,70 +254,43 @@ public class LandGrabSession {
         finish(winner, loser, reason);
     }
 
-    /**
-     * 'TugOfWarSession'의 'finish' 메서드와 유사
-     */
     private void finish(ClientHandler winner, ClientHandler loser, String reason) {
-        if (!running) return; // 이미 종료됨
+        if (!running) return;
         running = false;
-        if (ticker != null) ticker.cancel(false); // 게임 루프 중지
-
-        // 1. DB에 전적 기록
+        if (ticker != null) ticker.cancel(false);
         recordGameResults(winner, loser);
-
-        // 2. 각 클라이언트에게 종료 메시지 전송
+        int scoreA = coreLogic.getScore(TileState.PLAYER_A);
+        int scoreB = coreLogic.getScore(TileState.PLAYER_B);
         boolean isDraw = (winner == null && loser == null);
-        sendEnd(playerA, (playerA == winner), isDraw, reason);
-        sendEnd(playerB, (playerB == winner), isDraw, reason);
-
-        // 3. 세션 정리
-        context.getLandGrabSessions().remove(id); // [수정] LandGrab Map에서 제거
+        sendEnd(playerA, (playerA == winner), isDraw, reason, scoreA, scoreB);
+        sendEnd(playerB, (playerB == winner), isDraw, reason, scoreB, scoreA);
+        context.getLandGrabSessions().remove(id);
         playerA.setCurrentSession(null);
         playerB.setCurrentSession(null);
     }
 
-    private void sendEnd(ClientHandler player, boolean isWinner, boolean isDraw, String reason) {
+    private void sendEnd(ClientHandler player, boolean isWinner, boolean isDraw, String reason, int myScore, int oppScore) {
         Message end = Message.of("GAME_END_BROADCAST");
         end.sessionId = id;
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("gameType", gameType);
         payload.put("result", isDraw ? "무승부" : (isWinner ? "승리" : "패배"));
         payload.put("message", reason);
-        payload.put("scoreSelf", (player == playerA) ? coreLogic.getScorePlayer() : coreLogic.getScoreAI());
-        payload.put("scoreOpponent", (player == playerA) ? coreLogic.getScoreAI() : coreLogic.getScorePlayer());
+        payload.put("scoreSelf", myScore);
+        payload.put("scoreOpponent", oppScore);
         end.data = payload;
-        broadcast(end);
+        player.send(end);
     }
 
-    /**
-     * 'TugOfWarSession'의 'recordGameResults' 메서드와 동일
-     */
     private void recordGameResults(ClientHandler winner, ClientHandler loser) {
         try {
             DatabaseManager dbManager = DatabaseManager.getInstance();
             String winnerId = (winner != null) ? winner.getLoggedInUserId() : null;
             String loserId = (loser != null) ? loser.getLoggedInUserId() : null;
-
             if (winnerId != null && loserId != null) {
-                dbManager.updateGameRecord(winnerId, gameType, true); // 승리
-                dbManager.updateGameRecord(loserId, gameType, false); // 패배
-                System.out.println("[전적 기록] " + winnerId + " (승) vs " + loserId + " (패) - " + gameType);
-            } else if (winner == null && loser == null) {
-                System.out.println("[전적 기록] 무승부. - " + gameType);
+                dbManager.updateGameRecord(winnerId, gameType, true);
+                dbManager.updateGameRecord(loserId, gameType, false);
             }
-            // (기권 등 한 명만 있는 경우도 처리...)
-
-        } catch (Exception e) {
-            System.err.println("전적 기록 중 오류 발생 (LandGrab): " + e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
-    /**
-     * 방 안의 모든 유저에게 메시지 전송
-     */
-    public void broadcast(Message msg) {
-        if (playerA != null && playerA.isConnected()) playerA.send(msg);
-        if (playerB != null && playerB.isConnected()) playerB.send(msg);
+        } catch (Exception e) { e.printStackTrace(); }
     }
 }

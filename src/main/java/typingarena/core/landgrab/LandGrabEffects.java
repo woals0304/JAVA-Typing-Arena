@@ -1,110 +1,113 @@
-package typingarena.core.landgrab; // [수정] 패키지 경로
+package typingarena.core.landgrab;
 
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * [수정] 땅따먹기 핵심 로직의 '효과' 부분 (core로 이동됨)
- * 1. '스플래시' 텍스트 타이머 제거
- * 2. [신규] '먹물' 효과를 단일 타일 -> '여러 타일'을 동시에 가릴 수 있도록 List<BlindedTile>로 변경
- */
 public class LandGrabEffects {
 
-    // --- 1. 시간제 효과 (수정) ---
+    public enum ItemType {
+        NONE,
+        BUFF_SPLASH, BUFF_BARRIER, BUFF_COMBO_GUARD,
+        TRAP_INK, TRAP_EMP, TRAP_CONFUSION
+    }
 
-    /**
-     * [신규] 먹물 타일 정보를 저장하는 전용 데이터 객체 (Java 16+ Record)
-     * public이어야 LandGrabPanel에서 이 타입을 List로 받을 수 있습니다.
-     */
     public record BlindedTile(int r, int c, long until) {}
 
-    // [수정] 단일 변수에서 List로 변경
-    private final List<BlindedTile> blindedTiles = new ArrayList<>();
+    // [수정] 먹물 리스트 분리 (A가 안 보이는 타일들, B가 안 보이는 타일들)
+    private final List<BlindedTile> blindedTilesA = new ArrayList<>();
+    private final List<BlindedTile> blindedTilesB = new ArrayList<>();
 
+    private long barrierUntilA = 0L;
+    private long barrierUntilB = 0L;
+    private long comboGuardUntilA = 0L;
+    private long comboGuardUntilB = 0L;
 
-    /**
-     * [신규] 특정 타일(r, c)이 현재 먹물로 가려져 있는지 확인
-     * (Logic에서 중복 방지, 입력 방지 등에 사용)
-     */
-    public boolean isTileBlinded(int r, int c) {
-        // 먼저 만료된 타일들을 정리
+    private ItemType lastActivatedItem = ItemType.NONE;
+    private long lastItemActivatedAt = 0L;
+
+    // ===== 메서드 =====
+
+    // [수정] '누가' 안 보이는지 확인
+    public boolean isTileBlinded(int r, int c, boolean isPlayerA) {
         cleanupExpiredTiles();
-        for (BlindedTile tile : blindedTiles) {
-            if (tile.r() == r && tile.c() == c) {
-                return true;
-            }
+        List<BlindedTile> targetList = isPlayerA ? blindedTilesA : blindedTilesB;
+        for (BlindedTile tile : targetList) {
+            if (tile.r() == r && tile.c() == c) return true;
         }
         return false;
     }
 
-    /**
-     * [신규] 만료된 먹물 타일을 리스트에서 제거하는 헬퍼 메서드
-     */
     private void cleanupExpiredTiles() {
         long now = System.currentTimeMillis();
-        // 리스트에서 'until' 시간이 'now'보다 이전인(만료된) 모든 항목을 제거
-        blindedTiles.removeIf(tile -> tile.until() < now);
+        blindedTilesA.removeIf(tile -> tile.until() < now);
+        blindedTilesB.removeIf(tile -> tile.until() < now);
     }
 
-
-    /**
-     * [수정] activateBlindTile: 단일 타일 덮어쓰기 -> 리스트에 '추가'
-     */
-    public void activateBlindTile(int r, int c, long durationMs) {
+    // [수정] 타겟 지정해서 먹물 뿌리기
+    public void activateBlindTile(int r, int c, long durationMs, boolean targetIsPlayerA) {
         long now = System.currentTimeMillis();
-        // 중복 추가 방지 (이미 해당 타일이 가려져 있다면 추가하지 않음)
-        if (isTileBlinded(r, c)) {
-            return;
+        // 이미 가려져 있지 않다면 추가
+        if (!isTileBlinded(r, c, targetIsPlayerA)) {
+            List<BlindedTile> targetList = targetIsPlayerA ? blindedTilesA : blindedTilesB;
+            targetList.add(new BlindedTile(r, c, now + durationMs));
         }
-        blindedTiles.add(new BlindedTile(r, c, now + durationMs));
     }
 
-    /**
-     * [수정] getBlindedTileCoords -> getActiveBlindedTiles
-     * @return 현재 활성화된 (만료되지 않은) 모든 먹물 타일의 List (Panel에서 사용)
-     */
-    public List<BlindedTile> getActiveBlindedTiles() {
+    // [수정] 특정 플레이어에게 적용된 먹물 리스트만 반환
+    public List<BlindedTile> getActiveBlindedTiles(boolean isPlayerA) {
         cleanupExpiredTiles();
-        return blindedTiles; // 정리된 리스트 반환
+        return isPlayerA ? blindedTilesA : blindedTilesB;
     }
 
+    public boolean isBarrierActive(boolean isPlayerA) {
+        long now = System.currentTimeMillis();
+        return isPlayerA ? (now < barrierUntilA) : (now < barrierUntilB);
+    }
 
-    // --- 2. 순간 발동 효과 추적 (TugOfWar '결' 맞춤) ---
-    public enum ItemType { NONE, BUFF_SPLASH, TRAP_BLIND }
-    private ItemType lastActivatedItem = ItemType.NONE;
-    private long lastItemActivatedAt = 0L;
+    public void activateBarrier(boolean isPlayerA, long durationMs) {
+        long now = System.currentTimeMillis();
+        if (isPlayerA) barrierUntilA = Math.max(barrierUntilA, now + durationMs);
+        else barrierUntilB = Math.max(barrierUntilB, now + durationMs);
+    }
+
+    public boolean isComboGuardActive(boolean isPlayerA) {
+        long now = System.currentTimeMillis();
+        return isPlayerA ? (now < comboGuardUntilA) : (now < comboGuardUntilB);
+    }
+
+    public void activateComboGuard(boolean isPlayerA, long durationMs) {
+        long now = System.currentTimeMillis();
+        if (isPlayerA) comboGuardUntilA = Math.max(comboGuardUntilA, now + durationMs);
+        else comboGuardUntilB = Math.max(comboGuardUntilB, now + durationMs);
+    }
 
     public void recordItemActivation(ItemType itemType) {
-        lastActivatedItem = itemType;
-        lastItemActivatedAt = System.currentTimeMillis();
+        this.lastActivatedItem = itemType;
+        this.lastItemActivatedAt = System.currentTimeMillis();
     }
 
-    // ===== [중요] 컴파일 오류가 나는 바로 그 메서드 =====
-    public ItemType getLastItemActivatedItem() {
-        return lastActivatedItem;
-    }
+    public ItemType getLastActivatedItem() { return lastActivatedItem; }
+    public long getLastItemActivatedAt() { return lastItemActivatedAt; }
 
-    public long getLastItemActivatedAt() {
-        return lastItemActivatedAt;
-    }
-    // ==============================================
-
-    // --- 3. 공용 ---
     public void clearAll() {
-        // [수정] 리스트 비우기
-        blindedTiles.clear();
-
+        blindedTilesA.clear();
+        blindedTilesB.clear();
+        barrierUntilA = 0L;
+        barrierUntilB = 0L;
+        comboGuardUntilA = 0L;
+        comboGuardUntilB = 0L;
         lastActivatedItem = ItemType.NONE;
         lastItemActivatedAt = 0L;
     }
 
-    // HUD 표시용 문자열
-    public String describeEffects() {
-        // [수정] 만료된 타일 정리 후 개수 확인
+    public String describeEffects(boolean isPlayerA) {
         cleanupExpiredTiles();
-        if (!blindedTiles.isEmpty()) {
-            return "효과: [먹물 " + blindedTiles.size() + "칸]";
-        }
-        return "효과: 없음";
+        StringBuilder sb = new StringBuilder();
+        List<BlindedTile> myList = isPlayerA ? blindedTilesA : blindedTilesB;
+
+        if (!myList.isEmpty()) sb.append("[먹물 ").append(myList.size()).append("] ");
+        if (isBarrierActive(isPlayerA)) sb.append("[보호막] ");
+        if (isComboGuardActive(isPlayerA)) sb.append("[콤보가드] ");
+        return sb.length() == 0 ? "효과: 없음" : "효과: " + sb.toString().trim();
     }
 }

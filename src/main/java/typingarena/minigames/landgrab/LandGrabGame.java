@@ -11,61 +11,55 @@ import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
-// [신규] 핵심 엔진(Model)과 UI View를 import 합니다.
 import typingarena.core.landgrab.LandGrabLogic;
+import typingarena.core.landgrab.LandGrabLogic.TileState;
 import typingarena.core.landgrab.LandGrabEffects.ItemType;
-import typingarena.core.landgrab.LandGrabViewState; // [신규] ViewState import
-import typingarena.minigames.landgrab.LandGrabMatchView; // UI 뼈대
+import typingarena.core.landgrab.LandGrabViewState;
 
-/**
- * [대규모 리팩토링됨]
- * 1. 'TugOfWarGame'처럼 이 클래스가 '싱글 플레이 제어기(Controller)' 역할을 합니다.
- * 2. 'core.landgrab.LandGrabLogic' (엔진)을 생성합니다.
- * 3. 'LandGrabMatchView' (UI 뼈대)를 생성합니다. (View는 이제 '바보'입니다.)
- * 4. [수정] AI 타이머(onTick)가 'coreLogic'의 상태를 'viewState'로 복사하여 'panel'에 주입합니다.
- */
+import java.util.ArrayList;
+import java.util.Collections; // [수정] 임포트 추가 완료
+import java.util.List;
+import java.util.Random;
+
 public class LandGrabGame extends Stage {
 
-    // --- Model ---
     private final LandGrabLogic coreLogic = new LandGrabLogic();
+    private final Random rnd = new Random();
 
-    // --- View ---
-    // [수정] View 생성자 변경 (이제 logic을 주입받지 않음)
     private final LandGrabMatchView view = new LandGrabMatchView();
     private final LandGrabPanel landGrabPanel = view.getLandGrabPanel();
     private final TextField inputField = view.getInputField();
     private final Button startButton = new Button("게임 시작");
 
-    // --- Controller ---
     private final Timeline gameLoop;
     private int timeMs = 60_000;
     private boolean running = false;
+
     private int aiTickTimerMs = 0;
     private static final int AI_CAPTURE_INTERVAL_MS = 2_000;
     private long lastItemNotifiedAt = 0L;
 
+    private long confusionUntilPlayer = 0L;
+
     public LandGrabGame() {
-        setTitle("Typing Arena - 땅따먹기");
+        setTitle("Typing Arena - 땅따먹기 (Single)");
         initModality(Modality.NONE);
 
-        // [수정] 'startButton'을 view의 controlBox에 추가합니다.
         inputField.setDisable(true);
         startButton.setFont(inputField.getFont());
         startButton.setOnAction(e -> startGame());
         view.getControlBox().getChildren().add(startButton);
 
-        // [수정] view.getRoot()를 Scene으로 사용합니다.
         Scene scene = new Scene(view.getRoot(), 700, 800);
         setScene(scene);
 
-        // ===== 이벤트 바인딩 (동일) =====
         inputField.setOnAction(e -> handleSubmit());
         scene.setOnMouseClicked(e -> {
             if (!inputField.isDisabled()) inputField.requestFocus();
         });
         setOnShown(e -> {
             landGrabPanel.activate();
-            updateView(); // [신규] 켜질 때 View 갱신
+            updateView();
         });
         gameLoop = new Timeline(new KeyFrame(Duration.millis(100), e -> onTick()));
         gameLoop.setCycleCount(Timeline.INDEFINITE);
@@ -76,38 +70,28 @@ public class LandGrabGame extends Stage {
         });
 
         updateHUD();
-        updateView(); // [신규] 초기 View 상태 갱신
+        updateView();
     }
 
-    /**
-     * [수정] startGame: coreLogic 초기화 후 view도 갱신
-     */
     private void startGame() {
-        // 1. Controller 상태 초기화
         timeMs = 60_000;
         running = true;
         aiTickTimerMs = AI_CAPTURE_INTERVAL_MS;
         lastItemNotifiedAt = 0L;
+        confusionUntilPlayer = 0L;
 
-        // 2. Model(엔진) 상태 초기화
         coreLogic.startGame();
 
-        // 3. UI 초기화
         startButton.setDisable(true);
         inputField.setDisable(false);
         inputField.clear();
         inputField.requestFocus();
 
-        // 4. View 갱신
         updateHUD();
-        updateView(); // [신규]
-
+        updateView();
         gameLoop.playFromStart();
     }
 
-    /**
-     * [수정] handleSubmit: coreLogic 호출 후 view 갱신
-     */
     private void handleSubmit() {
         if (!running) {
             inputField.clear();
@@ -115,113 +99,177 @@ public class LandGrabGame extends Stage {
         }
         String typed = inputField.getText().trim();
 
-        LandGrabLogic.SubmitResult result = coreLogic.submitAnswer(typed);
+        // 나는 무조건 PLAYER_A
+        LandGrabLogic.SubmitResult result = coreLogic.submitAnswer(typed, TileState.PLAYER_A);
 
-        if (result.resultCode() > 0) { // 1, 2, 3 (성공)
-            view.flashHit();
-
-            if (result.resultCode() == 2) { // 2 = 버프
-                landGrabPanel.showSplashAnimation(result.r(), result.c());
-            } else if (result.resultCode() == 3) { // 3 = 트랩
-                landGrabPanel.showInkSplashAnimation(result.r(), result.c());
-            }
-
-        } else { // 0 (실패)
-            view.flashMiss();
-        }
+        handleResultEffect(result, true);
 
         inputField.clear();
         inputField.requestFocus();
         updateHUD();
-        updateView(); // [신규]
+        updateView();
     }
 
-    /**
-     * [수정] onTick: coreLogic 호출 후 view 갱신
-     */
     private void onTick() {
         if (!isShowing() || !running) {
             gameLoop.stop();
             return;
         }
 
-        // 1. 시간 감소
         timeMs -= 100;
 
-        // 2. AI 타이머 작동
+        // AI 턴
         aiTickTimerMs -= 100;
         if (aiTickTimerMs <= 0) {
-            coreLogic.aiCaptureTile(); // 엔진의 AI 로직 호출
+            simulateAiTurn();
             aiTickTimerMs = AI_CAPTURE_INTERVAL_MS;
         }
 
-        // 3. HUD 및 View 갱신
         updateHUD();
-        updateView(); // [신규]
+        updateView();
+        checkGameEnd();
+    }
 
-        // 4. 게임 종료 조건 확인
+    private void simulateAiTurn() {
+        List<int[]> targets = new ArrayList<>();
+        TileState[][] grid = coreLogic.getGrid();
+
+        for (int r = 0; r < LandGrabLogic.GRID_SIZE; r++) {
+            for (int c = 0; c < LandGrabLogic.GRID_SIZE; c++) {
+                if (grid[r][c] != TileState.PLAYER_B) {
+                    targets.add(new int[]{r, c});
+                }
+            }
+        }
+
+        if (!targets.isEmpty()) {
+            int[] t = targets.get(rnd.nextInt(targets.size()));
+            String targetWord = coreLogic.getWord(t[0], t[1]);
+
+            LandGrabLogic.SubmitResult result = coreLogic.submitAnswer(targetWord, TileState.PLAYER_B);
+            handleResultEffect(result, false);
+        }
+    }
+
+    private void handleResultEffect(LandGrabLogic.SubmitResult result, boolean isMe) {
+        if (result.resultCode() > 0) {
+            // 일반 타격 시 번쩍임 제거됨 (효과음으로 대체 예정)
+
+            int r = result.r();
+            int c = result.c();
+            ItemType type = result.itemType();
+
+            if (type != ItemType.NONE) {
+                if (type == ItemType.BUFF_SPLASH) {
+                    landGrabPanel.showSplashAnimation(r, c);
+                } else if (type == ItemType.BUFF_BARRIER) {
+                    String text = isMe ? "보호막 가동!" : "상대 보호막!";
+                    landGrabPanel.showFloatingText(text, r, c, "gold", "orange");
+                } else if (type == ItemType.BUFF_COMBO_GUARD) {
+                    String text = isMe ? "콤보 가드!" : "상대 콤보가드!";
+                    landGrabPanel.showFloatingText(text, r, c, "lime", "green");
+                } else if (type == ItemType.TRAP_INK) {
+                    if (isMe) {
+                        landGrabPanel.showFloatingText("먹물 공격!", r, c, "#444", "#000");
+                    } else {
+                        applyInkToPlayer(2);
+                        landGrabPanel.showFloatingText("먹물 당함!", r, c, "#444", "#000");
+                    }
+                } else if (type == ItemType.TRAP_CONFUSION) {
+                    if (isMe) {
+                        landGrabPanel.showFloatingText("혼란 공격!", r, c, "purple", "violet");
+                    } else {
+                        confusionUntilPlayer = System.currentTimeMillis() + 5000;
+                        landGrabPanel.showFloatingText("혼란 걸림!", r, c, "red", "darkred");
+                    }
+                } else if (type == ItemType.TRAP_EMP) {
+                    landGrabPanel.showFloatingText("EMP!", r, c, "cyan", "blue");
+                }
+            }
+        } else {
+            // 틀렸을 때 빨간 번쩍임은 유지
+            if (isMe) view.flashMiss();
+        }
+    }
+
+    private void applyInkToPlayer(int count) {
+        List<int[]> candidates = new ArrayList<>();
+        for (int r = 0; r < LandGrabLogic.GRID_SIZE; r++) {
+            for (int c = 0; c < LandGrabLogic.GRID_SIZE; c++) {
+                if (!coreLogic.getEffects().isTileBlinded(r, c, true)) {
+                    candidates.add(new int[]{r, c});
+                }
+            }
+        }
+        Collections.shuffle(candidates);
+        int applied = 0;
+        for (int[] coord : candidates) {
+            if (applied >= count) break;
+            coreLogic.getEffects().activateBlindTile(coord[0], coord[1], 3000, true);
+            applied++;
+        }
+    }
+
+    private void checkGameEnd() {
         String result = null;
+        int scoreA = coreLogic.getScore(TileState.PLAYER_A);
+        int scoreB = coreLogic.getScore(TileState.PLAYER_B);
+
         if (timeMs <= 0) {
             running = false;
-            // (승패 판정 로직 동일)
-            if (coreLogic.getScorePlayer() > coreLogic.getScoreAI()) result = "승리! 더 많은 땅을 차지했습니다.";
-            else if (coreLogic.getScoreAI() > coreLogic.getScorePlayer()) result = "패배... AI가 더 많습니다.";
+            if (scoreA > scoreB) result = "승리! (Time Over)";
+            else if (scoreB > scoreA) result = "패배... (Time Over)";
             else result = "무승부!";
         }
-        if (!running && (coreLogic.getScorePlayer() + coreLogic.getScoreAI() == LandGrabLogic.GRID_SIZE * LandGrabLogic.GRID_SIZE)) {
-            running = false; // (timeMs > 0 이어도 종료)
-            // (승패 판정 로직 동일)
-            if (coreLogic.getScorePlayer() > coreLogic.getScoreAI()) result = "승리! 모든 땅을 차지했습니다.";
-            else if (coreLogic.getScoreAI() > coreLogic.getScorePlayer()) result = "패배... AI에게 모두 빼앗겼습니다.";
+        boolean isFull = (scoreA + scoreB == LandGrabLogic.GRID_SIZE * LandGrabLogic.GRID_SIZE);
+        if (!running && isFull) {
+            running = false;
+            if (scoreA > scoreB) result = "승리! (All Captured)";
+            else if (scoreB > scoreA) result = "패배... (All Captured)";
             else result = "무승부!";
         }
-
-        // 5. 게임 종료 처리
         if (result != null) {
             gameLoop.stop();
             startButton.setDisable(false);
             inputField.setDisable(true);
-            showResultDialog(result);
+            showResultDialog(result, scoreA, scoreB);
         }
     }
 
-    /**
-     * [신규] 'TugOfWarGame.updateView'와 동일한 역할
-     * Model(coreLogic)의 현재 상태를 ViewState로 복사하여 Panel(View)에 주입
-     */
     private void updateView() {
-        // 1. Model의 현재 상태를 기반으로 ViewState 객체를 생성
         LandGrabViewState currentState = new LandGrabViewState(coreLogic);
-        // 2. View(Panel)에 ViewState 주입
+
+        // [수정 완료] 3개의 인자를 모두 전달하도록 수정
+        // 1. 혼란 여부 (싱글에서는 AI가 혼란을 걸면 confusionUntilPlayer로 체크)
+        boolean isConfused = (System.currentTimeMillis() < confusionUntilPlayer);
+        // 2. 내 보호막 (Player A)
+        boolean barrierA = coreLogic.getEffects().isBarrierActive(true);
+        // 3. AI 보호막 (Player B)
+        boolean barrierB = coreLogic.getEffects().isBarrierActive(false);
+
+        landGrabPanel.setExtraEffects(isConfused, barrierA, barrierB);
         landGrabPanel.updateState(currentState);
     }
 
-    private void showResultDialog(String message) {
+    private void showResultDialog(String message, int sA, int sB) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("결과");
         alert.setHeaderText("게임 종료");
-        alert.setContentText(message + "\n나: " + coreLogic.getScorePlayer() + "칸 / AI: " + coreLogic.getScoreAI() + "칸");
+        alert.setContentText(message + "\n나: " + sA + "칸 / AI: " + sB + "칸");
         alert.initOwner(getOwner() != null ? getOwner() : this);
         alert.show();
     }
 
-    /**
-     * [수정] HUD 갱신 (view의 Setter 사용)
-     */
     private void updateHUD() {
-        if (!isShowing()) {
-            return;
-        }
-
+        if (!isShowing()) return;
         view.setTimeText(String.format("남은 시간: %.1fs", timeMs / 1000.0));
-        view.setMyScoreText("나: " + coreLogic.getScorePlayer() + "칸");
-        view.setAiScoreText("AI: " + coreLogic.getScoreAI() + "칸");
-        view.setComboText("콤보: " + coreLogic.getCombo());
-        view.setEffectsText(coreLogic.getEffects().describeEffects());
-
-        ItemType itemType = coreLogic.getEffects().getLastItemActivatedItem();
+        view.setMyScoreText("나: " + coreLogic.getScore(TileState.PLAYER_A) + "칸");
+        view.setAiScoreText("AI: " + coreLogic.getScore(TileState.PLAYER_B) + "칸");
+        int combo = coreLogic.getCombo(TileState.PLAYER_A);
+        view.setComboText("콤보: " + combo + (combo >= 10 ? " (각성!)" : ""));
+        view.setEffectsText(coreLogic.getEffects().describeEffects(true));
+        ItemType itemType = coreLogic.getEffects().getLastActivatedItem();
         view.setLastItemText("최근 아이템: " + formatItemLabel(itemType));
-
         long activatedAt = coreLogic.getEffects().getLastItemActivatedAt();
         if (itemType != ItemType.NONE && activatedAt > lastItemNotifiedAt) {
             lastItemNotifiedAt = activatedAt;
@@ -229,20 +277,22 @@ public class LandGrabGame extends Stage {
         }
     }
 
-    // (formatItemLabel, colorForItem 헬퍼 메서드는 동일)
     private String formatItemLabel(ItemType itemType) {
         return switch (itemType) {
             case BUFF_SPLASH -> "스플래시";
-            case TRAP_BLIND -> "먹물";
+            case BUFF_BARRIER -> "보호막";
+            case BUFF_COMBO_GUARD -> "콤보 가드";
+            case TRAP_INK -> "먹물";
+            case TRAP_EMP -> "EMP";
+            case TRAP_CONFUSION -> "혼란";
             default -> "없음";
         };
     }
 
     private Color colorForItem(ItemType itemType) {
-        return switch (itemType) {
-            case BUFF_SPLASH -> Color.rgb(80, 160, 255);
-            case TRAP_BLIND -> Color.rgb(30, 30, 30);
-            default -> Color.TRANSPARENT;
-        };
+        String name = itemType.name();
+        if (name.startsWith("BUFF")) return Color.rgb(80, 160, 255);
+        if (name.startsWith("TRAP")) return Color.rgb(255, 80, 80);
+        return Color.TRANSPARENT;
     }
 }

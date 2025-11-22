@@ -8,7 +8,7 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.Label;
-import javafx.scene.control.PasswordField; // [추가]
+import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
@@ -25,14 +25,15 @@ import java.util.Map;
 
 /**
  * 멀티플레이 매칭 창: 서버와 연결해서 게임 타입을 선택하고 자동 매칭을 요청한다.
- * [수정] LandGrabOnlineStage에 닉네임을 전달하도록 수정됨.
+ * [수정] 기본 IP를 로컬호스트(127.0.0.1)로 복구함.
  */
 public class MultiLobbyStage extends Stage {
 
     // --- UI 요소 ---
-    // (UI 요소는 원본과 동일)
+    // [수정] Azure IP -> 로컬호스트(127.0.0.1)로 변경
     private final TextField hostField = new TextField("127.0.0.1");
     private final TextField portField = new TextField("7777");
+
     private final Button connectBtn = new Button("서버 연결");
     private final Button disconnectBtn = new Button("연결 종료");
     private final TextField idField = new TextField();
@@ -48,7 +49,7 @@ public class MultiLobbyStage extends Stage {
     // --- 로직 변수 ---
     private NetClient client;
     private String currentGameType;
-    private String myNickname = "Player"; // [신규] 로그인 성공 시 닉네임을 저장할 필드
+    private String myNickname = "Player";
 
     private TugOfWarOnlineStage tugStage;
     private LandGrabOnlineStage landGrabStage;
@@ -68,13 +69,11 @@ public class MultiLobbyStage extends Stage {
         Scene scene = new Scene(root, 640, 520);
         setScene(scene);
 
+        // [수정] 창이 열리자마자 자동 연결 시도
         setOnShown(e -> connect());
         setOnHidden(e -> disconnect());
         setOnCloseRequest(e -> disconnect());
     }
-
-    // (buildConnectionPane, buildGameSelectPane, createGameButton, buildStatusPane...
-    //  ...이하 UI 빌드 메서드는 원본과 동일)
 
     private VBox buildConnectionPane() {
         GridPane grid = new GridPane();
@@ -151,10 +150,6 @@ public class MultiLobbyStage extends Stage {
         return box;
     }
 
-
-    // (handleLogin, handleRegister, connect, disconnect, ensureConnected,
-    //  startMatchmaking, cancelMatchmaking 메서드는 원본과 동일)
-
     private void handleLogin() {
         if (client == null) {
             showWarning("연결 오류", "먼저 '서버 연결'을 눌러주세요.");
@@ -200,7 +195,7 @@ public class MultiLobbyStage extends Stage {
             client = new NetClient(hostField.getText().trim(), port);
             client.setOnMessage(this::handleServerMessage);
             client.connect();
-            connectionLabel.setText("서버에 연결되었습니다. 로그인/회원가입을 진행하세요.");
+            connectionLabel.setText("서버(" + hostField.getText() + ")에 연결되었습니다.");
             loginBtn.setDisable(false);
             registerBtn.setDisable(false);
         } catch (NumberFormatException e) {
@@ -257,9 +252,6 @@ public class MultiLobbyStage extends Stage {
         matchStatusLabel.setText("매칭할 게임을 선택하세요.");
     }
 
-    /**
-     * [수정] 로그인/회원가입 응답 처리가 추가된 핸들러
-     */
     private void handleServerMessage(Message msg) {
         if (msg == null || msg.type == null) return;
         String type = msg.type.toUpperCase(Locale.ROOT);
@@ -284,8 +276,6 @@ public class MultiLobbyStage extends Stage {
 
                     if (success) {
                         String nickname = (String) data.get("nickname");
-
-                        // [신규] 닉네임 필드에 저장
                         this.myNickname = nickname;
 
                         connectionLabel.setText(myNickname + "님, 환영합니다! (로그인됨)");
@@ -333,10 +323,6 @@ public class MultiLobbyStage extends Stage {
         });
     }
 
-
-    /**
-     * [수정] handleGameStart: 게임 타입에 따라 적절한 Stage를 띄움
-     */
     private void handleGameStart(Message msg) {
         String gameType = msg.data != null ? String.valueOf(msg.data.get("gameType")) : null;
 
@@ -349,7 +335,6 @@ public class MultiLobbyStage extends Stage {
 
         } else if ("LAND_GRAB".equalsIgnoreCase(gameType)) {
             if (landGrabStage == null) {
-                // [수정] 생성자에 'myNickname' 전달 (오류 수정)
                 landGrabStage = new LandGrabOnlineStage(client, myNickname);
             }
             landGrabStage.handleMessage(msg);
@@ -365,32 +350,16 @@ public class MultiLobbyStage extends Stage {
         currentGameType = null;
     }
 
-    /**
-     * [수정] handleGameUpdate: 모든 활성 게임 Stage에 메시지 전달
-     */
     private void handleGameUpdate(Message msg) {
-        if (tugStage != null) {
-            tugStage.handleMessage(msg);
-        }
-        if (landGrabStage != null) {
-            landGrabStage.handleMessage(msg);
-        }
+        if (tugStage != null) tugStage.handleMessage(msg);
+        if (landGrabStage != null) landGrabStage.handleMessage(msg);
     }
 
-    /**
-     * [수정] handleGameEnd: 모든 활성 게임 Stage에 메시지 전달
-     */
     private void handleGameEnd(Message msg) {
-        if (tugStage != null) {
-            tugStage.handleMessage(msg);
-        }
-        if (landGrabStage != null) {
-            landGrabStage.handleMessage(msg);
-        }
+        if (tugStage != null) tugStage.handleMessage(msg);
+        if (landGrabStage != null) landGrabStage.handleMessage(msg);
         matchStatusLabel.setText("경기가 종료되었습니다. (새 게임을 선택하세요)");
     }
-
-    // --- 헬퍼 메서드 (기존과 동일) ---
 
     private void showWarning(String title, String message) {
         Alert alert = new Alert(Alert.AlertType.WARNING, message, ButtonType.OK);

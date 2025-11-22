@@ -5,22 +5,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-/**
- * [신규] LandGrabPanel(View)에 전달되는 최소 상태 스냅샷.
- * (TugOfWarViewState와 동일한 역할)
- * 이 객체는 '핵심 엔진(Model)'에 대해 아무것도 모릅니다.
- */
 public class LandGrabViewState {
 
-    // Panel.draw()가 그리기에 필요한 모든 데이터를 저장합니다.
     private final LandGrabLogic.TileState[][] grid;
     private final String[][] wordGrid;
     private final LandGrabLogic.WordModifier[][] modifierGrid;
     private final List<LandGrabEffects.BlindedTile> blindedTiles;
 
-    /**
-     * 기본 생성자 (빈 화면)
-     */
     public LandGrabViewState() {
         int size = LandGrabLogic.GRID_SIZE;
         this.grid = new LandGrabLogic.TileState[size][size];
@@ -37,9 +28,7 @@ public class LandGrabViewState {
         }
     }
 
-    /**
-     * '핵심 엔진(Model)'으로부터 상태를 복사하는 생성자 (싱글플레이용)
-     */
+    // [수정] 싱글 플레이(로직 기반 생성)에서는 항상 '나(Player A)' 시점으로 먹물을 가져옵니다.
     public LandGrabViewState(LandGrabLogic coreLogic) {
         int size = LandGrabLogic.GRID_SIZE;
         this.grid = new LandGrabLogic.TileState[size][size];
@@ -53,38 +42,28 @@ public class LandGrabViewState {
                 this.modifierGrid[r][c] = coreLogic.getModifier(r, c);
             }
         }
-        // [수정] getActiveBlindedTiles()는 List<BlindedTile>을 반환하므로 바로 할당
-        this.blindedTiles = coreLogic.getEffects().getActiveBlindedTiles();
+        // 여기가 에러가 났던 부분입니다! true (Player A)를 인자로 넘겨줍니다.
+        this.blindedTiles = coreLogic.getEffects().getActiveBlindedTiles(true);
     }
 
-    /**
-     * [신규] (멀티플레이용) Map에서 상태를 복사하는 생성자
-     * @param data 서버가 보낸 JSON의 data Map
-     */
-    @SuppressWarnings("unchecked") // (Map/List 캐스팅 경고 무시)
+    @SuppressWarnings("unchecked")
     public LandGrabViewState(Map<String, Object> data) {
         int size = LandGrabLogic.GRID_SIZE;
         this.grid = new LandGrabLogic.TileState[size][size];
         this.wordGrid = new String[size][size];
         this.modifierGrid = new LandGrabLogic.WordModifier[size][size];
 
-        // 1. 그리드 상태 파싱
         parseGrid(data.get("grid"), this.grid, LandGrabLogic.TileState.class, LandGrabLogic.TileState.EMPTY);
-        // 2. 단어 그리드 파싱
         parseGrid(data.get("words"), this.wordGrid, String.class, "");
-        // 3. 모디파이어 그리드 파싱
         parseGrid(data.get("modifiers"), this.modifierGrid, LandGrabLogic.WordModifier.class, LandGrabLogic.WordModifier.NEUTRAL);
 
-        // 4. 먹물 타일 리스트 파싱
         this.blindedTiles = parseBlindedTiles(data.get("ink_tiles"));
     }
-
-    // --- 헬퍼 메서드: Map에서 List<List<String>>으로 온 그리드 데이터를 파싱 ---
 
     @SuppressWarnings("unchecked")
     private <T> void parseGrid(Object gridData, T[][] targetGrid, Class<T> enumClass, T defaultValue) {
         if (!(gridData instanceof List)) {
-            fillGrid(targetGrid, defaultValue); // 데이터 없으면 기본값으로 채움
+            fillGrid(targetGrid, defaultValue);
             return;
         }
 
@@ -106,7 +85,7 @@ public class LandGrabViewState {
 
                     if (enumClass == String.class) {
                         targetGrid[r][c] = (T) val;
-                    } else { // Enum 타입 파싱 (TileState, WordModifier)
+                    } else {
                         targetGrid[r][c] = (T) Enum.valueOf((Class<Enum>) enumClass, val);
                     }
                 }
@@ -135,10 +114,9 @@ public class LandGrabViewState {
         try {
             List<Map<String, Object>> inkList = (List<Map<String, Object>>) inkData;
             for (Map<String, Object> tileData : inkList) {
-                // JSON은 숫자를 Double로 파싱하므로, Number로 받아 int로 변환
                 int r = ((Number) tileData.get("r")).intValue();
                 int c = ((Number) tileData.get("c")).intValue();
-                long until = ((Number) tileData.get("until")).longValue(); // (until은 사실 클라에선 불필요)
+                long until = ((Number) tileData.get("until")).longValue();
                 tiles.add(new LandGrabEffects.BlindedTile(r, c, until));
             }
         } catch (Exception e) {
@@ -146,9 +124,6 @@ public class LandGrabViewState {
         }
         return tiles;
     }
-
-
-    // --- Panel(View)이 사용할 Getter ---
 
     public LandGrabLogic.TileState getTileState(int r, int c) {
         return grid[r][c];
