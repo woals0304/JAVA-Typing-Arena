@@ -1,73 +1,72 @@
 package typingarena.minigames.castledefense;
 
-import javafx.geometry.Pos;
-import javafx.scene.layout.StackPane; // 텍스트를 네모 위에 올리기 위해 필요
-import javafx.scene.layout.VBox; // 머리와 몸통을 수직으로 쌓기 위해
+import javafx.scene.control.Label;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
-import javafx.scene.shape.Rectangle;
-import javafx.scene.text.Text;
+import javafx.scene.shape.Circle;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
 
-// 1. VBox를 상속받아 "머리"와 "몸통"을 수직으로 쌓습니다.
-public class Monster extends VBox { 
-    private final String keyword;
-    private final double speed = 1.75;
+/**
+ * 몬스터 클래스 (이미지 + 단어 텍스트)
+ */
+public class Monster extends StackPane {
+
+    private String word;
+    private Label wordLabel;
+    private ImageView imageView;
     private boolean isAlive = true;
-    private boolean isTargeted = false;
 
-    public Monster(String keyword, double startX, double startY) {
-        this.keyword = keyword;
-        
-        // 2. [추가] 님의 요청: "세로로 기다란 네모" (머리/안테나)
-        Rectangle head = new Rectangle(40, 80, Color.RED); // 폭 40, 높이 80 (세로로 김)
-        head.setArcWidth(5);
-        head.setArcHeight(5);
-        
-        // 3. [수정] 님의 요청: "단어 텍스트 네모" (몸통)
-        // StackPane을 사용해서 네모(몸통)와 텍스트(단어)를 겹칩니다.
-        StackPane bodyPane = new StackPane();
-        Rectangle bodyRect = new Rectangle(100, 30, Color.DARKRED); // 폭 100, 높이 30
-        bodyRect.setArcWidth(10);
-        bodyRect.setArcHeight(10);
-        
-        Text text = new Text(keyword);
-        text.setFill(Color.WHITE);
-        text.setStyle("-fx-font-size: 14px; -fx-font-weight: bold;");
+    public Monster(String word, Image image, double x, double y) {
+        this.word = word;
+        this.setLayoutX(x);
+        this.setLayoutY(y);
 
-        bodyPane.getChildren().addAll(bodyRect, text); // 네모 위에 텍스트를 올림
-        
-        // 4. VBox 설정: 머리(위), 몸통(아래) 순서로 쌓기
-        this.setSpacing(2); // 머리와 몸통 사이 간격
-        this.setAlignment(Pos.CENTER); // 가운데 정렬
-        this.getChildren().addAll(head, bodyPane); // 머리를 위에, 몸통(단어)을 아래에 추가
-        
-        this.setTranslateX(startX);
-        this.setTranslateY(startY);
-    }
-
-    // 살아있고, 피격 대기 상태가 아닐 때만 이동
-    public void move() {
-        if (isAlive && !isTargeted) {
-            this.setTranslateX(this.getTranslateX() - speed);
+        // 1. 몬스터 이미지
+        if (image != null) {
+            imageView = new ImageView(image);
+            imageView.setFitWidth(48);  // 몬스터 크기
+            imageView.setFitHeight(48);
+            this.getChildren().add(imageView);
+        } else {
+            // 이미지가 없으면 빨간 원으로 대체 (비상용)
+            Circle fallback = new Circle(20, Color.RED);
+            fallback.setStroke(Color.BLACK);
+            this.getChildren().add(fallback);
         }
+
+        // 2. 단어 텍스트 (머리 위에 둥둥)
+        wordLabel = new Label(word);
+        wordLabel.setTextFill(Color.WHITE);
+        wordLabel.setFont(Font.font("Arial", FontWeight.BOLD, 14));
+        wordLabel.setStyle("-fx-background-color: rgba(0,0,0,0.6); -fx-padding: 2px; -fx-background-radius: 4;");
+        wordLabel.setTranslateY(-35); // 이미지 위로 올리기
+
+        this.getChildren().add(wordLabel);
     }
-    
-    public String getKeyword() {
-        return keyword;
+
+    public void move(double speed) {
+        this.setLayoutX(this.getLayoutX() - speed);
+    }
+
+    public void setTargeted(boolean targeted) {
+        if (targeted) {
+            wordLabel.setTextFill(Color.RED); // 타겟팅 되면 글자색 빨강
+            wordLabel.setStyle("-fx-background-color: rgba(255,255,255,0.8); -fx-padding: 2px; -fx-background-radius: 4;");
+        }
     }
 
     public void kill() {
-        this.isAlive = false;
+        isAlive = false;
+        // (필요시 사망 이펙트 추가 가능)
     }
 
-    public boolean isAlive() {
-        return isAlive;
-    }
+    public String getWord() { return word; }
+    public boolean isAlive() { return isAlive; }
     
-    public void setTargeted(boolean targeted) {
-        this.isTargeted = targeted;
-    }
-
-    public boolean isTargeted() {
-        return isTargeted;
-    }
+    // 투사체 충돌 판정용 중앙 좌표
+    public double getCenterX() { return this.getLayoutX() + 24; }
+    public double getCenterY() { return this.getLayoutY() + 24; }
 }

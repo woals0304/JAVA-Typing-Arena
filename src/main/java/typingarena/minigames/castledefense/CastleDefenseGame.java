@@ -1,29 +1,27 @@
 package typingarena.minigames.castledefense;
 
-// (JavaFX 및 애니메이션 임포트)
 import javafx.animation.AnimationTimer;
 import javafx.animation.TranslateTransition;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert; // [추가] 팝업창
+import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.ProgressBar;
 import javafx.scene.control.TextField;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
-import javafx.scene.shape.*;
+import javafx.scene.shape.Circle;
+import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
-import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
-
-// ( 단어 로딩(Gson) 임포트)
 import com.google.gson.Gson;
-import com.google.gson.JsonIOException;
-import com.google.gson.JsonSyntaxException;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,429 +34,458 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 
 public class CastleDefenseGame extends Stage {
-    
-    // ----------------------- 1. 게임 모델 및 상수 -----------------------
-    
+
+    // --- [1] 설정 값 ---
+    private static final int TILE_SIZE = 64; 
+    private static final int MAP_COLS = 16; 
+    private static final int MAP_ROWS = 10; 
+    private final double GAME_WIDTH = MAP_COLS * TILE_SIZE;
+    private final double GAME_HEIGHT = MAP_ROWS * TILE_SIZE;
+
+    // --- [2] 타일 타입 정의 ---
+    private static final int G=0, G1=1, G2=7, P=2, PD=3, P1=4, PU=5, F=8, F1=9, F2=10, F3=11, F4=12, F1U=13, F4U=14, F1D=15, F4D=16, S=17, S1=18;
+
+    // --- [3] 맵 데이터 ---
+    private final int[][] mapData = {
+        {G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G},
+        {G1, G1, G1, G1, G1, G1, G1, G1, G1, G1, G1, G1, G1, G1, G1, G1},
+        {G2, G2, G2, G2, G2, G2, G2, G2, G2, G2, G2, G2, G2, G2, G2, G2},
+        {F1U, F4U, F2, PU, PU, PU, PU, PU, PU, PU, PU, PU, PU, PU, PU, PU}, 
+        {P1, P, F, P, P, P1, P, P1, P, P, P, P1, P, P, P, P1},
+        {P, P1, F, P, P1, P, P, P, P1, P, P1, P, P1, P, P1, P},
+        {P1, P, F, P, P, P, P, P1, P, P, P, P, P, P, P1, P},
+        {P, P1, F, P, P, P1, P, P, P, P, P1, P, P, P, P1, P},
+        {F1D, F4D, F3, PD, PD, PD, PD, PD, PD, PD, PD, PD, PD, PD, PD, PD}, 
+        {S, S, S1, S, S, S1, S, S1, S1, S, S, S1, S, S, S1, S}
+    };
+
+    // --- [4] 리소스 변수 ---
+    private Image groundImage, groundImage1, groundImage2, pathImage, pathImage1, pathImageU, pathImageD;
+    private Image fenceImage, fenceImage1, fenceImage2, fenceImage3, fenceImage4;
+    private Image castleImage, castleImage1;
+    private Image playerImage, monsterImage; // 캐릭터 이미지
+
+    // [경로 설정]
+    private final String BASE_PATH = "/images/castledefense/Tiles/";
+    private final String PLAYER_PATH = "/images/castledefense/Players/1P.png";   
+    private final String MONSTER_PATH = "/images/castledefense/Monsters/M1.png"; 
+
+    // --- [5] 게임 로직 변수 ---
     private static final String WORD_RESOURCE = "words/ko.json";
     private static final String[] DEFAULT_WORDS = { "성", "몬스터", "방어", "실패" };
     private static final List<String> WORD_POOL = loadWordPool();
     
     private Castle castle = new Castle();
     private List<Monster> activeMonsters = new ArrayList<>();
+    private List<HeartItem> activeHearts = new ArrayList<>();
     
-    // [추가] 하트 아이템 리스트
-    private List<HeartItem> activeHearts = new ArrayList<>(); 
+    private Player player; 
     
-    private final double GAME_WIDTH = 800;
-    private final double GAME_HEIGHT = 500;
-    
-    private final double CASTLE_WALL_X_BOUNDARY = 120.0;
+    private Pane entityLayer;
+    private TextField inputField;
+    private Button startButton; // 여기서 선언만 하고 초기화는 생성자나 메서드에서
+    private Label scoreLabel;
+    private Label timerLabel; 
+    private ProgressBar hpBar;
+    private HBox heartsBox;   
+    private Rectangle flashOverlay;
 
-    private final double SPAWN_Y_MIN = GAME_HEIGHT * 0.25; // 몬스터 스폰 영역 (아래쪽)
-    private final double SPAWN_Y_MAX = GAME_HEIGHT * 0.75;
-    
-    // [추가] 하트 스폰 영역 (위쪽)
-    private final double SPAWN_HEART_Y = GAME_HEIGHT * 0.1; // 상단 10% 위치
-    
-    private final long SPAWN_INTERVAL_NS = 2_000_000_000L; // 2초 (몬스터)
-    private long lastMonsterSpawnTime = 0;
-    
-    // [추가] 하트 스폰 간격 (예: 15초)
-    private final long SPAWN_HEART_INTERVAL_NS = 15_000_000_000L; 
-    private long lastHeartSpawnTime = 0;
-    
-    private final long GAME_DURATION_SECONDS = 60;
-
+    private boolean isRunning = false;
     private AnimationTimer gameLoop;
-    private long gameStartTime; 
-
-    private Rectangle flashOverlay; 
-    private long damageFlashUntil = 0L; 
-
-    // ----------------------- 2. 뷰 요소 (UI) -----------------------
-    private Pane gamePane = new Pane();
-    
-    private Label timerLabel = new Label("00:00"); 
-    private Label scoreLabel = new Label("Score: 0"); 
-    private HBox heartsBox = new HBox(5); 
-    
-    private TextField inputField = new TextField();
-    
-    private final Button startButton = new Button("게임 시작");
-    
-    private Circle player; // [수정] 네모를 원으로
+    private long lastMonsterSpawnTime = 0;
+    private long lastHeartSpawnTime = 0;
+    private long gameStartTime = 0;
+    private final long GAME_DURATION_SECONDS = 60;
+    private long damageFlashUntil = 0;
     private int score = 0;
-    
+
+    // --- 생성자 ---
     public CastleDefenseGame() {
-        initModality(Modality.NONE);
-        
-        BorderPane root = new BorderPane();
+        loadResources();
 
-        // (상단 UI 바 설정 ... 기존과 동일)
-        HBox topLeftUI = new HBox(timerLabel);
-        topLeftUI.setAlignment(Pos.CENTER);
-        topLeftUI.setPadding(new Insets(5));
-        timerLabel.setStyle("-fx-font-size: 20px; -fx-text-fill: white; -fx-font-weight: bold;");
-        HBox topRightUI = new HBox(10, scoreLabel, heartsBox);
-        topRightUI.setAlignment(Pos.CENTER_RIGHT);
-        topRightUI.setPadding(new Insets(5));
-        scoreLabel.setStyle("-fx-font-size: 20px; -fx-text-fill: white; -fx-font-weight: bold;");
-        updateHeartsUI(); 
-        BorderPane topUIBar = new BorderPane();
-        topUIBar.setLeft(topLeftUI); 
-        topUIBar.setCenter(new Label("")); 
-        topUIBar.setRight(topRightUI); 
-        topUIBar.setStyle("-fx-background-color: #57ff8cff;"); 
-        root.setTop(topUIBar); 
-        
-        // (중앙 게임 화면 ... 기존과 동일)
-        gamePane.setPrefSize(GAME_WIDTH, GAME_HEIGHT);
-        gamePane.setStyle("-fx-background-color: #ffffffff;");
-        flashOverlay = new Rectangle(GAME_WIDTH, GAME_HEIGHT);
-        flashOverlay.setFill(Color.rgb(220, 80, 80, 0.4)); 
-        flashOverlay.setVisible(false); 
-        drawCastleWalls();
-       player = new Circle(20, Color.web("#87c7f1ff"));
-        player.setStroke(Color.BLACK);
-        player.setId("PLAYER"); // [추가] ★★★ 플레이어에게 "PLAYER"라는 이름표를 붙여줍니다 ★★★
-        player.setTranslateX(CASTLE_WALL_X_BOUNDARY - 60);
-        player.setTranslateY(GAME_HEIGHT / 2);
-        gamePane.getChildren().add(player);
-        gamePane.getChildren().add(flashOverlay);
-        root.setCenter(gamePane); 
-
-        // (하단 입력 바 ... 기존과 동일)
-        inputField.setOnAction(e -> handleUserInput(inputField.getText()));
-        inputField.setPromptText("여기에 단어를 입력하세요...");
-        inputField.setStyle("-fx-font-size: 18px; -fx-font-weight: bold;"); 
-        inputField.setDisable(true); 
-        inputField.setPrefHeight(50); 
-        inputField.setMaxWidth(GAME_WIDTH * 0.4); 
-        inputField.setMinWidth(GAME_WIDTH * 0.4); 
+        // [수정] startButton 초기화 (여기서 먼저 생성해야 함)
+        startButton = new Button("게임 시작");
         startButton.setFont(Font.font("System", FontWeight.BOLD, 18));
-        startButton.setOnAction(e -> startGame());
-        HBox bottomBox = new HBox(10, inputField, startButton); 
-        bottomBox.setAlignment(Pos.CENTER); 
-        bottomBox.setPadding(new Insets(10, 20, 10, 20)); 
-        bottomBox.setStyle("-fx-background-color: #ffffffff;");
-        root.setBottom(bottomBox); 
+        // startButton.setOnAction(e -> startGame()); // createBottomBar에서 설정하므로 여기선 생략 가능
 
-        // 6. 리스너 및 게임 루프 정의
-        castle.hpProperty().addListener((obs, oldVal, newVal) -> updateHeartsUI());
+        BorderPane root = new BorderPane();
+        root.setTop(createTopBar());
+
+        StackPane gameCenter = new StackPane();
+        gameCenter.setStyle("-fx-background-color: #222;");
+        
+        // 1. 맵
+        GridPane mapLayer = createGameMap();
+        
+        // 2. 유닛 레이어
+        entityLayer = new Pane();
+        entityLayer.setPrefSize(GAME_WIDTH, GAME_HEIGHT);
+        
+        // 피격 효과
+        flashOverlay = new Rectangle(GAME_WIDTH, GAME_HEIGHT, Color.rgb(255, 0, 0, 0.3));
+        flashOverlay.setVisible(false);
+        flashOverlay.setMouseTransparent(true);
+
+        // 플레이어 생성 (Player 클래스 사용)
+        double playerX = 150; // 성 근처
+        double playerY = GAME_HEIGHT / 2;
+        player = new Player(playerImage, playerX, playerY);
+        
+        entityLayer.getChildren().addAll(player, flashOverlay);
+        gameCenter.getChildren().addAll(mapLayer, entityLayer);
+        root.setCenter(gameCenter);
+
+        // 하단 입력창
+        root.setBottom(createBottomBar());
+
+        // 이벤트 리스너
+        castle.hpProperty().addListener((obs, o, n) -> {
+            hpBar.setProgress(n.doubleValue() / 3.0); // HP바 업데이트
+            updateHeartsUI(); // 하트 아이콘 업데이트
+        });
+
+        Scene scene = new Scene(root, GAME_WIDTH, GAME_HEIGHT + 100);
+        this.setTitle("Castle Defense");
+        this.setScene(scene);
+        this.setOnCloseRequest(e -> stopGame());
+    }
+
+    // --- 게임 루프 ---
+    private void startGame() {
+        isRunning = true;
+        score = 0;
+        castle.hpProperty().set(3);
+        scoreLabel.setText("Score: 0");
+        timerLabel.setText("00:00");
+        
+        // 몬스터/아이템 초기화 (플레이어와 flashOverlay 제외하고 다 삭제)
+        entityLayer.getChildren().removeIf(n -> 
+            !"PLAYER".equals(n.getId()) && n != flashOverlay
+        );
+        activeMonsters.clear();
+        activeHearts.clear();
+
+        startButton.setDisable(true);
+        inputField.setDisable(false);
+        inputField.requestFocus(); // [중요] 입력창 포커스
+
+        gameStartTime = System.nanoTime();
         
         gameLoop = new AnimationTimer() {
             @Override
             public void handle(long now) {
-                // (승/패 조건 확인 ... 기존과 동일)
-                if (castle.isDestroyed()) {
-                    stop();
-                    showGameOver(false); 
-                    return;
-                }
-                long elapsedSeconds = (now - gameStartTime) / 1_000_000_000;
-                if (elapsedSeconds >= GAME_DURATION_SECONDS) {
-                    stop();
-                    showGameOver(true); 
-                    return;
-                }
-                
-                updateTimer(now); 
-                 
-                // (번쩍 효과 ... 기존과 동일)
-                if (damageFlashUntil > 0L) {
-                    if (now < damageFlashUntil) {
-                        flashOverlay.setVisible(true); 
-                    } else {
-                        flashOverlay.setVisible(false); 
-                        damageFlashUntil = 0L; 
-                    }
-                }
-
-                // (몬스터 스폰 ... 기존과 동일)
-                if (now - lastMonsterSpawnTime > SPAWN_INTERVAL_NS) {
-                    spawnMonster();
-                    lastMonsterSpawnTime = now;
-                }
-                
-                // [추가] 하트 스폰 로직
-                if (now - lastHeartSpawnTime > SPAWN_HEART_INTERVAL_NS) {
-                    spawnHeartItem();
-                    lastHeartSpawnTime = now;
-                }
-
-                moveAndCheckMonsters();
-                
-                // [추가] 하트 이동 로직
-                moveAndCheckHeartItems();
+                update(now);
             }
         };
-
-        setTitle("🏰 성 방어 타자 게임");
-        setScene(new Scene(root, GAME_WIDTH, GAME_HEIGHT + 36 + 70)); 
-        
-        setOnCloseRequest(e -> {
-            if (gameLoop != null) {
-                gameLoop.stop();
-            }
-        });
+        gameLoop.start();
     }
 
-    private void drawCastleWalls() {
-        // (기존과 동일)
-        Color wallColor = Color.web("#3498db"); 
-        double wallThickness = 30;
-        Rectangle rightPillar = new Rectangle(CASTLE_WALL_X_BOUNDARY - wallThickness, 0, wallThickness, GAME_HEIGHT);
-        rightPillar.setFill(wallColor);
-        Rectangle topRoof = new Rectangle(wallThickness, 0, CASTLE_WALL_X_BOUNDARY - wallThickness, wallThickness);
-        topRoof.setFill(wallColor);
-        Rectangle bottomRoof = new Rectangle(wallThickness, GAME_HEIGHT - wallThickness, CASTLE_WALL_X_BOUNDARY - wallThickness, wallThickness);
-        bottomRoof.setFill(wallColor);
-        gamePane.getChildren().addAll( rightPillar, topRoof, bottomRoof);
-    }
-    
-    // ----------------------- 3. 게임 시작 메서드 -----------------------
-    private void startGame() {
-        // (기존 리셋 로직 ... )
-        score = 0;
-        damageFlashUntil = 0L;
-        castle.hpProperty().set(3);
-        updateScoreLabel();
-        updateHeartsUI();
-        timerLabel.setText("00:00");
-        scoreLabel.setTextFill(Color.WHITE); 
-        flashOverlay.setVisible(false);
-        
-        // [수정] 몬스터뿐만 아니라 하트 아이템도 모두 제거
-        gamePane.getChildren().removeIf(node -> node instanceof Monster || (node instanceof Circle && !"PLAYER".equals(node.getId())));
-        activeHearts.clear(); // [추가]
-
-        // [추가] 스폰 타이머 리셋
-        lastMonsterSpawnTime = 0L;
-        lastHeartSpawnTime = 0L; // [추가]
-
-        // (게임 시작 ... 기존과 동일)
-        startButton.setDisable(true); 
-        inputField.setDisable(false); 
-        inputField.requestFocus(); 
-        
-        gameStartTime = System.nanoTime(); 
-        gameLoop.start(); 
+    private void stopGame() {
+        isRunning = false;
+        if (gameLoop != null) gameLoop.stop();
+        startButton.setDisable(false);
+        inputField.setDisable(true);
     }
 
-    // (타이머 업데이트 ... 기존과 동일)
-    private void updateTimer(long now) {
+    private void update(long now) {
+        if (!isRunning) return;
+
+        // 타이머 업데이트
         long elapsedSeconds = (now - gameStartTime) / 1_000_000_000;
-        long minutes = elapsedSeconds / 60;
-        long seconds = elapsedSeconds % 60;
-        
         if (elapsedSeconds >= GAME_DURATION_SECONDS) {
-            timerLabel.setText(String.format("%02d:%02d", GAME_DURATION_SECONDS / 60, GAME_DURATION_SECONDS % 60));
-        } else {
-            timerLabel.setText(String.format("%02d:%02d", minutes, seconds));
-        }
-    }
-    
-    // ----------------------- 4. 몬스터/아이템 관리 로직 -----------------------
-    
-    // (spawnMonster ... 기존과 동일)
-    private void spawnMonster() {
-        Random random = new Random();
-        if (WORD_POOL.isEmpty()) return;
-        String keyword = WORD_POOL.get(random.nextInt(WORD_POOL.size()));
-        double startX = GAME_WIDTH - 50;
-        double spawnHeightRange = SPAWN_Y_MAX - SPAWN_Y_MIN;
-        double startY = SPAWN_Y_MIN + random.nextDouble() * spawnHeightRange;
-        Monster monster = new Monster(keyword, startX, startY);
-        activeMonsters.add(monster);
-        gamePane.getChildren().add(monster);
-        monster.toBack();
-    }
-    
-    // [추가] 하트 아이템 스폰 메서드
-    private void spawnHeartItem() {
-        double startX = GAME_WIDTH - 50; // 오른쪽 끝
-        double startY = SPAWN_HEART_Y;   // 화면 상단 (10%)
-        
-        HeartItem heart = new HeartItem(startX, startY);
-        activeHearts.add(heart);
-        gamePane.getChildren().add(heart);
-    }
-    
-    // (moveAndCheckMonsters ... 기존과 동일)
-    private void moveAndCheckMonsters() {
-        List<Monster> monstersToRemove = new ArrayList<>();
-        for (Monster monster : activeMonsters) {
-            if (monster.isAlive()) {
-                monster.move();
-                if (monster.getTranslateX() <= CASTLE_WALL_X_BOUNDARY) { 
-                    castle.takeDamage();
-                    damageFlashUntil = System.nanoTime() + 150_000_000L;
-                    monstersToRemove.add(monster);
-                }
-            } else {
-                monstersToRemove.add(monster);
-            }
-        }
-        removeMonsters(monstersToRemove);
-    }
-    
-    // [추가] 하트 아이템 이동 및 제거 메서드
-    private void moveAndCheckHeartItems() {
-        List<HeartItem> itemsToRemove = new ArrayList<>();
-        for (HeartItem item : activeHearts) {
-            if (item.isAlive()) {
-                item.move();
-                // [추가] 화면 왼쪽 밖으로 나가면 제거 (성에는 충돌 안 함)
-                if (item.getTranslateX() < -50) { 
-                    itemsToRemove.add(item);
-                }
-            } else {
-                // (kill() 당한 하트도 제거)
-                itemsToRemove.add(item);
-            }
-        }
-        // 화면과 리스트에서 제거
-        gamePane.getChildren().removeAll(itemsToRemove);
-        activeHearts.removeAll(itemsToRemove);
-    }
-    
-    private void removeMonsters(List<Monster> monsters) {
-        gamePane.getChildren().removeAll(monsters);
-        activeMonsters.removeAll(monsters);
-    }
-
-    // ----------------------- 5. 사용자 입력 및 처치 로직 -----------------------
-    
-    // [대폭 수정] 
-    private void handleUserInput(String input) {
-        if (inputField.isDisabled()) return;
-        String trimmedInput = input.trim();
-        if (trimmedInput.isEmpty()) {
-            inputField.clear(); // 입력창이 비어도 클리어
+            stopGame();
+            showGameOver(true);
             return;
         }
+        long minutes = elapsedSeconds / 60;
+        long seconds = elapsedSeconds % 60;
+        timerLabel.setText(String.format("%02d:%02d", minutes, seconds));
 
-        // --- [추가] 1. '하트' 아이템 먼저 확인 ---
-        if (trimmedInput.equals("하트")) {
-            // 살아있는 하트 아이템을 찾음 (선착순 1개)
-            HeartItem matchedHeart = activeHearts.stream()
-                .filter(HeartItem::isAlive)
-                .findFirst()
-                .orElse(null);
-                
-            if (matchedHeart != null) {
-                matchedHeart.kill(); // 1. 하트 아이템 제거 (다음 루프에서 정리됨)
-                castle.addHp();      // 2. HP 1 증가 (Castle.java에 추가된 메서드)
-                updateHeartsUI();    // 3. 하트 UI 갱신
-                
-                // (명중 이펙트 - 하트를 흰색으로 번쩍이게 함)
-                matchedHeart.setStyle("-fx-effect: dropshadow(gaussian, white, 10, 0.8, 0, 0);");
-
-                inputField.clear();
-                return; // 하트 처리 완료, 몬스터 검색 안 함
+        // 피격 효과 처리
+        if (damageFlashUntil > 0) {
+            if (now < damageFlashUntil) flashOverlay.setVisible(true);
+            else {
+                flashOverlay.setVisible(false);
+                damageFlashUntil = 0;
             }
         }
-        // --- 하트 처리 끝 ---
 
-        // 2. (기존 로직) 몬스터 확인
-        Monster matchedMonster = activeMonsters.stream()
-            .filter(monster -> monster.isAlive() && !monster.isTargeted() && monster.getKeyword().equals(trimmedInput))
-            .findFirst()
-            .orElse(null);
+        // 1. 몬스터 스폰 (2초)
+        if (now - lastMonsterSpawnTime > 2_000_000_000L) {
+            spawnMonster();
+            lastMonsterSpawnTime = now;
+        }
+        // 2. 하트 스폰 (15초)
+        if (now - lastHeartSpawnTime > 15_000_000_000L) {
+            spawnHeartItem();
+            lastHeartSpawnTime = now;
+        }
 
-        if (matchedMonster != null) {
-            matchedMonster.setTargeted(true);
-            launchProjectile(matchedMonster);
+        // 3. 이동 및 충돌 체크
+        moveEntities();
+        
+        // 4. 게임 오버 체크
+        if (castle.isDestroyed()) {
+            stopGame();
+            showGameOver(false);
+        }
+    }
+
+    private void spawnMonster() {
+        if (WORD_POOL.isEmpty()) return;
+        String word = WORD_POOL.get(new Random().nextInt(WORD_POOL.size()));
+        
+        double y = GAME_HEIGHT * 0.25 + new Random().nextDouble() * (GAME_HEIGHT * 0.5);
+        // 분리된 Monster 클래스 사용
+        Monster m = new Monster(word, monsterImage, GAME_WIDTH + 50, y);
+        
+        activeMonsters.add(m);
+        entityLayer.getChildren().add(m);
+        m.toBack(); 
+    }
+
+    private void spawnHeartItem() {
+        HeartItem h = new HeartItem(GAME_WIDTH + 50, GAME_HEIGHT * 0.1);
+        activeHearts.add(h);
+        entityLayer.getChildren().add(h);
+    }
+
+    private void moveEntities() {
+        // 몬스터 이동
+        Iterator<Monster> it = activeMonsters.iterator();
+        while (it.hasNext()) {
+            Monster m = it.next();
+            m.move(2.0); // 속도
+
+            if (m.getLayoutX() < 100) { // 성벽 도달
+                castle.takeDamage();
+                damageFlashUntil = System.nanoTime() + 150_000_000L; // 0.15초간 번쩍
+                entityLayer.getChildren().remove(m);
+                it.remove();
+            }
         }
         
-        inputField.clear();
+        // 하트 이동
+        Iterator<HeartItem> hit = activeHearts.iterator();
+        while (hit.hasNext()) {
+            HeartItem h = hit.next();
+            h.move();
+            if (h.getTranslateX() < -50) {
+                entityLayer.getChildren().remove(h);
+                hit.remove();
+            }
+        }
     }
-    
-    // (launchProjectile ... 기존과 동일)
-    private void launchProjectile(Monster targetMonster) {
-        Circle projectile = new Circle(5, Color.CYAN);
-        projectile.setTranslateX(player.getTranslateX());
-        projectile.setTranslateY(player.getTranslateY());
-        gamePane.getChildren().add(projectile);
-        TranslateTransition tt = new TranslateTransition(Duration.millis(400), projectile);
-        tt.setToX(targetMonster.getTranslateX() + targetMonster.getWidth() / 2);
-        tt.setToY(targetMonster.getTranslateY() + targetMonster.getHeight() / 2);
+
+    // --- [입력 처리] ---
+    private void handleInput() {
+        if (!isRunning) return;
+        
+        String text = inputField.getText().trim();
+        inputField.clear(); // 입력창 비우기
+        
+        if (text.isEmpty()) return;
+
+        // 1. 하트 체크
+        for (HeartItem h : activeHearts) {
+            if (text.equals("하트")) {
+                castle.addHp();
+                entityLayer.getChildren().remove(h);
+                activeHearts.remove(h);
+                return;
+            }
+        }
+
+        // 2. 몬스터 체크
+        for (Monster m : activeMonsters) {
+            if (m.getWord().equalsIgnoreCase(text)) {
+                launchProjectile(m);
+                m.setTargeted(true); 
+                return; 
+            }
+        }
+    }
+
+    private void launchProjectile(Monster target) {
+        Circle projectile = new Circle(8, Color.CYAN);
+        projectile.setLayoutX(player.getLayoutX() + 32);
+        projectile.setLayoutY(player.getLayoutY() + 32);
+        entityLayer.getChildren().add(projectile);
+
+        TranslateTransition tt = new TranslateTransition(Duration.millis(300), projectile);
+        // Monster 클래스에 getCenterX(), getCenterY() 메서드가 있다고 가정
+        tt.setToX(target.getCenterX() - projectile.getLayoutX());
+        tt.setToY(target.getCenterY() - projectile.getLayoutY());
+        
         tt.setOnFinished(e -> {
-            gamePane.getChildren().remove(projectile);
-            targetMonster.kill();
-            targetMonster.setStyle("-fx-background-color: green; -fx-opacity: 0.5;");
-            score += 10;
-            updateScoreLabel();
+            entityLayer.getChildren().remove(projectile);
+            if (activeMonsters.contains(target)) {
+                entityLayer.getChildren().remove(target);
+                activeMonsters.remove(target);
+                score += 10;
+                scoreLabel.setText("Score: " + score);
+            }
         });
         tt.play();
     }
-    
-    // ----------------------- 6. UI 및 게임 종료 -----------------------
 
-    // (updateScoreLabel ... 기존과 동일)
-    private void updateScoreLabel() {
-        scoreLabel.setText(String.format("Score: %d", score));
+    // --- UI 생성 ---
+    private HBox createBottomBar() {
+        HBox box = new HBox(15);
+        box.setPadding(new Insets(15));
+        box.setAlignment(Pos.CENTER);
+        box.setStyle("-fx-background-color: #333;");
+
+        inputField = new TextField();
+        inputField.setPromptText("단어 입력...");
+        inputField.setPrefWidth(400);
+        inputField.setFont(Font.font(18));
+        inputField.setOnAction(e -> handleInput()); // 엔터키 처리
+
+        Button atkBtn = new Button("공격");
+        atkBtn.setOnAction(e -> {
+            handleInput();
+            inputField.requestFocus();
+        });
+
+        // [수정] startButton은 생성자에서 이미 초기화됨. 여기선 이벤트만 연결.
+        startButton.setOnAction(e -> startGame());
+
+        box.getChildren().addAll(inputField, atkBtn, startButton);
+        return box;
     }
 
-    // (updateHeartsUI ... 기존과 동일)
+    private HBox createTopBar() {
+        HBox box = new HBox(20);
+        box.setPadding(new Insets(10));
+        box.setAlignment(Pos.CENTER);
+        box.setStyle("-fx-background-color: #333;");
+
+        hpBar = new ProgressBar(1.0);
+        hpBar.setStyle("-fx-accent: #FF5555;");
+        
+        scoreLabel = new Label("Score: 0");
+        scoreLabel.setTextFill(Color.WHITE);
+        scoreLabel.setFont(Font.font(20));
+        
+        timerLabel = new Label("00:00");
+        timerLabel.setTextFill(Color.WHITE);
+        timerLabel.setFont(Font.font(20));
+        
+        heartsBox = new HBox(5);
+        updateHeartsUI();
+
+        box.getChildren().addAll(new Label("HP:"), hpBar, heartsBox, timerLabel, scoreLabel);
+        return box;
+    }
+    
     private void updateHeartsUI() {
-        heartsBox.getChildren().clear(); 
+        if (heartsBox == null) return;
+        heartsBox.getChildren().clear();
         for (int i = 0; i < castle.getHp(); i++) {
-            heartsBox.getChildren().add(createHeartIcon());
+            Label heart = new Label("❤️");
+            heart.setStyle("-fx-font-size: 20px;");
+            heartsBox.getChildren().add(heart);
         }
     }
 
-    // (createHeartIcon ... 기존과 동일)
-    private Label createHeartIcon() {
-        Label heartLabel = new Label("❤️");
-        heartLabel.setStyle("-fx-font-size: 20px;");
-        return heartLabel;
+    private GridPane createGameMap() {
+        GridPane grid = new GridPane();
+        grid.setAlignment(Pos.CENTER);
+        for (int r = 0; r < MAP_ROWS; r++) {
+            for (int c = 0; c < MAP_COLS; c++) {
+                int type = mapData[r][c];
+                StackPane s = new StackPane();
+                
+                ImageView base = new ImageView();
+                setupImageView(base);
+                
+                // 바닥 로직
+                Image img = groundImage;
+                if (type == P || type == F) img = pathImage;
+                else if (type == PU || type == F1U) img = pathImageU;
+                else if (type == PD || type == F1D) img = pathImageD;
+                else if (type == G1) img = groundImage1;
+                else if (type == G2) img = groundImage2;
+                else if (type == P1) img = pathImage1;
+                // ... (필요한 매핑 추가)
+                base.setImage(img);
+                s.getChildren().add(base);
+                
+                // 상단 로직
+                if (type >= F && type <= S1) { 
+                    ImageView top = new ImageView();
+                    setupImageView(top);
+                    if (type == F) top.setImage(fenceImage);
+                    else if (type == F1) top.setImage(fenceImage1);
+                    else if (type == F2) top.setImage(fenceImage2);
+                    else if (type == F3) top.setImage(fenceImage3);
+                    else if (type == F4) top.setImage(fenceImage4);
+                    else if (type == F1U) top.setImage(fenceImage1);
+                    else if (type == F4U) top.setImage(fenceImage4);
+                    else if (type == F1D) top.setImage(fenceImage1);
+                    else if (type == F4D) top.setImage(fenceImage4);
+                    else if (type == S) top.setImage(castleImage);
+                    else if (type == S1) top.setImage(castleImage1);
+                    
+                    if (top.getImage() != null) s.getChildren().add(top);
+                }
+                grid.add(s, c, r);
+            }
+        }
+        return grid;
     }
     
-   // (showGameOver ... 님의 요청대로 '승/패' 분기)
-   private void showGameOver(boolean isVictory) { 
-       if (gameLoop != null) {
-           gameLoop.stop();
-       }
-       inputField.setDisable(true);
-       startButton.setDisable(false); 
-       
-       String finalMessage = String.format("최종 점수: %d", score);
-       scoreLabel.setText(finalMessage);
-       scoreLabel.setTextFill(Color.YELLOW); 
-       
-       if (isVictory) {
-           showResultDialog("승리! 성을 지켰습니다.", finalMessage);
-       } else {
-           showResultDialog("패배! 성이 부서졌습니다.", finalMessage);
-       }
-   }
-   
-   // [추가] 님의 요청: '게임 종료' 팝업창 띄우기 (줄다리기 게임 참조)
-   private void showResultDialog(String header, String content) {
-       Alert alert = new Alert(Alert.AlertType.INFORMATION);
-       alert.setTitle("결과");
-       alert.setHeaderText(header); 
-       alert.setContentText(content); 
-       alert.initOwner(this);
-       alert.show();
-   }
+    private void setupImageView(ImageView v) {
+        v.setFitWidth(TILE_SIZE); v.setFitHeight(TILE_SIZE);
+        v.setPreserveRatio(true); v.setSmooth(false);
+    }
 
-    // ----------------------- 7. 단어 로딩 (기존과 동일) -----------------------
+    private void loadResources() {
+        groundImage = loadImage(BASE_PATH + "G.png");
+        groundImage1 = loadImage(BASE_PATH + "G1.png");
+        groundImage2 = loadImage(BASE_PATH + "G2.png");
+        pathImage = loadImage(BASE_PATH + "P.png");
+        pathImage1 = loadImage(BASE_PATH + "P1.png");
+        pathImageU = loadImage(BASE_PATH + "PU.png");
+        pathImageD = loadImage(BASE_PATH + "PD.png");
+        fenceImage = loadImage(BASE_PATH + "F.png");
+        fenceImage1 = loadImage(BASE_PATH + "F1.png");
+        fenceImage2 = loadImage(BASE_PATH + "F2.png");
+        fenceImage3 = loadImage(BASE_PATH + "F3.png");
+        fenceImage4 = loadImage(BASE_PATH + "F4.png");
+        castleImage = loadImage(BASE_PATH + "S.png");
+        castleImage1 = loadImage(BASE_PATH + "S1.png");
+        playerImage = loadImage(PLAYER_PATH);
+        monsterImage = loadImage(MONSTER_PATH);
+    }
+
+    private Image loadImage(String path) {
+        try {
+            InputStream is = getClass().getResourceAsStream(path);
+            if (is == null) return null;
+            return new Image(is);
+        } catch (Exception e) { return null; }
+    }
     
+    private void showGameOver(boolean isVictory) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle("Game Over");
+        alert.setHeaderText(isVictory ? "승리!" : "패배...");
+        alert.setContentText("최종 점수: " + score);
+        alert.show();
+    }
+
+    // --- 단어 로딩 (기존) ---
     private static List<String> loadWordPool() {
         List<String> words = loadWordsFromClasspath();
-        if (words.isEmpty()) {
-            words = loadWordsFromFilesystem();
-        }
-        if (words.isEmpty()) {
-            words = new ArrayList<>(Arrays.asList(DEFAULT_WORDS));
-        }
-        System.out.println("성 지키기: " + words.size() + "개의 단어를 로드했습니다.");
+        if (words.isEmpty()) words = loadWordsFromFilesystem();
+        if (words.isEmpty()) words = new ArrayList<>(Arrays.asList(DEFAULT_WORDS));
         return Collections.unmodifiableList(words);
     }
 
@@ -468,20 +495,15 @@ public class CastleDefenseGame extends Stage {
             try (Reader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
                 return parseWordList(reader);
             }
-        } catch (IOException | JsonSyntaxException | JsonIOException e) {
-            return Collections.emptyList();
-        }
+        } catch (Exception e) { return Collections.emptyList(); }
     }
 
     private static List<String> loadWordsFromFilesystem() {
         Path path = Paths.get("src", "main", "resources").resolve(WORD_RESOURCE);
         if (!Files.exists(path)) return Collections.emptyList();
-        
         try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
             return parseWordList(reader);
-        } catch (IOException | JsonSyntaxException | JsonIOException e) {
-            return Collections.emptyList();
-        }
+        } catch (IOException e) { return Collections.emptyList(); }
     }
 
     private static List<String> parseWordList(Reader reader) {
@@ -490,9 +512,7 @@ public class CastleDefenseGame extends Stage {
         if (data == null || data.words == null) return Collections.emptyList();
         List<String> words = new ArrayList<>();
         for (String word : data.words) {
-            if (word != null && !word.trim().isEmpty()) {
-                words.add(word.trim());
-            }
+            if (word != null && !word.trim().isEmpty()) words.add(word.trim());
         }
         return words;
     }
