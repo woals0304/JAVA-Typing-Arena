@@ -4,18 +4,14 @@ import typingarena.net.Message;
 import typingarena.server.core.ServerContext;
 import typingarena.server.lobby.Room;
 import typingarena.server.match.Matchmaker;
+import typingarena.server.auth.AuthService;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
+import java.io.*;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import typingarena.server.auth.AuthService;
 import java.util.Map;
 
 public class ClientHandler extends Thread {
@@ -27,7 +23,7 @@ public class ClientHandler extends Thread {
 
     private final AuthService authService;
     private String loggedInUserId = null;
-    private String loggedInNickname = null; // 기존 nickname 변수를 대체하거나 보조
+    private String loggedInNickname = null;
 
     private BufferedReader in;
     private BufferedWriter out;
@@ -35,22 +31,17 @@ public class ClientHandler extends Thread {
     private String pendingMatchGameType;
     private String currentSessionId;
 
-    
-
     public ClientHandler(ServerMain server, ServerContext context, Matchmaker matchmaker, Socket socket) {
         this.server = server;
         this.context = context;
         this.matchmaker = matchmaker;
         this.socket = socket;
-
         this.authService = context.getAuthService();
-
         setName("Client-" + socket.getRemoteSocketAddress());
         setDaemon(true);
     }
-    public String getLoggedInUserId() {
-        return loggedInUserId;
-    }
+
+    public String getLoggedInUserId() { return loggedInUserId; }
 
     @Override
     public void run() {
@@ -74,69 +65,51 @@ public class ClientHandler extends Thread {
     private void handle(Message m) {
         String type = (m.type == null) ? "" : m.type.toUpperCase(Locale.ROOT);
 
-        // [수정] 로그인 상태 체크 (스타일은 그대로)
-        if (loggedInUserId == null &&
-            !type.equals("REGISTER_REQUEST") &&
-            !type.equals("LOGIN_REQUEST")) {
-
-            sendError(type, "로그인이 필요합니다.");
+        if (loggedInUserId == null && !type.equals("REGISTER_REQUEST") && !type.equals("LOGIN_REQUEST")) {
+            sendError("auth", "로그인이 필요합니다.");
             return;
         }
 
-        // [수정] 모든 case를 '->' 스타일로 통일
         switch (type) {
-            // --- 신규 (수정된 코드) ---
             case "REGISTER_REQUEST" -> {
-                // [수정] m.data는 Map<String, Object>이므로 값을 꺼낼 때 캐스팅합니다.
                 Map<String, Object> data = m.data;
                 String id = (String) data.get("id");
                 String pw = (String) data.get("pw");
                 String nickname = (String) data.get("nickname");
-
                 boolean success = authService.register(id, pw, nickname);
-
                 Message res = Message.of("REGISTER_RESPONSE");
                 res.data = Map.of("success", success);
                 send(res);
-            } // '->' 스타일은 break; 가 필요 없습니다.
-
+            }
             case "LOGIN_REQUEST" -> {
-                // [수정] m.data는 Map<String, Object>입니다.
                 Map<String, Object> data = m.data;
                 String id = (String) data.get("id");
                 String pw = (String) data.get("pw");
-
                 Map<String, Object> result = authService.login(id, pw);
-
                 if (result != null) {
-                    // 로그인 성공
                     this.loggedInUserId = (String) result.get("id");
                     this.loggedInNickname = (String) result.get("nickname");
-
-                    result.put("success", true); // 성공 플래그 추가
+                    result.put("success", true);
                     Message res = Message.of("LOGIN_RESPONSE");
-                    res.data = result; // (id, nickname, 전적 정보 포함)
+                    res.data = result;
                     send(res);
                 } else {
-                    // 로그인 실패
                     Message res = Message.of("LOGIN_RESPONSE");
                     res.data = Map.of("success", false);
                     send(res);
                 }
-            } // '->' 스타일은 break; 가 필요 없습니다.
-
-            // --- 기존 코드 (그대로) ---
+            }
             case "LIST_ROOMS_REQUEST", "LIST_ROOMS" -> sendRooms();
             case "CREATE_ROOM_REQUEST", "CREATE_ROOM" -> handleCreateRoom(m);
             case "JOIN_ROOM_REQUEST", "JOIN_ROOM" -> handleJoinRoom(m);
             case "LEAVE_ROOM_REQUEST", "LEAVE_ROOM" -> leaveRoom();
-            case "MATCH_REQUEST" -> {
-                // updateNickname(m); // 닉네임은 로그인 시 설정됨
-                matchmaker.requestMatch(this, gameTypeOf(m));
-            }
+
+            case "MATCH_REQUEST" -> matchmaker.requestMatch(this, gameTypeOf(m));
             case "MATCH_CANCEL" -> matchmaker.cancelMatch(this, gameTypeOf(m));
+
             case "GAME_ACTION" -> server.onGameAction(this, m);
             case "GAME_FORFEIT" -> server.onGameForfeit(this);
+            case "GAME_REMATCH_REQUEST" -> server.onGameRematchRequest(this);
             default -> {}
         }
     }
@@ -201,17 +174,6 @@ public class ClientHandler extends Thread {
         }
     }
 
-    public void updateNickname(Message m) {
-        // [수정] 이 메서드는 이제 사용되지 않거나,
-        // DB 닉네임 변경 기능으로 대체되어야 합니다.
-        if (m.nickname != null && !m.nickname.isBlank()) {
-            this.loggedInNickname = m.nickname.trim();
-        } else if (m.data != null && m.data.get("nickname") != null) {
-            String nick = String.valueOf(m.data.get("nickname")).trim();
-            if (!nick.isEmpty()) this.loggedInNickname = nick;
-        }
-    }
-
     public void send(Message m) {
         try {
             out.write(context.getGson().toJson(m));
@@ -240,43 +202,12 @@ public class ClientHandler extends Thread {
         send(cancelled);
     }
 
-    public void clearPendingMatch() {
-        pendingMatchGameType = null;
-    }
-
-    public boolean isConnected() {
-        return socket != null && !socket.isClosed();
-    }
-
-    public String getNickname() {
-        return (loggedInNickname != null) ? loggedInNickname : "Player"; // 기본값
-    }
-
-    public void setNickname(String nickname) {
-        if (nickname != null && !nickname.isBlank()) {
-            this.loggedInNickname = nickname.trim();
-        }
-    }
-
-    public void setCurrentSession(String sessionId) {
-        this.currentSessionId = sessionId;
-    }
-
-    public String getCurrentSession() {
-        return currentSessionId;
-    }
-
-    public String getPendingMatchGameType() {
-        return pendingMatchGameType;
-    }
-
-    public boolean hasPendingMatch() {
-        return pendingMatchGameType != null;
-    }
-
-    public Message createError(String type, String message) {
-        Message err = Message.of(type + "_ERROR");
-        err.data = Map.of("message", message);
-        return err;
-    }
+    public void clearPendingMatch() { pendingMatchGameType = null; }
+    public boolean hasPendingMatch() { return pendingMatchGameType != null; }
+    public boolean isConnected() { return socket != null && !socket.isClosed(); }
+    public String getNickname() { return (loggedInNickname != null) ? loggedInNickname : "Player"; }
+    public void setNickname(String nickname) { if (nickname != null && !nickname.isBlank()) this.loggedInNickname = nickname.trim(); }
+    public void setCurrentSession(String sessionId) { this.currentSessionId = sessionId; }
+    public String getCurrentSession() { return currentSessionId; }
+    public String getPendingMatchGameType() { return pendingMatchGameType; }
 }

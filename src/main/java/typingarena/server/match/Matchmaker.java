@@ -10,12 +10,8 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-/**
- * 자동 매칭 시스템.
- */
 public class Matchmaker {
 
-    // [신규] 땅따먹기를 지원하는 게임 목록에 추가
     private static final List<String> SUPPORTED_GAMES = List.of("TUG_OF_WAR", "LAND_GRAB");
 
     private final Listener listener;
@@ -28,20 +24,18 @@ public class Matchmaker {
 
     public synchronized void requestMatch(ClientHandler client, String gameType) {
         if (gameType == null || gameType.isBlank()) {
-            client.send(client.createError("MATCH_REQUEST", "게임 타입이 지정되지 않았습니다."));
+            client.sendError("MATCH_REQUEST", "게임 타입이 지정되지 않았습니다.");
             return;
         }
         gameType = gameType.toUpperCase(Locale.ROOT);
 
-        // [수정] 이제 이 if문이 "LAND_GRAB"을 통과시킵니다.
         if (!SUPPORTED_GAMES.contains(gameType)) {
-            Message err = client.createError("MATCH_REQUEST", "지원하지 않는 게임 타입입니다.");
-            client.send(err);
+            client.sendError("MATCH_REQUEST", "지원하지 않는 게임 타입입니다.");
             return;
         }
 
         if (client.hasPendingMatch()) {
-            client.send(client.createError("MATCH_REQUEST", "이미 매칭 중입니다."));
+            client.sendError("MATCH_REQUEST", "이미 매칭 중입니다.");
             return;
         }
 
@@ -70,11 +64,11 @@ public class Matchmaker {
             ClientHandler b = queue.poll();
 
             if (a == null || !a.isConnected()) {
-                if (b != null && b.isConnected()) queue.add(b); // b는 큐에 복귀
+                if (b != null && b.isConnected()) queue.add(b);
                 continue;
             }
             if (b == null || !b.isConnected()) {
-                if (a.isConnected()) queue.add(a); // a는 큐에 복귀
+                if (a.isConnected()) queue.add(a);
                 continue;
             }
 

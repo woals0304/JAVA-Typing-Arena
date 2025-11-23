@@ -33,13 +33,15 @@ public class LandGrabOnlineStage extends Stage {
 
         view.getInputField().setOnAction(e -> submitWord());
 
-        // [수정] 사이드바 때문에 가로폭을 좀 더 넓힘 (720 -> 900)
+        // [버튼 연결]
+        view.getQuitButton().setOnAction(e -> close()); // close() 호출 시 setOnCloseRequest가 실행됨
+        view.getRematchButton().setOnAction(e -> sendRematchRequest());
+
         Scene scene = new Scene(view.getRoot(), 950, 800);
         setScene(scene);
 
-        setOnCloseRequest(e -> {
-            if (running) sendForfeit();
-        });
+        // [핵심 수정] 게임 진행 여부(running)와 상관없이 창 닫으면 무조건 서버에 알림
+        setOnCloseRequest(e -> sendForfeit());
     }
 
     public void handleMessage(Message msg) {
@@ -50,6 +52,8 @@ public class LandGrabOnlineStage extends Stage {
                 case "GAME_START_BROADCAST" -> handleStart(msg);
                 case "GAME_UPDATE_BROADCAST" -> handleUpdate(msg);
                 case "GAME_END_BROADCAST" -> handleEnd(msg);
+                case "GAME_REMATCH_NOTICE" -> handleRematchNotice(msg);
+                case "GAME_OPPONENT_LEFT" -> handleOpponentLeft(msg);
                 default -> {}
             }
         });
@@ -58,6 +62,8 @@ public class LandGrabOnlineStage extends Stage {
     private void handleStart(Message msg) {
         this.sessionId = msg.sessionId;
         running = true;
+
+        view.hideGameOver();
         view.getInputField().setDisable(false);
         view.getInputField().clear();
         view.getInputField().requestFocus();
@@ -66,16 +72,12 @@ public class LandGrabOnlineStage extends Stage {
         if (data != null) {
             List<String> players = (List<String>) data.get("players");
             if (players != null) {
-                // [신규] 닉네임 설정 로직
                 String p1 = players.size() > 0 ? players.get(0) : "Player1";
                 String p2 = players.size() > 1 ? players.get(1) : "Player2";
 
-                // 내가 누군지 판단하여 UI 설정
-                if (myNickname.equals(p1)) {
-                    this.opponentNickname = p2;
-                } else {
-                    this.opponentNickname = p1;
-                }
+                if (myNickname.equals(p1)) this.opponentNickname = p2;
+                else this.opponentNickname = p1;
+
                 view.setPlayerNames(myNickname, opponentNickname);
             }
             updateFromData(data);
@@ -90,18 +92,23 @@ public class LandGrabOnlineStage extends Stage {
         updateFromData(data);
     }
 
+    private void handleRematchNotice(Message msg) {
+        view.showRematchNotification();
+    }
+
+    private void handleOpponentLeft(Message msg) {
+        view.setOpponentLeftState();
+    }
+
     private void updateFromData(Map<String, Object> data) {
         view.setTimeText(formatTime(toDouble(data.get("timeMs"))));
-
         int scoreSelf = toInt(data.get("scoreSelf"));
         int scoreOpp = toInt(data.get("scoreOpponent"));
         int comboSelf = toInt(data.get("comboSelf"));
 
-        view.setMyScoreText("나: " + scoreSelf + "칸");
-        view.setAiScoreText("상대: " + scoreOpp + "칸");
-
-        // [수정] 콤보 텍스트 업데이트 (게이지바 연동)
-        view.setComboText("콤보: " + comboSelf);
+        view.setMyScoreText(""+scoreSelf);
+        view.setAiScoreText(""+scoreOpp);
+        view.setComboText(""+comboSelf);
 
         LandGrabViewState state = new LandGrabViewState(data);
         String debuff = (String) data.get("debuff");
@@ -124,13 +131,10 @@ public class LandGrabOnlineStage extends Stage {
             else if (type.contains("OPP_SPLASH")) landGrabPanel.showFloatingText("상대 스플래시!", r, c, "cyan", "blue");
             else if (type.contains("BUFF_BARRIER")) landGrabPanel.showFloatingText("보호막 가동!", r, c, "gold", "orange");
             else if (type.contains("OPP_BARRIER")) landGrabPanel.showFloatingText("상대 보호막!", r, c, "orange", "red");
-
             else if (type.contains("BUFF_COMBO_GUARD")) {
                 landGrabPanel.showFloatingText("콤보 가드!", r, c, "lime", "green");
-                // [신규] 콤보 가드 UI 활성화 (5초간 유지)
                 activateComboGuardUI();
             }
-
             else if (type.contains("OPP_COMBO_GUARD")) landGrabPanel.showFloatingText("상대 콤보가드!", r, c, "red", "darkred");
             else if (type.contains("ATTACK_CONFUSION")) landGrabPanel.showFloatingText("혼란 공격!", r, c, "purple", "violet");
             else if (type.contains("TRAP_CONFUSION")) landGrabPanel.showFloatingText("혼란 걸림!", r, c, "red", "darkred");
@@ -140,10 +144,9 @@ public class LandGrabOnlineStage extends Stage {
         }
     }
 
-    // [신규] 콤보 가드 시각 효과 타이머
     private void activateComboGuardUI() {
         view.setComboGuardActive(true);
-        PauseTransition delay = new PauseTransition(Duration.seconds(5)); // 5초 지속
+        PauseTransition delay = new PauseTransition(Duration.seconds(5));
         delay.setOnFinished(e -> view.setComboGuardActive(false));
         delay.play();
     }
@@ -152,11 +155,16 @@ public class LandGrabOnlineStage extends Stage {
         if (sessionId == null || !sessionId.equals(msg.sessionId)) return;
         running = false;
         view.getInputField().setDisable(true);
+
         Map<String, Object> data = msg.data;
         if (data != null) {
             String result = valueOf(data.get("result"));
             String reason = valueOf(data.get("message"));
-            view.setEffectsText(result + " - " + reason);
+            int myScore = toInt(data.get("scoreSelf"));
+            int oppScore = toInt(data.get("scoreOpponent"));
+
+            boolean isWin = "승리".equals(result);
+            view.showGameOver(isWin, reason, myScore, oppScore);
         }
     }
 
@@ -171,11 +179,22 @@ public class LandGrabOnlineStage extends Stage {
         client.send(action);
     }
 
+    private void sendRematchRequest() {
+        if (sessionId == null) return;
+        Message msg = Message.of("GAME_REMATCH_REQUEST");
+        msg.sessionId = sessionId;
+        client.send(msg);
+        view.setRematchRequestedState();
+    }
+
     private void sendForfeit() {
-        if (!running || sessionId == null) return;
+        // running 상태와 상관없이 세션 ID가 있으면 전송
+        if (sessionId == null) return;
         Message msg = Message.of("GAME_FORFEIT");
         msg.sessionId = sessionId;
         client.send(msg);
+
+        // 클라이언트 로직 종료
         running = false;
         view.getInputField().setDisable(true);
     }

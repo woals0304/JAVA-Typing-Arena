@@ -32,6 +32,9 @@ public class LandGrabSession {
     private long confusionUntilA = 0L;
     private long confusionUntilB = 0L;
 
+    private boolean rematchRequestA = false;
+    private boolean rematchRequestB = false;
+
     public LandGrabSession(ServerContext context, ClientHandler a, ClientHandler b) {
         this.context = context;
         this.playerA = a;
@@ -41,13 +44,51 @@ public class LandGrabSession {
     public String getId() { return id; }
 
     public void start() {
-        coreLogic.startGame();
-        timeMs = 60_000;
-        running = true;
-        ticker = context.getScheduler().scheduleAtFixedRate(this::onTick, 100, 100, TimeUnit.MILLISECONDS);
-        sendStartBroadcast();
+        resetGameData();
+        startLoop();
+
         playerA.setCurrentSession(id);
         playerB.setCurrentSession(id);
+        sendStartBroadcast();
+    }
+
+    private void startLoop() {
+        running = true;
+        if (ticker != null && !ticker.isCancelled()) ticker.cancel(true);
+        ticker = context.getScheduler().scheduleAtFixedRate(this::onTick, 100, 100, TimeUnit.MILLISECONDS);
+    }
+
+    private void resetGameData() {
+        coreLogic.startGame();
+        timeMs = 60_000;
+        confusionUntilA = 0L;
+        confusionUntilB = 0L;
+        rematchRequestA = false;
+        rematchRequestB = false;
+    }
+
+    private void restartGame() {
+        resetGameData();
+        startLoop();
+        sendStartBroadcast();
+    }
+
+    public void handleRematchRequest(ClientHandler client) {
+        if (running) return;
+
+        if (client == playerA) rematchRequestA = true;
+        else if (client == playerB) rematchRequestB = true;
+
+        if (rematchRequestA && rematchRequestB) {
+            restartGame();
+        } else {
+            ClientHandler opponent = (client == playerA) ? playerB : playerA;
+            if (opponent != null && opponent.isConnected()) {
+                Message notice = Message.of("GAME_REMATCH_NOTICE");
+                notice.sessionId = this.id;
+                opponent.send(notice);
+            }
+        }
     }
 
     private void sendStartBroadcast() {
@@ -74,64 +115,36 @@ public class LandGrabSession {
         if (!running) return;
 
         TileState who;
-        TileState opponent;
         boolean isPlayerA;
 
-        if (client == playerA) { who = TileState.PLAYER_A; opponent = TileState.PLAYER_B; isPlayerA = true; }
-        else if (client == playerB) { who = TileState.PLAYER_B; opponent = TileState.PLAYER_A; isPlayerA = false; }
+        if (client == playerA) { who = TileState.PLAYER_A; isPlayerA = true; }
+        else if (client == playerB) { who = TileState.PLAYER_B; isPlayerA = false; }
         else return;
 
         LandGrabLogic.SubmitResult result = coreLogic.submitAnswer(word, who);
 
-        // [수정] 변수명 명확화: '행동한 사람(Actor)'과 '상대방(Opponent)'에게 보낼 메시지
         String animForActor = null;
         String animForOpponent = null;
 
-        if (result.resultCode() > 0) {
-            // 기본 타격음/효과는 각자 처리하되, 여기서는 특수 아이템만 전송
-
-            if (result.itemType() != ItemType.NONE) {
-                switch (result.itemType()) {
-                    case BUFF_SPLASH -> {
-                        animForActor = "BUFF_SPLASH";
-                        animForOpponent = "OPP_SPLASH";
-                    }
-                    case BUFF_BARRIER -> {
-                        animForActor = "BUFF_BARRIER";
-                        animForOpponent = "OPP_BARRIER";
-                    }
-                    case BUFF_COMBO_GUARD -> {
-                        animForActor = "BUFF_COMBO_GUARD";
-                        animForOpponent = "OPP_COMBO_GUARD";
-                    }
-                    case TRAP_INK -> {
-                        animForActor = "ATTACK_INK";        // 시전자는 "먹물 공격!"
-                        animForOpponent = "TRAP_INK";       // 상대는 "먹물 당함!" (화면 가림)
-                        // 상대방(opponent)에게 먹물 타일 추가
-                        applyInkTo(!isPlayerA, 2);
-                    }
-                    case TRAP_EMP -> {
-                        animForActor = "ATTACK_EMP";
-                        animForOpponent = "TRAP_EMP";
-                    }
-                    case TRAP_CONFUSION -> {
-                        animForActor = "ATTACK_CONFUSION";
-                        animForOpponent = "TRAP_CONFUSION";
-                        // 상대방에게 혼란 시간 추가
-                        applyConfusionTo(!isPlayerA, 5000);
-                    }
+        if (result.resultCode() > 0 && result.itemType() != ItemType.NONE) {
+            switch (result.itemType()) {
+                case BUFF_SPLASH -> { animForActor = "BUFF_SPLASH"; animForOpponent = "OPP_SPLASH"; }
+                case BUFF_BARRIER -> { animForActor = "BUFF_BARRIER"; animForOpponent = "OPP_BARRIER"; }
+                case BUFF_COMBO_GUARD -> { animForActor = "BUFF_COMBO_GUARD"; animForOpponent = "OPP_COMBO_GUARD"; }
+                case TRAP_INK -> {
+                    animForActor = "ATTACK_INK"; animForOpponent = "TRAP_INK";
+                    applyInkTo(!isPlayerA, 2);
+                }
+                case TRAP_EMP -> { animForActor = "ATTACK_EMP"; animForOpponent = "TRAP_EMP"; }
+                case TRAP_CONFUSION -> {
+                    animForActor = "ATTACK_CONFUSION"; animForOpponent = "TRAP_CONFUSION";
+                    applyConfusionTo(!isPlayerA, 5000);
                 }
             }
         }
 
-        // [핵심 수정] 누가 행동했느냐에 따라 A와 B에게 보내는 메시지를 스왑(Swap)합니다.
-        if (isPlayerA) {
-            // A가 행동함 -> A에게 Actor 메시지, B에게 Opponent 메시지
-            sendUpdate(animForActor, animForOpponent);
-        } else {
-            // B가 행동함 -> A에게 Opponent 메시지, B에게 Actor 메시지
-            sendUpdate(animForOpponent, animForActor);
-        }
+        if (isPlayerA) sendUpdate(animForActor, animForOpponent);
+        else sendUpdate(animForOpponent, animForActor);
     }
 
     private void applyInkTo(boolean targetIsA, int count) {
@@ -177,7 +190,6 @@ public class LandGrabSession {
         else finish(null, null, reason + " (무승부)");
     }
 
-    // A에게는 msgA, B에게는 msgB를 보냄
     private void sendUpdate(String animTriggerA, String animTriggerB) {
         if (playerA != null && playerA.isConnected()) {
             Message msgA = Message.of("GAME_UPDATE_BROADCAST");
@@ -247,26 +259,43 @@ public class LandGrabSession {
         return inkList;
     }
 
+    // [핵심] 게임 종료 후 나가기 처리 (상대방 나감 알림 전송)
     public void forfeit(ClientHandler quitter, String reason) {
-        if (!running) return;
+        ClientHandler opponent = (quitter == playerA) ? playerB : playerA;
+
+        if (!running) {
+            // [New] 게임이 이미 끝난 상태에서 누군가 나가면, 남은 사람에게 알림
+            if (opponent != null && opponent.isConnected()) {
+                Message leftMsg = Message.of("GAME_OPPONENT_LEFT");
+                leftMsg.sessionId = this.id;
+                opponent.send(leftMsg);
+            }
+            // 세션 종료
+            context.getLandGrabSessions().remove(id);
+            return;
+        }
+
         ClientHandler winner = (quitter == playerA) ? playerB : playerA;
         ClientHandler loser = (quitter == playerA) ? playerA : playerB;
         finish(winner, loser, reason);
+
+        // 도중 포기(강제 종료) 시에는 즉시 세션 종료
+        context.getLandGrabSessions().remove(id);
     }
 
     private void finish(ClientHandler winner, ClientHandler loser, String reason) {
         if (!running) return;
         running = false;
         if (ticker != null) ticker.cancel(false);
+
         recordGameResults(winner, loser);
+
         int scoreA = coreLogic.getScore(TileState.PLAYER_A);
         int scoreB = coreLogic.getScore(TileState.PLAYER_B);
         boolean isDraw = (winner == null && loser == null);
+
         sendEnd(playerA, (playerA == winner), isDraw, reason, scoreA, scoreB);
         sendEnd(playerB, (playerB == winner), isDraw, reason, scoreB, scoreA);
-        context.getLandGrabSessions().remove(id);
-        playerA.setCurrentSession(null);
-        playerB.setCurrentSession(null);
     }
 
     private void sendEnd(ClientHandler player, boolean isWinner, boolean isDraw, String reason, int myScore, int oppScore) {
