@@ -61,6 +61,9 @@ public class LandGrabPanel extends StackPane {
     private final Image inkSplatImage = loadImage("images/ink_splat.png");
 
     public LandGrabPanel() {
+        // [버그 수정 핵심] 캔버스 크기에 상관없이 패널이 0까지 줄어들 수 있게 허용
+        setMinSize(0, 0);
+
         splashAnimationFont = loadCustomFont("fonts/CookieRun Regular.otf", 32);
         updateDynamicFonts(15);
 
