@@ -2,131 +2,131 @@ package typingarena.minigames.landgrab;
 
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.StackPane;
+import javafx.scene.effect.DropShadow;
+import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
-// [제거] core.landgrab.LandGrabLogic import 제거
 
-/**
- * [신규] 땅따먹기 게임의 공통 UI (View)
- * (TugOfWarMatchView.java와 동일한 역할)
- * [수정] '바보' View가 되었으므로, 생성자에서 coreLogic을 받지 않습니다.
- */
 public class LandGrabMatchView {
 
     private final BorderPane root = new BorderPane();
-    private final LandGrabPanel landGrabPanel; // Panel
+    private final LandGrabPanel landGrabPanel;
 
-    // HUD labels (LandGrabGame.java에서 가져옴)
-    private final Label lblTime = createHudLabel("남은 시간: 60.0s");
-    private final Label lblMyScore = createHudLabel("나: 0칸");
-    private final Label lblAiScore = createHudLabel("AI: 0칸");
-    private final Label lblCombo = createHudLabel("콤보: 0");
-    private final Label lblEffects = createHudLabel("효과: 없음");
-    private final Label lblLastItem = createHudLabel("최근 아이템: 없음");
+    // HUD 라벨
+    private final Label lblTime = createHudBadge("60.0s", "#FFF8E1", "#FFB74D", 18);
+    private final Label lblMyScore = createHudBadge("0", "#E1F5FE", "#4FC3F7", 22);
+    private final Label lblAiScore = createHudBadge("0", "#FFEBEE", "#E57373", 22);
+    private final Label lblCombo = createHudBadge("0 Combo", "#F3E5F5", "#BA68C8", 16);
+
+    // 상태 메시지 (상단 중앙)
+    private final Label lblStatus = new Label("Ready?");
 
     private final TextField inputField = new TextField();
-    private final HBox controlBox = new HBox(12); // 하단 컨트롤 (입력창, 버튼)
+    private final HBox controlBox = new HBox(10); // 하단 바
 
-    /**
-     * [수정] LandGrabMatchView는 '바보' View이므로 엔진이 필요 없습니다.
-     * LandGrabPanel() 생성자가 비었으므로, 그냥 생성합니다.
-     */
     public LandGrabMatchView() {
         this.landGrabPanel = new LandGrabPanel();
+        root.setStyle("-fx-background-color: #FFF3E0;");
 
-        // ===== 상단 HUD =====
-        HBox top = new HBox(18, lblTime, lblMyScore, lblAiScore, lblCombo, lblEffects, lblLastItem);
-        top.setAlignment(Pos.CENTER);
-        top.setPadding(new Insets(12, 24, 12, 24));
-        root.setTop(top);
+        // 1. 상단 HUD
+        HBox scoreBox = new HBox(15);
+        scoreBox.setAlignment(Pos.CENTER);
 
-        // ===== 중앙(경기장) =====
+        VBox myBox = createPlayerBox("나 (Player)", lblMyScore, "#0288D1");
+        VBox aiBox = createPlayerBox("상대 (AI)", lblAiScore, "#D32F2F");
+        Label vsLabel = new Label("VS");
+        vsLabel.setFont(Font.font("CookieRun Regular", FontWeight.BOLD, 20));
+        vsLabel.setTextFill(Color.GRAY);
+
+        scoreBox.getChildren().addAll(lblTime, myBox, vsLabel, aiBox, lblCombo);
+        scoreBox.setPadding(new Insets(10, 20, 10, 20));
+
+        StackPane topContainer = new StackPane(scoreBox);
+        topContainer.setPadding(new Insets(10));
+        topContainer.setStyle("-fx-background-color: rgba(255,255,255,0.8); -fx-background-radius: 0 0 20 20; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.1), 10, 0, 0, 5);");
+
+        lblStatus.setFont(Font.font("Malgun Gothic", FontWeight.BOLD, 16));
+        lblStatus.setTextFill(Color.web("#F57C00"));
+
+        VBox topLayout = new VBox(10, topContainer, lblStatus);
+        topLayout.setAlignment(Pos.CENTER);
+        root.setTop(topLayout);
+
+        // 2. 중앙 게임판
         StackPane centerWrapper = new StackPane(landGrabPanel);
-        centerWrapper.setPadding(new Insets(0, 24, 0, 24));
-        centerWrapper.setMinSize(300, 300);
+        centerWrapper.setPadding(new Insets(10, 30, 10, 30));
+        centerWrapper.setEffect(new DropShadow(20, Color.rgb(0,0,0,0.2)));
         root.setCenter(centerWrapper);
 
-        // ===== 하단(입력창) =====
-        inputField.setFont(Font.font("System", FontWeight.NORMAL, 22));
-        inputField.setPromptText("단어를 입력하고 Enter 키를 누르세요");
+        // 3. 하단 입력창 (버튼 없이 꽉 차게)
+        inputField.setFont(Font.font("Malgun Gothic", FontWeight.BOLD, 18));
+        inputField.setPromptText("단어를 입력하세요...");
+        inputField.setStyle(
+                "-fx-background-radius: 30;" +
+                        "-fx-background-color: white;" +
+                        "-fx-border-color: #BA68C8;" +
+                        "-fx-border-width: 2px;" +
+                        "-fx-border-radius: 30;" +
+                        "-fx-padding: 8 20 8 20;" +
+                        "-fx-text-fill: #333;"
+        );
         HBox.setHgrow(inputField, Priority.ALWAYS);
 
         controlBox.setAlignment(Pos.CENTER);
-        controlBox.getChildren().add(inputField); // 기본으로 입력창만 둠
+        controlBox.setPadding(new Insets(15, 20, 15, 20));
+        controlBox.setStyle("-fx-background-color: rgba(255,255,255,0.9); -fx-background-radius: 20 20 0 0;");
 
-        BorderPane bottom = new BorderPane();
-        bottom.setPadding(new Insets(16, 24, 16, 24));
-        bottom.setCenter(controlBox);
-        root.setBottom(bottom);
+        // [수정] 버튼 없이 입력창만 추가
+        controlBox.getChildren().add(inputField);
+
+        root.setBottom(controlBox);
     }
 
-    private Label createHudLabel(String text) {
+    private VBox createPlayerBox(String title, Label scoreLabel, String colorCode) {
+        Label titleLabel = new Label(title);
+        titleLabel.setFont(Font.font("System", 12));
+        titleLabel.setTextFill(Color.web("#757575"));
+        scoreLabel.setTextFill(Color.web(colorCode));
+        VBox box = new VBox(2, titleLabel, scoreLabel);
+        box.setAlignment(Pos.CENTER);
+        return box;
+    }
+
+    private Label createHudBadge(String text, String bgColor, String borderColor, int fontSize) {
         Label lbl = new Label(text);
-        lbl.setFont(Font.font("System", FontWeight.BOLD, 16));
+        lbl.setFont(Font.font("CookieRun Regular", fontSize));
+        if (lbl.getFont().getName().equals("System")) {
+            lbl.setFont(Font.font("Malgun Gothic", FontWeight.BOLD, fontSize));
+        }
+        lbl.setPadding(new Insets(5, 12, 5, 12));
+        lbl.setStyle("-fx-background-color: " + bgColor + "; -fx-background-radius: 15; -fx-border-color: " + borderColor + "; -fx-border-radius: 15; -fx-border-width: 2px;");
         return lbl;
     }
 
-    // --- Controller가 사용할 Getter ---
+    // [핵심] 오류 해결을 위한 Getter 추가
+    public HBox getControlBox() { return controlBox; }
 
-    public BorderPane getRoot() {
-        return root;
-    }
+    public BorderPane getRoot() { return root; }
+    public LandGrabPanel getLandGrabPanel() { return landGrabPanel; }
+    public TextField getInputField() { return inputField; }
 
-    public LandGrabPanel getLandGrabPanel() {
-        return landGrabPanel;
-    }
+    public void setTimeText(String text) { lblTime.setText(text.replace("남은 시간: ", "")); }
+    public void setMyScoreText(String text) { lblMyScore.setText(extractScore(text)); }
+    public void setAiScoreText(String text) { lblAiScore.setText(extractScore(text)); }
+    public void setComboText(String text) { lblCombo.setText(text.replace("콤보: ", "") + " Combo"); }
 
-    public TextField getInputField() {
-        return inputField;
-    }
-
-    public HBox getControlBox() {
-        return controlBox;
-    }
-
-    // --- Controller가 사용할 HUD Setter ---
-
-    public void setTimeText(String text) {
-        lblTime.setText(text);
-    }
-
-    public void setMyScoreText(String text) {
-        lblMyScore.setText(text);
-    }
-
-    public void setAiScoreText(String text) {
-        lblAiScore.setText(text);
-    }
-
-    public void setComboText(String text) {
-        lblCombo.setText(text);
-    }
-
-    public void setEffectsText(String text) {
-        lblEffects.setText(text);
-    }
-
+    public void setEffectsText(String text) { lblStatus.setText(text); }
     public void setLastItemText(String text) {
-        lblLastItem.setText(text);
+        if(!text.contains("없음") && !text.contains("-")) {
+            lblStatus.setText(text + " 발동!");
+        }
     }
 
-    public void flashHit() {
-        landGrabPanel.flashHit();
-    }
-
-    public void flashMiss() {
-        landGrabPanel.flashMiss();
-    }
-
-    public void flashItem(Color color) {
-        landGrabPanel.flashBuffColor(color);
-    }
+    private String extractScore(String text) { return text.replaceAll("[^0-9]", ""); }
+    public void flashHit() { landGrabPanel.flashHit(); }
+    public void flashMiss() { landGrabPanel.flashMiss(); }
+    public void flashItem(Color color) { landGrabPanel.flashBuffColor(color); }
 }

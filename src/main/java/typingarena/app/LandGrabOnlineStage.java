@@ -2,7 +2,6 @@ package typingarena.app;
 
 import javafx.application.Platform;
 import javafx.scene.Scene;
-import javafx.scene.control.Button;
 import javafx.stage.Stage;
 import typingarena.core.landgrab.LandGrabViewState;
 import typingarena.minigames.landgrab.LandGrabMatchView;
@@ -19,7 +18,8 @@ public class LandGrabOnlineStage extends Stage {
     private final NetClient client;
     private final LandGrabMatchView view = new LandGrabMatchView();
     private final LandGrabPanel landGrabPanel = view.getLandGrabPanel();
-    private final Button surrenderBtn = new Button("기권");
+
+    // [수정] 기권 버튼 필드 제거됨
 
     private String sessionId;
     private boolean running = false;
@@ -32,15 +32,14 @@ public class LandGrabOnlineStage extends Stage {
         this.myNickname = myNickname;
         setTitle("온라인 땅따먹기");
 
-        view.getControlBox().getChildren().add(surrenderBtn);
-        surrenderBtn.setDisable(true);
-        surrenderBtn.setOnAction(e -> sendForfeit());
+        // [수정] 기권 버튼 추가 및 이벤트 리스너 코드 삭제됨
 
         view.getInputField().setOnAction(e -> submitWord());
 
         Scene scene = new Scene(view.getRoot(), 720, 800);
         setScene(scene);
 
+        // [유지] 창을 닫으면 자동으로 기권 처리
         setOnCloseRequest(e -> {
             if (running) {
                 sendForfeit();
@@ -65,7 +64,6 @@ public class LandGrabOnlineStage extends Stage {
         this.sessionId = msg.sessionId;
         running = true;
         view.getInputField().setDisable(false);
-        surrenderBtn.setDisable(false);
         view.getInputField().clear();
         view.getInputField().requestFocus();
 
@@ -97,8 +95,8 @@ public class LandGrabOnlineStage extends Stage {
         int scoreOpp = toInt(data.get("scoreOpponent"));
         int comboSelf = toInt(data.get("comboSelf"));
 
-        view.setMyScoreText(myNickname + ": " + scoreSelf + "칸");
-        view.setAiScoreText(opponentNickname + ": " + scoreOpp + "칸");
+        view.setMyScoreText("나: " + scoreSelf + "칸");
+        view.setAiScoreText("상대: " + scoreOpp + "칸");
         view.setComboText("콤보: " + comboSelf + (comboSelf >= 10 ? " (각성!)" : ""));
 
         LandGrabViewState state = new LandGrabViewState(data);
@@ -118,28 +116,18 @@ public class LandGrabOnlineStage extends Stage {
             int r = toInt(anim.get("r"));
             int c = toInt(anim.get("c"));
 
-            // [수정] 모든 케이스 처리
             if (type.contains("ATTACK_INK")) landGrabPanel.showFloatingText("먹물 발사!", r, c, "#444", "#000");
-            else if (type.contains("TRAP_INK")) landGrabPanel.showInkSplashAnimation(r, c); // 내가 당함
-
+            else if (type.contains("TRAP_INK")) landGrabPanel.showInkSplashAnimation(r, c);
             else if (type.contains("BUFF_SPLASH")) landGrabPanel.showSplashAnimation(r, c);
-                // [신규] 상대 스플래시
             else if (type.contains("OPP_SPLASH")) landGrabPanel.showFloatingText("상대 스플래시!", r, c, "cyan", "blue");
-
             else if (type.contains("BUFF_BARRIER")) landGrabPanel.showFloatingText("보호막 가동!", r, c, "gold", "orange");
             else if (type.contains("OPP_BARRIER")) landGrabPanel.showFloatingText("상대 보호막!", r, c, "orange", "red");
-
             else if (type.contains("BUFF_COMBO_GUARD")) landGrabPanel.showFloatingText("콤보 가드!", r, c, "lime", "green");
-                // [신규] 상대 콤보가드
             else if (type.contains("OPP_COMBO_GUARD")) landGrabPanel.showFloatingText("상대 콤보가드!", r, c, "red", "darkred");
-
             else if (type.contains("ATTACK_CONFUSION")) landGrabPanel.showFloatingText("혼란 공격!", r, c, "purple", "violet");
             else if (type.contains("TRAP_CONFUSION")) landGrabPanel.showFloatingText("혼란 걸림!", r, c, "red", "darkred");
-
             else if (type.contains("ATTACK_EMP")) landGrabPanel.showFloatingText("EMP 발동!", r, c, "blue", "cyan");
-                // [신규] 상대 EMP (내가 당함)
             else if (type.contains("TRAP_EMP")) landGrabPanel.showFloatingText("상대 EMP!", r, c, "red", "orange");
-
             else if (type.contains("HIT")) landGrabPanel.flashHit();
         }
     }
@@ -148,11 +136,12 @@ public class LandGrabOnlineStage extends Stage {
         if (sessionId == null || !sessionId.equals(msg.sessionId)) return;
         running = false;
         view.getInputField().setDisable(true);
-        surrenderBtn.setDisable(true);
+
         Map<String, Object> data = msg.data;
         if (data != null) {
-            view.setEffectsText(valueOf(data.get("result")));
-            view.setLastItemText(valueOf(data.get("message")));
+            String result = valueOf(data.get("result"));
+            String reason = valueOf(data.get("message"));
+            view.setEffectsText(result + " - " + reason); // 상태 메시지창에 결과 표시
         }
     }
 
@@ -174,7 +163,6 @@ public class LandGrabOnlineStage extends Stage {
         client.send(msg);
         running = false;
         view.getInputField().setDisable(true);
-        surrenderBtn.setDisable(true);
     }
 
     private String valueOf(Object obj) { return obj == null ? "-" : String.valueOf(obj); }
