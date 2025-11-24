@@ -1,5 +1,7 @@
 package typingarena.app;
 
+import javafx.animation.KeyFrame; // [추가]
+import javafx.animation.Timeline; // [추가]
 import javafx.application.Platform;
 import javafx.animation.PauseTransition;
 import javafx.scene.Scene;
@@ -26,22 +28,33 @@ public class LandGrabOnlineStage extends Stage {
     private String myNickname;
     private String opponentNickname = "상대";
 
+    // [추가] 부드러운 타이머를 위한 독립 타임라인 변수
+    private Timeline displayTimer;
+    private double clientTimeMs = 60000.0;
+
     public LandGrabOnlineStage(NetClient client, String myNickname) {
         this.client = client;
         this.myNickname = myNickname;
         setTitle("온라인 땅따먹기");
 
         view.getInputField().setOnAction(e -> submitWord());
-
-        // [버튼 연결]
-        view.getQuitButton().setOnAction(e -> close()); // close() 호출 시 setOnCloseRequest가 실행됨
+        view.getQuitButton().setOnAction(e -> close());
         view.getRematchButton().setOnAction(e -> sendRematchRequest());
 
-        Scene scene = new Scene(view.getRoot(), 950, 800);
+        Scene scene = new Scene(view.getRoot(), 1280, 800);
         setScene(scene);
 
-        // [핵심 수정] 게임 진행 여부(running)와 상관없이 창 닫으면 무조건 서버에 알림
         setOnCloseRequest(e -> sendForfeit());
+
+        // [추가] 독립적 타이머 초기화 (0.1초마다 감소)
+        displayTimer = new Timeline(new KeyFrame(Duration.millis(100), e -> {
+            if (running && clientTimeMs > 0) {
+                clientTimeMs -= 100;
+                if (clientTimeMs < 0) clientTimeMs = 0;
+                view.setTimeText(formatTime(clientTimeMs));
+            }
+        }));
+        displayTimer.setCycleCount(Timeline.INDEFINITE);
     }
 
     public void handleMessage(Message msg) {
@@ -62,6 +75,10 @@ public class LandGrabOnlineStage extends Stage {
     private void handleStart(Message msg) {
         this.sessionId = msg.sessionId;
         running = true;
+
+        // [추가] 게임 시작 시 타이머 초기화 및 가동
+        clientTimeMs = 60000.0;
+        displayTimer.playFromStart();
 
         view.hideGameOver();
         view.getInputField().setDisable(false);
@@ -89,19 +106,23 @@ public class LandGrabOnlineStage extends Stage {
         if (!running || sessionId == null || !sessionId.equals(msg.sessionId)) return;
         Map<String, Object> data = msg.data;
         if (data == null) return;
+
+        // [핵심 수정] 서버 시간은 참고만 하고, 직접 텍스트를 업데이트하지 않음 (점프 현상 방지)
+        // 단, 로컬 시간과 서버 시간의 차이가 1초 이상 벌어지면 동기화 수행
+        double serverTimeMs = toDouble(data.get("timeMs"));
+        if (Math.abs(clientTimeMs - serverTimeMs) > 1000) {
+            clientTimeMs = serverTimeMs;
+        }
+
         updateFromData(data);
     }
 
-    private void handleRematchNotice(Message msg) {
-        view.showRematchNotification();
-    }
-
-    private void handleOpponentLeft(Message msg) {
-        view.setOpponentLeftState();
-    }
+    // ... (handleRematchNotice, handleOpponentLeft 등 기존과 동일) ...
 
     private void updateFromData(Map<String, Object> data) {
-        view.setTimeText(formatTime(toDouble(data.get("timeMs"))));
+        // [수정] 시간 업데이트 구문 삭제 (독립 타이머가 수행함)
+        // view.setTimeText(...) -> 제거됨
+
         int scoreSelf = toInt(data.get("scoreSelf"));
         int scoreOpp = toInt(data.get("scoreOpponent"));
         int comboSelf = toInt(data.get("comboSelf"));
@@ -125,6 +146,7 @@ public class LandGrabOnlineStage extends Stage {
             int r = toInt(anim.get("r"));
             int c = toInt(anim.get("c"));
 
+            // 효과 처리 코드는 완벽하므로 그대로 유지
             if (type.contains("ATTACK_INK")) landGrabPanel.showFloatingText("먹물 발사!", r, c, "#444", "#000");
             else if (type.contains("TRAP_INK")) landGrabPanel.showInkSplashAnimation(r, c);
             else if (type.contains("BUFF_SPLASH")) landGrabPanel.showSplashAnimation(r, c);
@@ -144,30 +166,35 @@ public class LandGrabOnlineStage extends Stage {
         }
     }
 
+    // ... (나머지 메서드 그대로 유지) ...
+    // ... (기존 메서드들 복사하여 사용하세요) ...
+    private void handleRematchNotice(Message msg) {
+        view.showRematchNotification();
+    }
+    private void handleOpponentLeft(Message msg) {
+        view.setOpponentLeftState();
+    }
     private void activateComboGuardUI() {
         view.setComboGuardActive(true);
         PauseTransition delay = new PauseTransition(Duration.seconds(5));
         delay.setOnFinished(e -> view.setComboGuardActive(false));
         delay.play();
     }
-
     private void handleEnd(Message msg) {
         if (sessionId == null || !sessionId.equals(msg.sessionId)) return;
         running = false;
+        displayTimer.stop(); // [추가] 타이머 정지
         view.getInputField().setDisable(true);
-
         Map<String, Object> data = msg.data;
         if (data != null) {
             String result = valueOf(data.get("result"));
             String reason = valueOf(data.get("message"));
             int myScore = toInt(data.get("scoreSelf"));
             int oppScore = toInt(data.get("scoreOpponent"));
-
             boolean isWin = "승리".equals(result);
             view.showGameOver(isWin, reason, myScore, oppScore);
         }
     }
-
     private void submitWord() {
         if (!running || sessionId == null) return;
         String typed = view.getInputField().getText().trim();
@@ -178,7 +205,6 @@ public class LandGrabOnlineStage extends Stage {
         action.data = Map.of("word", typed);
         client.send(action);
     }
-
     private void sendRematchRequest() {
         if (sessionId == null) return;
         Message msg = Message.of("GAME_REMATCH_REQUEST");
@@ -186,19 +212,15 @@ public class LandGrabOnlineStage extends Stage {
         client.send(msg);
         view.setRematchRequestedState();
     }
-
     private void sendForfeit() {
-        // running 상태와 상관없이 세션 ID가 있으면 전송
         if (sessionId == null) return;
         Message msg = Message.of("GAME_FORFEIT");
         msg.sessionId = sessionId;
         client.send(msg);
-
-        // 클라이언트 로직 종료
         running = false;
+        displayTimer.stop();
         view.getInputField().setDisable(true);
     }
-
     private String valueOf(Object obj) { return obj == null ? "-" : String.valueOf(obj); }
     private String formatTime(double ms) { return String.format("남은 시간: %.1fs", ms / 1000.0); }
     private double toDouble(Object obj) {

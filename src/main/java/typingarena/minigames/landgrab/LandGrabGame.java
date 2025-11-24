@@ -1,11 +1,11 @@
 package typingarena.minigames.landgrab;
 
 import javafx.animation.KeyFrame;
+import javafx.animation.PauseTransition;
 import javafx.animation.Timeline;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.TextField;
-import javafx.scene.paint.Color;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.util.Duration;
@@ -29,16 +29,14 @@ public class LandGrabGame extends Stage {
     private final LandGrabPanel landGrabPanel = view.getLandGrabPanel();
     private final TextField inputField = view.getInputField();
 
-    // 싱글플레이는 '게임 시작' 버튼을 입력창 옆에 둡니다.
     private final Button startButton = new Button("게임 시작");
 
     private final Timeline gameLoop;
-    private int timeMs = 60_000;
+    private double timeMs = 60000.0; // [수정] double로 변경하여 0.1초 단위 표현
     private boolean running = false;
 
     private int aiTickTimerMs = 0;
-    private static final int AI_CAPTURE_INTERVAL_MS = 2_000;
-    private long lastItemNotifiedAt = 0L;
+    private static final int AI_CAPTURE_INTERVAL_MS = 2000;
 
     private long confusionUntilPlayer = 0L;
 
@@ -50,14 +48,10 @@ public class LandGrabGame extends Stage {
         startButton.setStyle("-fx-background-color: #8E24AA; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 20;");
         startButton.setOnAction(e -> startGame());
 
-        // [수정] getControlBox() 메서드 추가로 이제 오류 없음
         view.getControlBox().getChildren().add(startButton);
-
-        // [New] 오버레이 버튼 연결 (재경기=다시시작, 나가기=창닫기)
         view.getRematchButton().setOnAction(e -> startGame());
         view.getQuitButton().setOnAction(e -> close());
 
-        // 사이드 패널 때문에 가로 사이즈를 좀 더 키움
         Scene scene = new Scene(view.getRoot(), 950, 800);
         setScene(scene);
 
@@ -69,6 +63,8 @@ public class LandGrabGame extends Stage {
             landGrabPanel.activate();
             updateView();
         });
+
+        // [수정] 0.1초 단위 부드러운 타이머 및 루프
         gameLoop = new Timeline(new KeyFrame(Duration.millis(100), e -> onTick()));
         gameLoop.setCycleCount(Timeline.INDEFINITE);
         setOnCloseRequest(e -> gameLoop.stop());
@@ -77,25 +73,19 @@ public class LandGrabGame extends Stage {
             landGrabPanel.dispose();
         });
 
-        // 싱글플레이 닉네임 설정
         view.setPlayerNames("나 (Player)", "AI (Computer)");
-
         updateHUD();
         updateView();
     }
 
     private void startGame() {
-        timeMs = 60_000;
+        timeMs = 60000.0;
         running = true;
         aiTickTimerMs = AI_CAPTURE_INTERVAL_MS;
-        lastItemNotifiedAt = 0L;
         confusionUntilPlayer = 0L;
 
         coreLogic.startGame();
-
-        // [New] 재시작 시 오버레이 숨김
         view.hideGameOver();
-
         startButton.setDisable(true);
         inputField.setDisable(false);
         inputField.clear();
@@ -127,6 +117,7 @@ public class LandGrabGame extends Stage {
         }
         timeMs -= 100;
         aiTickTimerMs -= 100;
+
         if (aiTickTimerMs <= 0) {
             simulateAiTurn();
             aiTickTimerMs = AI_CAPTURE_INTERVAL_MS;
@@ -154,49 +145,72 @@ public class LandGrabGame extends Stage {
         }
     }
 
+    // [핵심 수정] 멀티플레이와 완전히 동일한 비주얼 이펙트 호출
     private void handleResultEffect(LandGrabLogic.SubmitResult result, boolean isMe) {
         if (result.resultCode() > 0) {
             int r = result.r();
             int c = result.c();
             ItemType type = result.itemType();
 
-            if (type != ItemType.NONE) {
-                if (type == ItemType.BUFF_SPLASH) {
-                    landGrabPanel.showSplashAnimation(r, c);
-                } else if (type == ItemType.BUFF_BARRIER) {
-                    String text = isMe ? "보호막 가동!" : "상대 보호막!";
-                    landGrabPanel.showFloatingText(text, r, c, "gold", "orange");
-                } else if (type == ItemType.BUFF_COMBO_GUARD) {
-                    String text = isMe ? "콤보 가드!" : "상대 콤보가드!";
-                    landGrabPanel.showFloatingText(text, r, c, "lime", "green");
+            // 기본 히트 이펙트
+            if (isMe) landGrabPanel.flashHit();
 
-                    // [New] 싱글플레이에서도 콤보가드 UI 효과 발동
+            // 아이템 이펙트 (멀티와 문구/색상 통일)
+            switch (type) {
+                case BUFF_SPLASH:
+                    if (isMe) landGrabPanel.showSplashAnimation(r, c);
+                    else landGrabPanel.showFloatingText("상대 스플래시!", r, c, "cyan", "blue");
+                    break;
+                case BUFF_BARRIER:
+                    if (isMe) landGrabPanel.showFloatingText("보호막 가동!", r, c, "gold", "orange");
+                    else landGrabPanel.showFloatingText("상대 보호막!", r, c, "orange", "red");
+                    break;
+                case BUFF_COMBO_GUARD:
                     if (isMe) {
-                        // LandGrabMatchView에는 setComboGuardActive가 있으므로 활용 가능
-                        // 하지만 여기선 view에 직접 접근이 어려우므로 패널 효과만 유지하거나
-                        // view.setComboGuardActive(true)를 호출할 수 있게 메서드를 열어두는 것이 좋음.
-                        // 이번 코드에서는 간단히 패널 텍스트만 띄웁니다.
+                        landGrabPanel.showFloatingText("콤보 가드!", r, c, "lime", "green");
+                        activateComboGuardUI();
+                    } else {
+                        landGrabPanel.showFloatingText("상대 콤보가드!", r, c, "red", "darkred");
                     }
-
-                } else if (type == ItemType.TRAP_INK) {
-                    if (isMe) landGrabPanel.showFloatingText("먹물 공격!", r, c, "#444", "#000");
-                    else {
+                    break;
+                case TRAP_INK:
+                    if (isMe) {
+                        landGrabPanel.showFloatingText("먹물 발사!", r, c, "#444", "#000");
+                    } else {
+                        // AI가 나를 공격함 -> 실제로 먹물 뿌리기
                         applyInkToPlayer(2);
-                        landGrabPanel.showFloatingText("먹물 당함!", r, c, "#444", "#000");
+                        landGrabPanel.showInkSplashAnimation(r, c);
                     }
-                } else if (type == ItemType.TRAP_CONFUSION) {
-                    if (isMe) landGrabPanel.showFloatingText("혼란 공격!", r, c, "purple", "violet");
-                    else {
+                    break;
+                case TRAP_CONFUSION:
+                    if (isMe) {
+                        landGrabPanel.showFloatingText("혼란 공격!", r, c, "purple", "violet");
+                    } else {
                         confusionUntilPlayer = System.currentTimeMillis() + 5000;
                         landGrabPanel.showFloatingText("혼란 걸림!", r, c, "red", "darkred");
                     }
-                } else if (type == ItemType.TRAP_EMP) {
-                    landGrabPanel.showFloatingText("EMP!", r, c, "cyan", "blue");
-                }
+                    break;
+                case TRAP_EMP:
+                    if (isMe) {
+                        landGrabPanel.showFloatingText("EMP 발동!", r, c, "blue", "cyan");
+                    } else {
+                        landGrabPanel.showFloatingText("상대 EMP!", r, c, "red", "orange");
+                    }
+                    break;
+                default:
+                    break;
             }
         } else {
+            // 오답 시 미스 이펙트
             if (isMe) view.flashMiss();
         }
+    }
+
+    private void activateComboGuardUI() {
+        view.setComboGuardActive(true);
+        PauseTransition delay = new PauseTransition(Duration.seconds(5));
+        delay.setOnFinished(e -> view.setComboGuardActive(false));
+        delay.play();
     }
 
     private void applyInkToPlayer(int count) {
@@ -237,7 +251,6 @@ public class LandGrabGame extends Stage {
             inputField.setDisable(true);
 
             boolean isWin = (scoreA > scoreB);
-            // [New] Alert 대신 예쁜 오버레이 사용
             view.showGameOver(isWin, resultReason, scoreA, scoreB);
         }
     }
@@ -257,36 +270,11 @@ public class LandGrabGame extends Stage {
         view.setMyScoreText("나: " + coreLogic.getScore(TileState.PLAYER_A));
         view.setAiScoreText("AI: " + coreLogic.getScore(TileState.PLAYER_B));
 
+        // 콤보 업데이트
         int combo = coreLogic.getCombo(TileState.PLAYER_A);
-        // [New] 콤보 UI 업데이트
         view.setComboText(""+combo);
 
+        // 마지막 아이템은 텍스트로만 표시 (중복 연출 방지)
         view.setEffectsText(coreLogic.getEffects().describeEffects(true));
-        ItemType itemType = coreLogic.getEffects().getLastActivatedItem();
-        view.setLastItemText("최근 아이템: " + formatItemLabel(itemType));
-        long activatedAt = coreLogic.getEffects().getLastItemActivatedAt();
-        if (itemType != ItemType.NONE && activatedAt > lastItemNotifiedAt) {
-            lastItemNotifiedAt = activatedAt;
-            view.flashItem(colorForItem(itemType));
-        }
-    }
-
-    private String formatItemLabel(ItemType itemType) {
-        return switch (itemType) {
-            case BUFF_SPLASH -> "스플래시";
-            case BUFF_BARRIER -> "보호막";
-            case BUFF_COMBO_GUARD -> "콤보 가드";
-            case TRAP_INK -> "먹물";
-            case TRAP_EMP -> "EMP";
-            case TRAP_CONFUSION -> "혼란";
-            default -> "없음";
-        };
-    }
-
-    private Color colorForItem(ItemType itemType) {
-        String name = itemType.name();
-        if (name.startsWith("BUFF")) return Color.rgb(80, 160, 255);
-        if (name.startsWith("TRAP")) return Color.rgb(255, 80, 80);
-        return Color.TRANSPARENT;
     }
 }

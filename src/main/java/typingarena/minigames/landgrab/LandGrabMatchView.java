@@ -1,7 +1,10 @@
 package typingarena.minigames.landgrab;
 
 import javafx.animation.FadeTransition;
+import javafx.animation.PauseTransition;
 import javafx.animation.ScaleTransition;
+import javafx.application.Platform;
+import javafx.geometry.HPos;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.canvas.Canvas;
@@ -12,27 +15,44 @@ import javafx.scene.control.Separator;
 import javafx.scene.control.TextField;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.effect.Glow;
+import javafx.scene.effect.InnerShadow;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.paint.CycleMethod;
 import javafx.scene.paint.LinearGradient;
 import javafx.scene.paint.Stop;
-import javafx.scene.shape.Circle;
 import javafx.scene.shape.Polygon;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
+import javafx.scene.transform.Scale; // [중요] Scale 객체 사용
 import javafx.util.Duration;
 
 public class LandGrabMatchView {
 
-    private final StackPane mainStack = new StackPane();
+    // [레이아웃] 루트 패널 (강제 좌표 제어용 Pane)
+    private final Pane mainRoot = new Pane();
+
+    // [콘텐츠] 1280x800 고정 크기 패널
+    private final StackPane contentPane = new StackPane();
+
+    // [스케일] 확대/축소를 담당할 변환 객체 (Pivot 0,0 설정)
+    private final Scale contentScale = new Scale(1, 1, 0, 0);
+
+    // 기준 해상도
+    private static final double BASE_WIDTH = 1280;
+    private static final double BASE_HEIGHT = 800;
+
     private final BorderPane gameRoot = new BorderPane();
     private final LandGrabPanel landGrabPanel;
 
     // --- HUD Components ---
-    private final Text txtTime = new Text("60.0s");
+    private final Rectangle timeBarFill = new Rectangle();
+    private final Rectangle timeBarBg = new Rectangle();
+    private final double TIME_BAR_MAX_WIDTH = 200.0;
+    private final Text txtTimeInt = new Text("60");
+
     private final Text txtMyName = new Text("Player");
     private final Text txtMyScore = new Text("0");
     private final Text txtOppName = new Text("Opponent");
@@ -44,9 +64,9 @@ public class LandGrabMatchView {
     private final StackPane comboBadgePane = new StackPane();
     private final Polygon comboHexagon = new Polygon();
     private final VBox comboTextBox = new VBox(-5);
+    private final Label lblComboGuardMsg = new Label("🛡 콤보가드 ON");
 
     // 하단 입력창
-    private final Label lblStatus = new Label("Ready?");
     private final TextField inputField = new TextField();
     private final HBox controlBox = new HBox(10);
 
@@ -58,20 +78,75 @@ public class LandGrabMatchView {
     private final Button btnRematch = new Button("재경기 신청");
     private final Button btnQuit = new Button("나가기");
     private final Label lblRematchNoti = new Label("상대방이 재경기를 원합니다!");
+    private final Label lblCooldown = new Label("잠시 후 버튼이 활성화됩니다...");
 
-    // 애니메이션 객체
     private FadeTransition blinkAnimation;
 
     public LandGrabMatchView() {
         this.landGrabPanel = new LandGrabPanel();
 
-        gameRoot.setStyle("-fx-background-color: #FFF3E0;");
+        // 1. 배경색 설정
+        mainRoot.setStyle("-fx-background-color: #FFF3E0;");
 
-        // 상단 헤더
+        // 2. 콘텐츠 패널 설정 (크기 고정)
+        contentPane.setPrefSize(BASE_WIDTH, BASE_HEIGHT);
+        contentPane.setMinSize(BASE_WIDTH, BASE_HEIGHT);
+        contentPane.setMaxSize(BASE_WIDTH, BASE_HEIGHT);
+        contentPane.setStyle("-fx-background-color: transparent;");
+
+        // [수정 핵심] Scale 변환 객체를 콘텐츠 패널에 등록
+        contentPane.getTransforms().add(contentScale);
+
+        // 3. UI 조립
+        buildGameUI();
+
+        // 4. 루트에 추가
+        mainRoot.getChildren().add(contentPane);
+
+        // 5. 리사이즈 리스너
+        mainRoot.widthProperty().addListener((obs, o, n) -> resizeContent());
+        mainRoot.heightProperty().addListener((obs, o, n) -> resizeContent());
+
+        // 초기화
+        Platform.runLater(this::resizeContent);
+    }
+
+    // [수정 핵심] 수동 레이아웃 및 스케일 적용 로직
+    private void resizeContent() {
+        double windowWidth = mainRoot.getWidth();
+        double windowHeight = mainRoot.getHeight();
+
+        if (windowWidth <= 0 || windowHeight <= 0) return;
+
+        // 1. 배율 계산 (Fit Inside)
+        double scaleX = windowWidth / BASE_WIDTH;
+        double scaleY = windowHeight / BASE_HEIGHT;
+        double scale = Math.min(scaleX, scaleY);
+
+        // 2. Scale 객체 업데이트 (Scale 객체는 setPivotX/Y를 가지고 있음 - 기본값 0,0)
+        contentScale.setX(scale);
+        contentScale.setY(scale);
+        // contentScale.setPivotX(0); // 이미 생성자에서 0으로 설정됨
+        // contentScale.setPivotY(0);
+
+        // 3. 중앙 정렬을 위한 좌표 계산
+        double actualWidth = BASE_WIDTH * scale;
+        double actualHeight = BASE_HEIGHT * scale;
+
+        double x = (windowWidth - actualWidth) / 2;
+        double y = (windowHeight - actualHeight) / 2;
+
+        // 4. 좌표 강제 이동
+        contentPane.setLayoutX(x);
+        contentPane.setLayoutY(y);
+    }
+
+    private void buildGameUI() {
+        gameRoot.setPrefSize(BASE_WIDTH, BASE_HEIGHT);
+
         StackPane headerContainer = createStyledHeader();
         gameRoot.setTop(headerContainer);
 
-        // 좌우 패널
         VBox leftPanel = createLeftInfoPanel();
         leftPanel.setMinWidth(220);
         gameRoot.setLeft(leftPanel);
@@ -80,24 +155,169 @@ public class LandGrabMatchView {
         rightPanel.setMinWidth(220);
         gameRoot.setRight(rightPanel);
 
-        // 중앙 게임판
         StackPane centerWrapper = new StackPane(landGrabPanel);
         centerWrapper.setPadding(new Insets(10));
         centerWrapper.setEffect(new DropShadow(25, Color.rgb(0,0,0,0.25)));
         centerWrapper.setMinSize(0, 0);
         gameRoot.setCenter(centerWrapper);
 
-        // 하단 입력바 (여기서 호출됨)
         setupInputBar();
         gameRoot.setBottom(controlBox);
 
-        // 오버레이
         setupGameOverOverlay();
 
-        mainStack.getChildren().addAll(gameRoot, gameOverOverlay);
+        contentPane.getChildren().addAll(gameRoot, gameOverOverlay);
     }
 
-    // [누락되었던 메서드 복구 완료]
+    public Pane getRoot() {
+        return mainRoot;
+    }
+
+    // --- HUD 및 디자인 요소 ---
+
+    private StackPane createStyledHeader() {
+        StackPane root = new StackPane();
+        root.setMaxHeight(160);
+        StackPane bg = new StackPane();
+        bg.setMaxHeight(140);
+        bg.setStyle("-fx-background-color: rgba(255,255,255,0.95); -fx-background-radius: 0 0 60 60; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.15), 15, 0, 0, 5);");
+        StackPane.setAlignment(bg, Pos.TOP_CENTER);
+        GridPane grid = new GridPane();
+        grid.setAlignment(Pos.CENTER);
+        grid.setPadding(new Insets(10, 40, 0, 40));
+        ColumnConstraints colLeft = new ColumnConstraints(); colLeft.setPercentWidth(33); colLeft.setHalignment(HPos.LEFT);
+        ColumnConstraints colCenter = new ColumnConstraints(); colCenter.setPercentWidth(34); colCenter.setHalignment(HPos.CENTER);
+        ColumnConstraints colRight = new ColumnConstraints(); colRight.setPercentWidth(33); colRight.setHalignment(HPos.RIGHT);
+        grid.getColumnConstraints().addAll(colLeft, colCenter, colRight);
+        VBox timeGaugeBox = createGlossyTimeBar(); grid.add(timeGaugeBox, 0, 0);
+        HBox scoreBoard = createScoreBoard(); grid.add(scoreBoard, 1, 0);
+        VBox comboUI = createComboUI(); grid.add(comboUI, 2, 0);
+        root.getChildren().addAll(bg, grid);
+        return root;
+    }
+
+    private VBox createGlossyTimeBar() {
+        VBox container = new VBox(5); container.setAlignment(Pos.CENTER_LEFT); container.setMinWidth(220);
+        Label lblTitle = new Label("남은 시간"); lblTitle.setFont(Font.font("Malgun Gothic", FontWeight.BOLD, 16)); lblTitle.setTextFill(Color.GRAY);
+        double barHeight = 28;
+        timeBarBg.setWidth(TIME_BAR_MAX_WIDTH); timeBarBg.setHeight(barHeight); timeBarBg.setArcWidth(20); timeBarBg.setArcHeight(20);
+        timeBarBg.setFill(Color.web("#37474F")); timeBarBg.setEffect(new InnerShadow(5, Color.BLACK));
+        timeBarFill.setWidth(TIME_BAR_MAX_WIDTH); timeBarFill.setHeight(barHeight); timeBarFill.setArcWidth(20); timeBarFill.setArcHeight(20);
+        updateTimeBarColor(false);
+        StackPane barStack = new StackPane(timeBarBg, timeBarFill); barStack.setAlignment(Pos.CENTER_LEFT);
+        txtTimeInt.setFont(Font.font("Impact", 32)); txtTimeInt.setFill(Color.web("#37474F"));
+        HBox barWithText = new HBox(15, barStack, txtTimeInt); barWithText.setAlignment(Pos.CENTER_LEFT);
+        container.getChildren().addAll(lblTitle, barWithText);
+        return container;
+    }
+
+    private HBox createScoreBoard() {
+        HBox scoreBoard = new HBox(20); scoreBoard.setAlignment(Pos.CENTER);
+        StackPane myScorePanel = createScorePanel(txtMyName, txtMyScore, Color.web("#0288D1"), true);
+        StackPane oppScorePanel = createScorePanel(txtOppName, txtAiScore, Color.web("#D32F2F"), false);
+        Text txtVS = new Text("VS"); txtVS.setFont(Font.font("Impact", 60));
+        txtVS.setFill(new LinearGradient(0,0,0,1, true, CycleMethod.NO_CYCLE, new Stop(0, Color.LIGHTGRAY), new Stop(0.5, Color.GRAY), new Stop(1, Color.DARKGRAY)));
+        txtVS.setEffect(new DropShadow(5, Color.WHITE));
+        scoreBoard.getChildren().addAll(myScorePanel, txtVS, oppScorePanel);
+        return scoreBoard;
+    }
+
+    private VBox createComboUI() {
+        setupRhythmComboUI();
+        VBox comboContainer = new VBox(5); comboContainer.setAlignment(Pos.TOP_CENTER);
+        lblComboGuardMsg.setFont(Font.font("Malgun Gothic", FontWeight.BOLD, 14)); lblComboGuardMsg.setTextFill(Color.LIMEGREEN);
+        lblComboGuardMsg.setEffect(new DropShadow(2, Color.WHITE)); lblComboGuardMsg.setVisible(false);
+        comboContainer.getChildren().addAll(comboBadgePane, lblComboGuardMsg);
+        return comboContainer;
+    }
+
+    private StackPane createScorePanel(Text nameTxt, Text scoreTxt, Color themeColor, boolean isLeft) {
+        StackPane panel = new StackPane(); panel.setMinWidth(200); panel.setMaxWidth(200);
+        Rectangle bg = new Rectangle(200, 80); bg.setArcWidth(20); bg.setArcHeight(20);
+        bg.setFill(new LinearGradient(0, 0, 0, 1, true, CycleMethod.NO_CYCLE, new Stop(0, Color.WHITE), new Stop(1, Color.web("#F5F5F5"))));
+        bg.setStroke(themeColor); bg.setStrokeWidth(4); bg.setEffect(new DropShadow(5, Color.rgb(0,0,0,0.1)));
+        Rectangle nameTag = new Rectangle(180, 28); nameTag.setArcWidth(14); nameTag.setArcHeight(14); nameTag.setFill(themeColor);
+        StackPane namePane = new StackPane(nameTag, nameTxt); namePane.setAlignment(Pos.CENTER); namePane.setTranslateY(-35);
+        nameTxt.setFont(Font.font("Malgun Gothic", FontWeight.BOLD, 16)); nameTxt.setFill(Color.WHITE);
+        scoreTxt.setFont(Font.font("Impact", 50)); scoreTxt.setFill(themeColor); scoreTxt.setTranslateY(5);
+        panel.getChildren().addAll(bg, scoreTxt, namePane);
+        return panel;
+    }
+
+    // --- Getter & Setter ---
+    public LandGrabPanel getLandGrabPanel() { return landGrabPanel; }
+    public TextField getInputField() { return inputField; }
+    public Button getRematchButton() { return btnRematch; }
+    public Button getQuitButton() { return btnQuit; }
+    public HBox getControlBox() { return controlBox; }
+
+    public void setTimeText(String text) {
+        try {
+            String numStr = text.replaceAll("[^0-9.]", "");
+            if (numStr.isEmpty()) return;
+            double ms = Double.parseDouble(numStr) * 1000;
+            double ratio = Math.max(0, ms / 60000.0);
+            timeBarFill.setWidth(TIME_BAR_MAX_WIDTH * ratio);
+            boolean isUrgent = ms <= 10000;
+            updateTimeBarColor(isUrgent);
+            int seconds = (int) Math.ceil(ms / 1000.0);
+            txtTimeInt.setText(String.valueOf(seconds));
+            txtTimeInt.setFill(isUrgent ? Color.RED : Color.web("#37474F"));
+        } catch (Exception e) { txtTimeInt.setText("0"); }
+    }
+
+    private void updateTimeBarColor(boolean isUrgent) {
+        if (isUrgent) {
+            timeBarFill.setFill(new LinearGradient(0, 0, 0, 1, true, CycleMethod.NO_CYCLE, new Stop(0, Color.web("#FFCDD2")), new Stop(0.5, Color.web("#E53935")), new Stop(1, Color.web("#B71C1C"))));
+        } else {
+            timeBarFill.setFill(new LinearGradient(0, 0, 0, 1, true, CycleMethod.NO_CYCLE, new Stop(0, Color.web("#80DEEA")), new Stop(0.5, Color.web("#00ACC1")), new Stop(1, Color.web("#006064"))));
+        }
+    }
+
+    public void setComboText(String text) {
+        String numStr = text.replaceAll("[^0-9]", "");
+        int combo = numStr.isEmpty() ? 0 : Integer.parseInt(numStr);
+        String currentText = lblComboCount.getText();
+        lblComboCount.setText(String.valueOf(combo));
+        comboBadgePane.setOpacity(combo > 0 ? 1.0 : 0.5);
+        if (combo >= 10) {
+            lblComboLabel.setText("FEVER!"); lblComboLabel.setTextFill(Color.YELLOW);
+            comboHexagon.setStroke(Color.ORANGE);
+            comboHexagon.setFill(new LinearGradient(0, 0, 1, 1, true, CycleMethod.NO_CYCLE, new Stop(0, Color.RED), new Stop(1, Color.YELLOW)));
+            comboHexagon.setEffect(new Glow(0.8));
+        } else {
+            lblComboLabel.setText("COMBO"); lblComboLabel.setTextFill(Color.web("#E0E0E0"));
+            comboHexagon.setStroke(Color.web("#B388FF"));
+            comboHexagon.setFill(new LinearGradient(0, 0, 1, 1, true, CycleMethod.NO_CYCLE, new Stop(0, Color.web("#311B92")), new Stop(1, Color.web("#6200EA"))));
+            comboHexagon.setEffect(new DropShadow(10, Color.web("#651FFF")));
+        }
+        if (!numStr.equals(currentText)) {
+            ScaleTransition st = new ScaleTransition(Duration.millis(100), lblComboCount);
+            st.setFromX(1.0); st.setFromY(1.0); st.setToX(1.4); st.setToY(1.4); st.setAutoReverse(true); st.setCycleCount(2); st.play();
+        }
+    }
+
+    public void setMyScoreText(String text) { txtMyScore.setText(text.replaceAll("[^0-9]", "")); }
+    public void setAiScoreText(String text) { txtAiScore.setText(text.replaceAll("[^0-9]", "")); }
+    public void setPlayerNames(String myName, String oppName) { txtMyName.setText(myName); txtOppName.setText(oppName); }
+    public void setLastItemText(String text) { }
+    public void setEffectsText(String text) { }
+
+    public void setComboGuardActive(boolean active) {
+        if (active) {
+            comboBadgePane.setStyle("-fx-effect: dropshadow(gaussian, gold, 20, 0.7, 0, 0);");
+            lblComboGuardMsg.setVisible(true);
+        } else {
+            comboBadgePane.setStyle("");
+            lblComboGuardMsg.setVisible(false);
+        }
+    }
+
+    // [참고] LandGrabGame에서 이 메서드들을 호출할 수 있도록 유지
+    public void flashHit() { landGrabPanel.flashHit(); }
+    public void flashMiss() { landGrabPanel.flashMiss(); }
+    public void flashItem(Color color) { landGrabPanel.flashBuffColor(color); }
+
     private void setupInputBar() {
         inputField.setFont(Font.font("Malgun Gothic", FontWeight.BOLD, 18));
         inputField.setPromptText("단어를 입력하세요...");
@@ -109,95 +329,30 @@ public class LandGrabMatchView {
         controlBox.getChildren().add(inputField);
     }
 
-    private StackPane createStyledHeader() {
-        StackPane bg = new StackPane();
-        bg.setMaxHeight(90);
-        bg.setStyle("-fx-background-color: rgba(255,255,255,0.85); -fx-background-radius: 0 0 40 40; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.15), 15, 0, 0, 5);");
-
-        HBox content = new HBox(40);
-        content.setAlignment(Pos.CENTER);
-        content.setPadding(new Insets(10, 50, 15, 50));
-
-        VBox timeBox = new VBox(0);
-        timeBox.setAlignment(Pos.CENTER);
-        Text lblTimeTitle = new Text("TIME");
-        lblTimeTitle.setFont(Font.font("Impact", 16)); lblTimeTitle.setFill(Color.GRAY);
-
-        txtTime.setFont(Font.font("CookieRun Regular", 32));
-        txtTime.setFill(Color.web("#FF6D00"));
-        txtTime.setEffect(new DropShadow(2, Color.WHITE));
-        timeBox.getChildren().addAll(lblTimeTitle, txtTime);
-
-        HBox scoreBoard = new HBox(20);
-        scoreBoard.setAlignment(Pos.CENTER);
-        StackPane myScorePane = createScoreBadge(txtMyName, txtMyScore, Color.web("#0288D1"));
-        StackPane oppScorePane = createScoreBadge(txtOppName, txtAiScore, Color.web("#D32F2F"));
-
-        Text txtVS = new Text("VS");
-        txtVS.setFont(Font.font("Impact", 48));
-        txtVS.setFill(new LinearGradient(0,0,0,1, true, CycleMethod.NO_CYCLE, new Stop(0, Color.LIGHTGRAY), new Stop(1, Color.GRAY)));
-        txtVS.setEffect(new DropShadow(3, Color.rgb(0,0,0,0.3)));
-
-        scoreBoard.getChildren().addAll(myScorePane, txtVS, oppScorePane);
-        setupRhythmComboUI();
-        content.getChildren().addAll(timeBox, scoreBoard, comboBadgePane);
-
-        StackPane root = new StackPane(bg, content);
-        lblStatus.setFont(Font.font("Malgun Gothic", FontWeight.BOLD, 18));
-        lblStatus.setTextFill(Color.web("#E65100"));
-        lblStatus.setTranslateY(60);
-
-        root.getChildren().add(lblStatus);
-        StackPane.setAlignment(lblStatus, Pos.BOTTOM_CENTER);
-        StackPane.setMargin(lblStatus, new Insets(0,0,-30,0));
-
-        return root;
-    }
-
-    private StackPane createScoreBadge(Text nameTxt, Text scoreTxt, Color themeColor) {
-        StackPane badge = new StackPane();
-        Circle bg = new Circle(40, Color.WHITE);
-        bg.setStroke(themeColor); bg.setStrokeWidth(3); bg.setEffect(new DropShadow(5, Color.rgb(0,0,0,0.1)));
-        VBox box = new VBox(-2); box.setAlignment(Pos.CENTER);
-        nameTxt.setFont(Font.font("Malgun Gothic", FontWeight.BOLD, 14)); nameTxt.setFill(Color.DARKGRAY);
-        scoreTxt.setFont(Font.font("Impact", 34)); scoreTxt.setFill(themeColor);
-        scoreTxt.setStroke(null); scoreTxt.setEffect(new DropShadow(2, 2, 2, Color.rgb(0,0,0,0.2)));
-        box.getChildren().addAll(scoreTxt, nameTxt);
-        badge.getChildren().addAll(bg, box);
-        return badge;
-    }
-
     private void setupGameOverOverlay() {
         gameOverOverlay.setAlignment(Pos.CENTER);
         gameOverOverlay.setStyle("-fx-background-color: rgba(0, 0, 0, 0.85);");
         gameOverOverlay.setVisible(false);
 
-        lblResultTitle.setFont(Font.font("Impact", 70));
-        lblResultTitle.setEffect(new Glow(0.8));
+        lblResultTitle.setFont(Font.font("Impact", 70)); lblResultTitle.setEffect(new Glow(0.8));
+        lblResultReason.setFont(Font.font("Malgun Gothic", FontWeight.BOLD, 20)); lblResultReason.setTextFill(Color.LIGHTGRAY);
+        lblResultScore.setFont(Font.font("Malgun Gothic", FontWeight.BOLD, 28)); lblResultScore.setTextFill(Color.WHITE);
 
-        lblResultReason.setFont(Font.font("Malgun Gothic", FontWeight.BOLD, 20));
-        lblResultReason.setTextFill(Color.LIGHTGRAY);
-
-        lblResultScore.setFont(Font.font("Malgun Gothic", FontWeight.BOLD, 28));
-        lblResultScore.setTextFill(Color.WHITE);
-
-        styleButton(btnRematch, "#4CAF50");
-        styleButton(btnQuit, "#F44336");
+        styleButton(btnRematch, "#4CAF50"); styleButton(btnQuit, "#F44336");
 
         lblRematchNoti.setFont(Font.font("Malgun Gothic", FontWeight.BOLD, 22));
         lblRematchNoti.setTextFill(Color.rgb(0, 255, 255));
         lblRematchNoti.setStyle("-fx-effect: dropshadow(gaussian, cyan, 15, 0.5, 0, 0);");
         lblRematchNoti.setVisible(false);
 
+        lblCooldown.setFont(Font.font("Malgun Gothic", 14)); lblCooldown.setTextFill(Color.GRAY); lblCooldown.setVisible(false);
+
         blinkAnimation = new FadeTransition(Duration.seconds(0.4), lblRematchNoti);
-        blinkAnimation.setFromValue(1.0); blinkAnimation.setToValue(0.2);
-        blinkAnimation.setAutoReverse(true);
+        blinkAnimation.setFromValue(1.0); blinkAnimation.setToValue(0.2); blinkAnimation.setAutoReverse(true);
         blinkAnimation.setCycleCount(FadeTransition.INDEFINITE);
 
-        HBox btnBox = new HBox(30, btnQuit, btnRematch);
-        btnBox.setAlignment(Pos.CENTER);
-
-        gameOverOverlay.getChildren().addAll(lblResultTitle, lblResultReason, lblResultScore, lblRematchNoti, btnBox);
+        HBox btnBox = new HBox(30, btnQuit, btnRematch); btnBox.setAlignment(Pos.CENTER);
+        gameOverOverlay.getChildren().addAll(lblResultTitle, lblResultReason, lblResultScore, lblRematchNoti, btnBox, lblCooldown);
     }
 
     private void styleButton(Button btn, String colorHex) {
@@ -208,28 +363,32 @@ public class LandGrabMatchView {
         btn.setOnMouseExited(e -> { if(!btn.isDisabled()) { btn.setScaleX(1.0); btn.setScaleY(1.0); } });
     }
 
-    public void setOpponentLeftState() {
-        btnRematch.setDisable(true);
-        btnRematch.setText("상대방 나감");
-        btnRematch.setStyle("-fx-background-color: #616161; -fx-text-fill: #9E9E9E; -fx-background-radius: 30; -fx-padding: 10 30 10 30;");
-
-        if (blinkAnimation != null) blinkAnimation.stop();
-        lblRematchNoti.setOpacity(1.0);
-        lblRematchNoti.setVisible(true);
-        lblRematchNoti.toFront();
-
-        lblRematchNoti.setText("상대방이 나갔습니다.");
-        lblRematchNoti.setTextFill(Color.web("#FF5252"));
-        lblRematchNoti.setStyle("-fx-effect: dropshadow(gaussian, red, 10, 0.5, 0, 0);");
+    public void showGameOver(boolean isWin, String reason, int myScore, int oppScore) {
+        lblResultTitle.setText(isWin ? "VICTORY" : "DEFEAT"); lblResultTitle.setTextFill(isWin ? Color.GOLD : Color.GRAY);
+        lblResultReason.setText(reason); lblResultScore.setText("나 " + myScore + " : " + oppScore + " 상대");
+        btnRematch.setDisable(false); btnRematch.setText("재경기 신청"); styleButton(btnRematch, "#4CAF50");
+        lblRematchNoti.setVisible(false); if(blinkAnimation != null) blinkAnimation.stop();
+        btnRematch.setDisable(true); btnQuit.setDisable(true); lblCooldown.setVisible(true);
+        PauseTransition delay = new PauseTransition(Duration.seconds(1.5));
+        delay.setOnFinished(e -> { btnRematch.setDisable(false); btnQuit.setDisable(false); lblCooldown.setVisible(false); });
+        delay.play();
+        gameOverOverlay.setVisible(true); gameOverOverlay.toFront(); inputField.setDisable(true); mainRoot.requestFocus();
     }
 
+    public void hideGameOver() { gameOverOverlay.setVisible(false); }
+    public void setRematchRequestedState() { btnRematch.setDisable(true); btnRematch.setText("수락 대기중..."); }
+    public void setOpponentLeftState() {
+        btnRematch.setDisable(true); btnRematch.setText("상대방 나감");
+        btnRematch.setStyle("-fx-background-color: #616161; -fx-text-fill: #9E9E9E; -fx-background-radius: 30; -fx-padding: 10 30 10 30;");
+        if (blinkAnimation != null) blinkAnimation.stop();
+        lblRematchNoti.setOpacity(1.0); lblRematchNoti.setVisible(true); lblRematchNoti.toFront();
+        lblRematchNoti.setText("상대방이 나갔습니다."); lblRematchNoti.setTextFill(Color.web("#FF5252"));
+        lblRematchNoti.setStyle("-fx-effect: dropshadow(gaussian, red, 10, 0.5, 0, 0);");
+    }
     public void showRematchNotification() {
-        lblRematchNoti.setText("상대방이 재경기를 원합니다!");
-        lblRematchNoti.setTextFill(Color.rgb(0, 255, 255));
+        lblRematchNoti.setText("상대방이 재경기를 원합니다!"); lblRematchNoti.setTextFill(Color.rgb(0, 255, 255));
         lblRematchNoti.setStyle("-fx-effect: dropshadow(gaussian, cyan, 15, 0.5, 0, 0);");
-        lblRematchNoti.setOpacity(1.0);
-        lblRematchNoti.setVisible(true);
-        lblRematchNoti.toFront();
+        lblRematchNoti.setOpacity(1.0); lblRematchNoti.setVisible(true); lblRematchNoti.toFront();
         if (blinkAnimation != null) blinkAnimation.playFromStart();
     }
 
@@ -304,67 +463,4 @@ public class LandGrabMatchView {
             case "CONFUSION" -> { gc.setFont(Font.font("System", FontWeight.BOLD, 20)); gc.fillText("?", 8, 22); }
         }
     }
-
-    // --- API ---
-    public StackPane getRoot() { return mainStack; }
-    public LandGrabPanel getLandGrabPanel() { return landGrabPanel; }
-    public TextField getInputField() { return inputField; }
-    public Button getRematchButton() { return btnRematch; }
-    public Button getQuitButton() { return btnQuit; }
-    public HBox getControlBox() { return controlBox; }
-
-    public void showGameOver(boolean isWin, String reason, int myScore, int oppScore) {
-        lblResultTitle.setText(isWin ? "VICTORY" : "DEFEAT");
-        lblResultTitle.setTextFill(isWin ? Color.GOLD : Color.GRAY);
-        lblResultReason.setText(reason);
-        lblResultScore.setText("나 " + myScore + " : " + oppScore + " 상대");
-        btnRematch.setDisable(false); btnRematch.setText("재경기 신청");
-        styleButton(btnRematch, "#4CAF50");
-        lblRematchNoti.setVisible(false);
-        if(blinkAnimation != null) blinkAnimation.stop();
-        gameOverOverlay.setVisible(true); gameOverOverlay.toFront();
-    }
-
-    public void hideGameOver() { gameOverOverlay.setVisible(false); }
-    public void setRematchRequestedState() { btnRematch.setDisable(true); btnRematch.setText("수락 대기중..."); }
-
-    public void setTimeText(String text) { txtTime.setText(text.replace("남은 시간: ", "")); }
-    public void setMyScoreText(String text) { txtMyScore.setText(text.replaceAll("[^0-9]", "")); }
-    public void setAiScoreText(String text) { txtAiScore.setText(text.replaceAll("[^0-9]", "")); }
-    public void setPlayerNames(String myName, String oppName) { txtMyName.setText(myName); txtOppName.setText(oppName); }
-
-    public void setComboText(String text) {
-        String numStr = text.replaceAll("[^0-9]", "");
-        int combo = numStr.isEmpty() ? 0 : Integer.parseInt(numStr);
-        lblComboCount.setText(String.valueOf(combo));
-        ScaleTransition st = new ScaleTransition(Duration.millis(100), lblComboCount);
-        st.setFromX(1.0); st.setFromY(1.0); st.setToX(1.4); st.setToY(1.4); st.setAutoReverse(true); st.setCycleCount(2); st.play();
-        comboBadgePane.setOpacity(combo > 0 ? 1.0 : 0.5);
-        if (combo >= 10) {
-            lblComboLabel.setText("FEVER!"); lblComboLabel.setTextFill(Color.YELLOW);
-            comboHexagon.setStroke(Color.ORANGE);
-            comboHexagon.setFill(new LinearGradient(0, 0, 1, 1, true, CycleMethod.NO_CYCLE, new Stop(0, Color.RED), new Stop(1, Color.YELLOW)));
-            comboHexagon.setEffect(new Glow(0.8));
-        } else {
-            lblComboLabel.setText("COMBO"); lblComboLabel.setTextFill(Color.web("#E0E0E0"));
-            comboHexagon.setStroke(Color.web("#B388FF"));
-            comboHexagon.setFill(new LinearGradient(0, 0, 1, 1, true, CycleMethod.NO_CYCLE, new Stop(0, Color.web("#311B92")), new Stop(1, Color.web("#6200EA"))));
-            comboHexagon.setEffect(new DropShadow(10, Color.web("#651FFF")));
-        }
-    }
-
-    public void setComboGuardActive(boolean active) {
-        if (active) {
-            comboBadgePane.setStyle("-fx-effect: dropshadow(gaussian, gold, 20, 0.7, 0, 0);");
-            lblComboLabel.setText("GUARD");
-        } else {
-            comboBadgePane.setStyle("");
-        }
-    }
-
-    public void setEffectsText(String text) { lblStatus.setText(text); }
-    public void setLastItemText(String text) { if(!text.contains("없음") && !text.contains("-")) lblStatus.setText(text + " 발동!"); }
-    public void flashHit() { landGrabPanel.flashHit(); }
-    public void flashMiss() { landGrabPanel.flashMiss(); }
-    public void flashItem(Color color) { landGrabPanel.flashBuffColor(color); }
 }
