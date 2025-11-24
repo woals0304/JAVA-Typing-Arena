@@ -1,259 +1,83 @@
-## 📜 Typing Arena 통신 규칙 (Protocol v1.0)
+## 📜 Typing Arena 통신 규칙 (Protocol v1.1)
 
-모든 통신은 `Message.java` 객체를 `Gson`으로 변환한 JSON 문자열을 사용합니다. (`\n`으로 각 메시지를 구분합니다.)
+- 모든 메시지는 `Message.java` 형태의 JSON 한 줄(`\n` 구분)로 주고받습니다.
+- 공통 필드: `type`(필수), `sessionId`(게임 세션), `roomId`/`roomName`(로비), `gameType`, `text`, `data`(Map).
+- 기본 포트는 `7777`, 인코딩은 UTF-8 입니다.
+
+### 0. 예시 Envelope
+```json
+{"type":"MATCH_REQUEST","data":{"gameType":"LAND_GRAB"}}
+```
 
 ### 1. 인증 (Auth)
+- **회원가입** `REGISTER_REQUEST` → `REGISTER_RESPONSE`
+  - req.data: `{"id":"...", "pw":"...", "nickname":"..."}`
+  - res.data: `{"success": true/false}`
+- **로그인** `LOGIN_REQUEST` → `LOGIN_RESPONSE`
+  - req.data: `{"id":"...", "pw":"..."}`
+  - 성공: `{"success": true, "id":"...", "nickname":"...", "tug_of_war_wins":0, "tug_of_war_losses":0, ...}`
+  - 실패: `{"success": false}`
+  - 로그인 이후에만 매칭/게임 액션이 허용됩니다.
 
-### ➡️ 로그인 요청 (Client → Server)
+### 2. 로비/매칭
+- **방 목록(Optional)** `LIST_ROOMS_REQUEST` → `LIST_ROOMS_RESPONSE` (`rooms: [{roomId,name,players}, ...]`)
+- **매칭 요청** `MATCH_REQUEST` (`gameType`: `"TUG_OF_WAR"` | `"LAND_GRAB"`)
+  - 서버 응답: `MATCH_WAITING` → 매칭 성사 시 두 명 모두에게 `MATCH_SUCCESS {gameType}` 후 즉시 `GAME_START_BROADCAST` 전송.
+  - 취소: `MATCH_CANCEL` → `MATCH_CANCELLED`
+  - 오류 시: `MATCH_REQUEST_ERROR {message}` 또는 `auth_ERROR`(미로그인).
 
-- `type`: `"LOGIN_REQUEST"`
-- `data`: `{"id": "...", "pw": "..."}`
+### 3. 공통 게임 액션
+- **입력 전송** `GAME_ACTION` with `data: {"word":"..."}` (줄다리기/땅따먹기 모두 단어 제출용).
+- **기권** `GAME_FORFEIT` (sessionId가 없으면 현재 세션 기준). 상대는 `GAME_END_BROADCAST` 또는 `GAME_OPPONENT_LEFT`로 알림을 받습니다.
+- **재경기 요청 (Land Grab 전용)** `GAME_REMATCH_REQUEST`
+  - 한쪽만 요청: 상대에게 `GAME_REMATCH_NOTICE`
+  - 양쪽 모두 요청: 기존 세션 ID로 `GAME_START_BROADCAST`가 다시 발행되며 보드/타이머가 초기화됩니다.
 
-JSON
+### 4. 게임별 브로드캐스트 페이로드
 
-`{
-  "type": "LOGIN_REQUEST",
-  "data": {
-    "id": "myUserId",
-    "pw": "myPassword123"
-  }
-}`
-
-### ⬅️ 로그인 응답 (Server → Client)
-
-- `type`: `"LOGIN_RESPONSE"`
-- `data`: `{"success": true/false, "message": "...", "records": [...]}`
-
-JSON
-
-`{
-  "type": "LOGIN_RESPONSE",
-  "data": {
-    "success": true,
-    "message": "로그인 성공!",
-    "nickname": "TypingGod",
-    "records": [
-      {"game": "LandGrab", "wins": 10, "losses": 2},
-      {"game": "TugOfWar", "wins": 5, "losses": 8}
-    ]
-  }
-}`
-
-### ➡️ 회원가입 요청 (Client → Server)
-
-- `type`: `"REGISTER_REQUEST"`
-- `data`: `{"id": "...", "pw": "...", "nickname": "..."}` (닉네임도 같이 받습니다)
-
-JSON
-
-`{
-  "type": "REGISTER_REQUEST",
-  "data": {
-    "id": "newPlayer",
-    "pw": "strongPass!123",
-    "nickname": "새로운용사"
-  }
-}`
-
-### ⬅️ 회원가입 응답 (Server → Client)
-
-- `type`: `"REGISTER_RESPONSE"`
-- `data`: `{"success": true/false, "message": "..."}`
-
-> (성공 시)
->
-
-JSON
-
-`{
-  "type": "REGISTER_RESPONSE",
-  "data": {
-    "success": true,
-    "message": "회원가입 성공! 로그인 화면에서 로그인해주세요."
-  }
-}`
-
-> (실패 시: ID 중복 등)
->
-
-JSON
-
-`{
-  "type": "REGISTER_RESPONSE",
-  "data": {
-    "success": false,
-    "message": "오류: 이미 존재하는 ID입니다."
-  }
-}`
-
----
-
-### 2. 로비 (Lobby)
-
-### ➡️ 방 목록 요청 (Client → Server)
-
-- `type`: `"LIST_ROOMS_REQUEST"` (기존 `list_rooms`에서 명확하게 변경)
-
-JSON
-
-`{
-  "type": "LIST_ROOMS_REQUEST"
-}`
-
-### ⬅️ 방 목록 응답 (Server → Client)
-
-- `type`: `"LIST_ROOMS_RESPONSE"` (기존 `rooms`에서 변경)
-- `data`: `{"rooms": [...]}`
-
-JSON
-
-`{
-  "type": "LIST_ROOMS_RESPONSE",
-  "data": {
-    "rooms": [
-      {"roomId": "uuid-123", "name": "A+ 받자", "players": 1, "gameType": "LandGrab"},
-      {"roomId": "uuid-456", "name": "초보만", "players": 2, "gameType": "TugOfWar"}
-    ]
-  }
-}`
-
-*(방 생성/입장도 `CREATE_ROOM_REQUEST`, `JOIN_ROOM_REQUEST` 등으로 명확하게 만드세요.)*
-
----
-
-### 3. 게임 플레이 (Game)
-
-### ➡️ 게임 시작 요청 (Client → Server)
-
-- **(방장이 누름)**
-- `type`: `"GAME_START_REQUEST"`
-
-JSON
-
-`{
-  "type": "GAME_START_REQUEST"
-}`
-
-### ⬅️ 게임 시작 전파 (Server → All Clients in Room)
-
-- **"게임을 시작합니다! 로딩하세요!"**
-- `type`: `"GAME_START_BROADCAST"`
-- `data`: `{"gameType": "LandGrab"}`
-
-JSON
-
-`{
-  "type": "GAME_START_BROADCAST",
-  "data": {
-    "gameType": "LandGrab",
-    "players": ["PlayerA_Nick", "PlayerB_Nick"]
-  }
-}`
-
-### ➡️ 단어 입력 (Client → Server)
-
-- `type`: `"GAME_ACTION"`
-- `data`: `{"word": "..."}`
-
-JSON
-
-`{
-  "type": "GAME_ACTION",
-  "data": {
-    "word": "바나나"
-  }
-}`
-
-### ⬅️ 게임 상태 갱신 전파 (Server → All Clients in Room)
-
-- **(가장 중요!)** 서버가 판단한 **"사실"**만 전송합니다.
-- `type`: `"GAME_UPDATE_BROADCAST"`
-- `data`: `(게임별로 상이)`
-
-### 🌟 "땅따먹기 (LandGrab)" 갱신 예시
-
-> (일반 단어 성공 시)
->
-
-JSON
-
-`{
-  "type": "GAME_UPDATE_BROADCAST",
-  "data": {
-    "game": "LandGrab",
-    "tiles_changed": [
-      {"r": 3, "c": 4, "owner": "PlayerA_Nick"}
-    ],
-    "scores": {"PlayerA_Nick": 15, "PlayerB_Nick": 12},
-    "animation_trigger": null
-  }
-}`
-
-> (버프/트랩 단어 성공 시 - 예: 스플래시)
->
-
-JSON
-
-`{
-  "type": "GAME_UPDATE_BROADCAST",
-  "data": {
-    "game": "LandGrab",
-    "tiles_changed": [
-      {"r": 3, "c": 4, "owner": "PlayerA_Nick"},
-      {"r": 3, "c": 5, "owner": "PlayerA_Nick"}
-    ],
-    "scores": {"PlayerA_Nick": 16, "PlayerB_Nick": 12},
-    "animation_trigger": {
-      "type": "SPLASH",
-      "r": 3,
-      "c": 4
+#### 4-1. 줄다리기 (TUG_OF_WAR)
+- **GAME_START_BROADCAST**
+  ```json
+  {
+    "type":"GAME_START_BROADCAST",
+    "sessionId":"...",
+    "data":{
+      "gameType":"TUG_OF_WAR",
+      "yourWord":"바람",
+      "opponentWord":"???",
+      "opponent":"상대닉",
+      "timeMs":60000,
+      "modifierSelf":"BUFF|TRAP|NEUTRAL",
+      "effectsSelf":"효과: ...",
+      "lastItemSelf":"없음",
+      "blindSelf":false,
+      "jamoSplitSelf":false
     }
   }
-}`
+  ```
+- **GAME_UPDATE_BROADCAST**
+  - 주요 필드: `gameType`, `pos`(double, 왼쪽 +), `timeMs`, `yourWord`, `modifierSelf`, `scoreSelf`, `scoreOpponent`, `effectsSelf`, `lastItemSelf`, `blindSelf`, `jamoSplitSelf`.
+- **GAME_END_BROADCAST**
+  - `gameType`, `result`(`승리|패배|무승부`), `message`(종료 사유), `scoreSelf`, `scoreOpponent`, `pos`.
+- 아이템 규칙 요약: 단어 모디파이어 50/25/25, 버프(파워그립, 앵커), 트랩(먹물 3초, 자소 분리 4초).
 
-> (먹물 트랩 성공 시)
->
+#### 4-2. 땅따먹기 (LAND_GRAB)
+- **GAME_START_BROADCAST**
+  - `data` 공통 필드:
+    - `gameType:"LAND_GRAB"`, `timeMs`(double), `grid`/`words`/`modifiers`(10x10 배열, 빈칸은 빈 문자열), `ink_tiles:[{"r","c","until"}...]`
+    - `scoreSelf`/`scoreOpponent`, `comboSelf`/`comboOpponent`
+    - `barrier_a`/`barrier_b`(보호막 여부), `debuff:"FLIP_WORDS"`(혼란 시)
+    - `animation_trigger` 선택적 `{type:"...", "r":-1, "c":-1}`
+    - 시작 시에는 `players:["나","상대"]`가 함께 전송됩니다.
+- **GAME_UPDATE_BROADCAST**
+  - 위 필드 동일. `animation_trigger.type` 값 예시:
+    - 버프: `BUFF_SPLASH`, `BUFF_BARRIER`, `BUFF_COMBO_GUARD`
+    - 트랩: `TRAP_INK`, `TRAP_EMP`, `TRAP_CONFUSION`
+    - 피격/연출: `ATTACK_INK`, `ATTACK_EMP`, `ATTACK_CONFUSION`, `OPP_SPLASH`, `OPP_BARRIER`, `OPP_COMBO_GUARD`
+- **GAME_END_BROADCAST**
+  - `gameType`, `result`(`승리|패배|무승부`), `message`(예: 시간 종료, 포기), `scoreSelf`, `scoreOpponent`.
+- 룰 요약: 단어 비율 60/20/20, 버프(스플래시/보호막 5초/콤보가드 5초), 트랩(먹물 타일 블라인드, EMP로 상대 타일 최대 3개 중립화, 혼란으로 단어 좌우 뒤집기). 콤보 10 이상이면 상대 타일까지 바로 빼앗습니다.
 
-JSON
-
-`{
-  "type": "GAME_UPDATE_BROADCAST",
-  "data": {
-    "game": "LandGrab",
-    "tiles_changed": [
-      {"r": 5, "c": 5, "owner": "PlayerA_Nick"}
-    ],
-    "ink_tiles_added": [
-      {"r": 1, "c": 1}
-    ],
-    "scores": {"PlayerA_Nick": 17, "PlayerB_Nick": 12},
-    "animation_trigger": {
-      "type": "INK_SPLASH",
-      "r": 5,
-      "c": 5
-    }
-  }
-}`
-
-*(참고: `ink_tiles_removed` 같은 필드도 추가로 정의해서 먹물 효과가 끝났음을 알릴 수 있습니다.)*
-
-### 🌟 "줄다리기 (TugOfWar)" 갱신 예시
-
-> (일반 단어 성공 시)
->
-
-JSON
-
-`{
-  "type": "GAME_UPDATE_BROADCAST",
-  "data": {
-    "game": "TugOfWar",
-    "pos": -15.5,
-    "timeMs": 42100,
-    "yourWord": "바람",
-    "modifierSelf": "NEUTRAL",
-    "blindSelf": false,
-    "jamoSplitSelf": false,
-    "animation_trigger": null
-  }
-}`
+### 5. 세션 종료/연결 해제
+- 클라이언트 소켓이 끊기면 `ServerMain`이 진행 중 매칭을 취소하고, 참여 중인 세션에 `GAME_FORFEIT` 처리 후 세션을 정리합니다.
+- Land Grab에서 종료 후 한 명이 바로 나가면 남은 사람에게 `GAME_OPPONENT_LEFT`가 전달됩니다.
