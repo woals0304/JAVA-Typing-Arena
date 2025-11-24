@@ -41,7 +41,9 @@ public class LandGrabSession {
         this.playerB = b;
     }
 
-    public String getId() { return id; }
+    public String getId() {
+        return id;
+    }
 
     public void start() {
         resetGameData();
@@ -54,7 +56,9 @@ public class LandGrabSession {
 
     private void startLoop() {
         running = true;
-        if (ticker != null && !ticker.isCancelled()) ticker.cancel(true);
+        if (ticker != null && !ticker.isCancelled()) {
+            ticker.cancel(true);
+        }
         ticker = context.getScheduler().scheduleAtFixedRate(this::onTick, 100, 100, TimeUnit.MILLISECONDS);
     }
 
@@ -93,6 +97,7 @@ public class LandGrabSession {
 
     private void sendStartBroadcast() {
         List<String> players = List.of(playerA.getNickname(), playerB.getNickname());
+
         if (playerA != null && playerA.isConnected()) {
             Message msg = Message.of("GAME_START_BROADCAST");
             msg.sessionId = this.id;
@@ -117,9 +122,15 @@ public class LandGrabSession {
         TileState who;
         boolean isPlayerA;
 
-        if (client == playerA) { who = TileState.PLAYER_A; isPlayerA = true; }
-        else if (client == playerB) { who = TileState.PLAYER_B; isPlayerA = false; }
-        else return;
+        if (client == playerA) {
+            who = TileState.PLAYER_A;
+            isPlayerA = true;
+        } else if (client == playerB) {
+            who = TileState.PLAYER_B;
+            isPlayerA = false;
+        } else {
+            return;
+        }
 
         LandGrabLogic.SubmitResult result = coreLogic.submitAnswer(word, who);
 
@@ -128,23 +139,42 @@ public class LandGrabSession {
 
         if (result.resultCode() > 0 && result.itemType() != ItemType.NONE) {
             switch (result.itemType()) {
-                case BUFF_SPLASH -> { animForActor = "BUFF_SPLASH"; animForOpponent = "OPP_SPLASH"; }
-                case BUFF_BARRIER -> { animForActor = "BUFF_BARRIER"; animForOpponent = "OPP_BARRIER"; }
-                case BUFF_COMBO_GUARD -> { animForActor = "BUFF_COMBO_GUARD"; animForOpponent = "OPP_COMBO_GUARD"; }
+                case BUFF_SPLASH -> {
+                    animForActor = "BUFF_SPLASH";
+                    animForOpponent = "OPP_SPLASH";
+                }
+                case BUFF_BARRIER -> {
+                    animForActor = "BUFF_BARRIER";
+                    animForOpponent = "OPP_BARRIER";
+                }
+                case BUFF_COMBO_GUARD -> {
+                    animForActor = "BUFF_COMBO_GUARD";
+                    animForOpponent = "OPP_COMBO_GUARD";
+                }
                 case TRAP_INK -> {
-                    animForActor = "ATTACK_INK"; animForOpponent = "TRAP_INK";
+                    animForActor = "ATTACK_INK";
+                    animForOpponent = "TRAP_INK";
                     applyInkTo(!isPlayerA, 2);
                 }
-                case TRAP_EMP -> { animForActor = "ATTACK_EMP"; animForOpponent = "TRAP_EMP"; }
+                case TRAP_EMP -> {
+                    animForActor = "ATTACK_EMP";
+                    animForOpponent = "TRAP_EMP";
+                }
                 case TRAP_CONFUSION -> {
-                    animForActor = "ATTACK_CONFUSION"; animForOpponent = "TRAP_CONFUSION";
+                    animForActor = "ATTACK_CONFUSION";
+                    animForOpponent = "TRAP_CONFUSION";
                     applyConfusionTo(!isPlayerA, 5000);
                 }
             }
+        } else if (result.resultCode() > 0) {
+            animForActor = "HIT";
         }
 
-        if (isPlayerA) sendUpdate(animForActor, animForOpponent);
-        else sendUpdate(animForOpponent, animForActor);
+        if (isPlayerA) {
+            sendUpdate(animForActor, animForOpponent);
+        } else {
+            sendUpdate(animForOpponent, animForActor);
+        }
     }
 
     private void applyInkTo(boolean targetIsA, int count) {
@@ -175,19 +205,37 @@ public class LandGrabSession {
         if (!running) return;
         try {
             timeMs -= 100;
-            if (timeMs <= 0) { finishByScore("시간 종료!"); return; }
+            if (timeMs <= 0) {
+                finishByScore("시간 종료!");
+                return;
+            }
+
             int totalScore = coreLogic.getScore(TileState.PLAYER_A) + coreLogic.getScore(TileState.PLAYER_B);
-            if (totalScore == LandGrabLogic.GRID_SIZE * LandGrabLogic.GRID_SIZE) { finishByScore("모든 타일 점령!"); return; }
-            if (timeMs % 1000 == 0) sendUpdate(null, null);
-        } catch (Exception e) { if (ticker != null) ticker.cancel(true); }
+            if (totalScore == LandGrabLogic.GRID_SIZE * LandGrabLogic.GRID_SIZE) {
+                finishByScore("모든 타일 점령!");
+                return;
+            }
+
+            if (timeMs % 1000 == 0) {
+                sendUpdate(null, null);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            if (ticker != null) ticker.cancel(true);
+        }
     }
 
     private void finishByScore(String reason) {
         int scoreA = coreLogic.getScore(TileState.PLAYER_A);
         int scoreB = coreLogic.getScore(TileState.PLAYER_B);
-        if (scoreA > scoreB) finish(playerA, playerB, reason);
-        else if (scoreB > scoreA) finish(playerB, playerA, reason);
-        else finish(null, null, reason + " (무승부)");
+
+        if (scoreA > scoreB) {
+            finish(playerA, playerB, reason);
+        } else if (scoreB > scoreA) {
+            finish(playerB, playerA, reason);
+        } else {
+            finish(null, null, reason + " (무승부)");
+        }
     }
 
     private void sendUpdate(String animTriggerA, String animTriggerB) {
@@ -225,14 +273,21 @@ public class LandGrabSession {
 
         long now = System.currentTimeMillis();
         long myConfusionUntil = isMeA ? confusionUntilA : confusionUntilB;
-        if (myConfusionUntil > now) data.put("debuff", "FLIP_WORDS");
+        if (myConfusionUntil > now) {
+            data.put("debuff", "FLIP_WORDS");
+        }
 
         data.put("barrier_a", coreLogic.getEffects().isBarrierActive(true));
         data.put("barrier_b", coreLogic.getEffects().isBarrierActive(false));
 
+        // [수정] 콤보 가드 상태 추가 (이게 있어야 클라이언트가 언제 끄는지 앎)
+        data.put("combo_guard_a", coreLogic.getEffects().isComboGuardActive(true));
+        data.put("combo_guard_b", coreLogic.getEffects().isComboGuardActive(false));
+
         if (myAnimation != null) {
             data.put("animation_trigger", Map.of("type", myAnimation, "r", -1, "c", -1));
         }
+
         return data;
     }
 
@@ -241,9 +296,13 @@ public class LandGrabSession {
         for (int r = 0; r < LandGrabLogic.GRID_SIZE; r++) {
             List<String> colList = new ArrayList<>();
             for (int c = 0; c < LandGrabLogic.GRID_SIZE; c++) {
-                if (grid[r][c] == null) colList.add("");
-                else if (enumClass == String.class) colList.add((String) grid[r][c]);
-                else colList.add(((Enum) grid[r][c]).name());
+                if (grid[r][c] == null) {
+                    colList.add("");
+                } else if (enumClass == String.class) {
+                    colList.add((String) grid[r][c]);
+                } else {
+                    colList.add(((Enum) grid[r][c]).name());
+                }
             }
             rowList.add(colList);
         }
@@ -259,27 +318,27 @@ public class LandGrabSession {
         return inkList;
     }
 
-    // [핵심] 게임 종료 후 나가기 처리 (상대방 나감 알림 전송)
+    // [수정] 나가기 처리: 메시지 전송 -> 세션 삭제 순서 보장
     public void forfeit(ClientHandler quitter, String reason) {
         ClientHandler opponent = (quitter == playerA) ? playerB : playerA;
 
         if (!running) {
-            // [New] 게임이 이미 끝난 상태에서 누군가 나가면, 남은 사람에게 알림
+            // 이미 결과 화면 상태에서 나감
             if (opponent != null && opponent.isConnected()) {
                 Message leftMsg = Message.of("GAME_OPPONENT_LEFT");
                 leftMsg.sessionId = this.id;
                 opponent.send(leftMsg);
             }
-            // 세션 종료
+            // 메시지 전송 후 삭제
             context.getLandGrabSessions().remove(id);
             return;
         }
 
+        // 게임 도중 나감 (기권패)
         ClientHandler winner = (quitter == playerA) ? playerB : playerA;
         ClientHandler loser = (quitter == playerA) ? playerA : playerB;
-        finish(winner, loser, reason);
 
-        // 도중 포기(강제 종료) 시에는 즉시 세션 종료
+        finish(winner, loser, reason);
         context.getLandGrabSessions().remove(id);
     }
 
@@ -299,14 +358,23 @@ public class LandGrabSession {
     }
 
     private void sendEnd(ClientHandler player, boolean isWinner, boolean isDraw, String reason, int myScore, int oppScore) {
+        if (player == null || !player.isConnected()) return;
+
         Message end = Message.of("GAME_END_BROADCAST");
         end.sessionId = id;
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("gameType", gameType);
-        payload.put("result", isDraw ? "무승부" : (isWinner ? "승리" : "패배"));
+
+        String resultStr;
+        if (isDraw) resultStr = "무승부";
+        else if (isWinner) resultStr = "승리";
+        else resultStr = "패배";
+
+        payload.put("result", resultStr);
         payload.put("message", reason);
         payload.put("scoreSelf", myScore);
         payload.put("scoreOpponent", oppScore);
+
         end.data = payload;
         player.send(end);
     }
@@ -316,10 +384,13 @@ public class LandGrabSession {
             DatabaseManager dbManager = DatabaseManager.getInstance();
             String winnerId = (winner != null) ? winner.getLoggedInUserId() : null;
             String loserId = (loser != null) ? loser.getLoggedInUserId() : null;
+
             if (winnerId != null && loserId != null) {
                 dbManager.updateGameRecord(winnerId, gameType, true);
                 dbManager.updateGameRecord(loserId, gameType, false);
             }
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 }

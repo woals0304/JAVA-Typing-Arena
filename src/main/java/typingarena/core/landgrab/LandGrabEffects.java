@@ -13,7 +13,7 @@ public class LandGrabEffects {
 
     public record BlindedTile(int r, int c, long until) {}
 
-    // [수정] 먹물 리스트 분리 (A가 안 보이는 타일들, B가 안 보이는 타일들)
+    // 먹물 효과 리스트 (A가 안 보이는 타일들, B가 안 보이는 타일들)
     private final List<BlindedTile> blindedTilesA = new ArrayList<>();
     private final List<BlindedTile> blindedTilesB = new ArrayList<>();
 
@@ -27,7 +27,6 @@ public class LandGrabEffects {
 
     // ===== 메서드 =====
 
-    // [수정] '누가' 안 보이는지 확인
     public boolean isTileBlinded(int r, int c, boolean isPlayerA) {
         cleanupExpiredTiles();
         List<BlindedTile> targetList = isPlayerA ? blindedTilesA : blindedTilesB;
@@ -43,17 +42,14 @@ public class LandGrabEffects {
         blindedTilesB.removeIf(tile -> tile.until() < now);
     }
 
-    // [수정] 타겟 지정해서 먹물 뿌리기
     public void activateBlindTile(int r, int c, long durationMs, boolean targetIsPlayerA) {
         long now = System.currentTimeMillis();
-        // 이미 가려져 있지 않다면 추가
         if (!isTileBlinded(r, c, targetIsPlayerA)) {
             List<BlindedTile> targetList = targetIsPlayerA ? blindedTilesA : blindedTilesB;
             targetList.add(new BlindedTile(r, c, now + durationMs));
         }
     }
 
-    // [수정] 특정 플레이어에게 적용된 먹물 리스트만 반환
     public List<BlindedTile> getActiveBlindedTiles(boolean isPlayerA) {
         cleanupExpiredTiles();
         return isPlayerA ? blindedTilesA : blindedTilesB;
@@ -64,10 +60,11 @@ public class LandGrabEffects {
         return isPlayerA ? (now < barrierUntilA) : (now < barrierUntilB);
     }
 
+    // [수정] 보호막 획득 시 남은 시간과 관계없이 현재 시점부터 시간 재설정 (Reset)
     public void activateBarrier(boolean isPlayerA, long durationMs) {
         long now = System.currentTimeMillis();
-        if (isPlayerA) barrierUntilA = Math.max(barrierUntilA, now + durationMs);
-        else barrierUntilB = Math.max(barrierUntilB, now + durationMs);
+        if (isPlayerA) barrierUntilA = now + durationMs;
+        else barrierUntilB = now + durationMs;
     }
 
     public boolean isComboGuardActive(boolean isPlayerA) {
@@ -75,10 +72,11 @@ public class LandGrabEffects {
         return isPlayerA ? (now < comboGuardUntilA) : (now < comboGuardUntilB);
     }
 
+    // [수정] 콤보가드 획득 시 남은 시간과 관계없이 현재 시점부터 시간 재설정 (Reset)
     public void activateComboGuard(boolean isPlayerA, long durationMs) {
         long now = System.currentTimeMillis();
-        if (isPlayerA) comboGuardUntilA = Math.max(comboGuardUntilA, now + durationMs);
-        else comboGuardUntilB = Math.max(comboGuardUntilB, now + durationMs);
+        if (isPlayerA) comboGuardUntilA = now + durationMs;
+        else comboGuardUntilB = now + durationMs;
     }
 
     public void recordItemActivation(ItemType itemType) {
