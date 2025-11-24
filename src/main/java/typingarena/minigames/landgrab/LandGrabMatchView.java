@@ -74,15 +74,14 @@ public class LandGrabMatchView {
     private final Text txtOppName = new Text("COMPUTER");
     private final Text txtAiScore = new Text("0");
 
-    // 메인 타이머 (클리핑 적용됨)
+    // 메인 타이머
     private final StackPane timerContainer = new StackPane();
     private final Rectangle timerFill = new Rectangle();
     private final Rectangle timerBg = new Rectangle();
+    private final Rectangle timerClip = new Rectangle();
     private final StackPane timerFillWrapper = new StackPane();
-    private final Rectangle timerMask = new Rectangle();
     private final Rectangle timerBorder = new Rectangle();
     private final Label lblTimeText = new Label("60");
-
     private final double MAX_TIMER_WIDTH = 250.0;
     private final double TIMER_HEIGHT = 32.0;
     private final double TIMER_STROKE = 3.0;
@@ -101,15 +100,26 @@ public class LandGrabMatchView {
 
     // --- Game Over ---
     private final StackPane gameOverOverlay = new StackPane();
-    // [수정] 간격을 조금 좁혀서 오밀조밀하게 (15 -> 12)
-    private final VBox gameOverBox = new VBox(12);
+    private final VBox gameOverBox = new VBox(15);
     private final Label lblResultTitle = new Label("RESULT");
     private final Label lblResultScore = new Label("");
     private final Button btnRematch = new Button("재경기 신청");
     private final Button btnQuit = new Button("나가기");
     private final Label lblRematchStatus = new Label("");
 
-    private final ProgressBar autoCloseBar = new ProgressBar(1.0);
+    // [수정] 게임 오버용 타이머 구성 요소
+    private final StackPane autoCloseContainer = new StackPane();
+    private final Rectangle autoCloseBg = new Rectangle();
+    private final Rectangle autoCloseFill = new Rectangle();
+    private final StackPane autoCloseFillWrapper = new StackPane();
+    private final Rectangle autoCloseClip = new Rectangle(); // 클리핑 마스크
+    private final Rectangle autoCloseBorder = new Rectangle();
+    private final Label lblAutoCloseText = new Label("30");
+
+    private final double AUTO_CLOSE_WIDTH = 280.0;
+    private final double AUTO_CLOSE_HEIGHT = 32.0;
+    private final double AUTO_CLOSE_STROKE = 3.0; // 테두리 두께
+
     private Timeline autoCloseTimeline;
     private FadeTransition blinkAnimation;
 
@@ -174,7 +184,7 @@ public class LandGrabMatchView {
     }
 
     private void initStyles() {
-        // [메인 타이머: 샌드위치 + 클리핑 기법 유지]
+        // [메인 타이머 스타일]
         timerBg.setWidth(MAX_TIMER_WIDTH);
         timerBg.setHeight(TIMER_HEIGHT);
         timerBg.setArcWidth(TIMER_HEIGHT); timerBg.setArcHeight(TIMER_HEIGHT);
@@ -188,20 +198,18 @@ public class LandGrabMatchView {
         timerFill.setFill(COLOR_P1);
         timerFill.setStroke(null);
 
-        timerMask.setWidth(MAX_TIMER_WIDTH); timerMask.setHeight(TIMER_HEIGHT);
-        timerMask.setArcWidth(TIMER_HEIGHT); timerMask.setArcHeight(TIMER_HEIGHT);
+        timerClip.setWidth(MAX_TIMER_WIDTH); timerClip.setHeight(TIMER_HEIGHT);
+        timerClip.setArcWidth(TIMER_HEIGHT); timerClip.setArcHeight(TIMER_HEIGHT);
 
         timerFillWrapper.setMaxSize(MAX_TIMER_WIDTH, TIMER_HEIGHT);
         timerFillWrapper.setAlignment(Pos.CENTER_LEFT);
         if(timerFillWrapper.getChildren().isEmpty()) timerFillWrapper.getChildren().add(timerFill);
-        timerFillWrapper.setClip(timerMask);
+        timerFillWrapper.setClip(timerClip);
 
         timerBorder.setWidth(MAX_TIMER_WIDTH); timerBorder.setHeight(TIMER_HEIGHT);
         timerBorder.setArcWidth(TIMER_HEIGHT); timerBorder.setArcHeight(TIMER_HEIGHT);
-        timerBorder.setFill(Color.TRANSPARENT);
-        timerBorder.setStroke(THEME_STROKE);
-        timerBorder.setStrokeWidth(TIMER_STROKE);
-        timerBorder.setStrokeType(StrokeType.INSIDE);
+        timerBorder.setFill(Color.TRANSPARENT); timerBorder.setStroke(THEME_STROKE);
+        timerBorder.setStrokeWidth(TIMER_STROKE); timerBorder.setStrokeType(StrokeType.INSIDE);
 
         lblTimeText.setFont(getBoldFont(18));
         lblTimeText.setTextFill(THEME_STROKE);
@@ -215,7 +223,7 @@ public class LandGrabMatchView {
         timerContainer.getChildren().setAll(timerBg, timerFillWrapper, timerBorder, lblTimeText);
         timerContainer.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
 
-        // Input & Combo Guard
+        // Input
         inputField.setFont(getBoldFont(22)); inputField.setPromptText("단어를 입력하세요!");
         inputField.setAlignment(Pos.CENTER);
         inputField.setStyle("-fx-background-radius: 30; -fx-background-color: white; -fx-border-color: #5D4037; -fx-border-width: 4px; -fx-border-radius: 30; -fx-text-fill: #3E2723; -fx-prompt-text-fill: gray;");
@@ -225,33 +233,72 @@ public class LandGrabMatchView {
         controlBox.getChildren().add(inputField);
         mainLayout.setBottom(controlBox);
 
+        // Combo Guard
         lblComboGuardMsg.setFont(getBoldFont(11)); lblComboGuardMsg.setTextFill(Color.WHITE);
         lblComboGuardMsg.setStyle("-fx-background-color: #43A047; -fx-background-radius: 12; -fx-padding: 2 8; -fx-border-color: #1B5E20; -fx-border-width: 2px; -fx-border-radius: 12; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 3, 0, 0, 1);");
         lblComboGuardMsg.setVisible(false);
 
+        // Buttons
         styleCookieButton(btnRematch, COLOR_P1);
         styleCookieButton(btnQuit, COLOR_P2);
 
-        // [핵심 수정] 게임 오버 오버레이 (높이 제한 해제)
+        // [수정] 게임오버 스타일
         gameOverOverlay.setStyle("-fx-background-color: rgba(0, 0, 0, 0.6);");
         gameOverOverlay.setVisible(false);
 
         gameOverBox.setAlignment(Pos.CENTER);
-        gameOverBox.setMinWidth(450);
+        gameOverBox.setMinWidth(480);
         gameOverBox.setMaxWidth(550);
-        // 중요: MaxHeight 제한을 없애서 내용물만큼 늘어나게 함 (잘림 방지)
         gameOverBox.setMaxHeight(Region.USE_PREF_SIZE);
-        gameOverBox.setPadding(new Insets(35));
-        gameOverBox.setStyle("-fx-background-color: #FFF8E1; -fx-background-radius: 35; -fx-border-color: #5D4037; -fx-border-width: 5px; -fx-border-radius: 35; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.5), 20, 0, 0, 10);");
+        gameOverBox.setPadding(new Insets(30));
+        gameOverBox.setStyle("-fx-background-color: #FFF8E1; -fx-background-radius: 40; -fx-border-color: #5D4037; -fx-border-width: 6px; -fx-border-radius: 40; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.5), 20, 0, 0, 10);");
 
-        // 자동 종료바 스타일
-        autoCloseBar.setPrefWidth(280);
-        autoCloseBar.setPrefHeight(12); // 얇게 설정 (공간 절약)
-        autoCloseBar.setMinHeight(12); // [추가] 최소 높이 보장
-        autoCloseBar.setStyle("-fx-accent: " + toHex(COLOR_P1) + "; -fx-control-inner-background: #D7CCC8; -fx-background-radius: 10; -fx-border-radius: 10; -fx-border-color: #5D4037; -fx-border-width: 2px;");
+        // [핵심 수정] 게임 오버용 타이머 스타일 (메인과 동일한 핏 적용)
+        autoCloseBg.setWidth(AUTO_CLOSE_WIDTH); autoCloseBg.setHeight(AUTO_CLOSE_HEIGHT);
+        autoCloseBg.setArcWidth(AUTO_CLOSE_HEIGHT); autoCloseBg.setArcHeight(AUTO_CLOSE_HEIGHT);
+        autoCloseBg.setFill(COLOR_TIMER_BG);
+        autoCloseBg.setStroke(null);
+
+        // 내부 크기 계산: 전체 - (테두리 * 2)
+        double acInnerH = AUTO_CLOSE_HEIGHT - (AUTO_CLOSE_STROKE * 2);
+        double acInnerW = AUTO_CLOSE_WIDTH - (AUTO_CLOSE_STROKE * 2);
+
+        autoCloseFill.setWidth(acInnerW); autoCloseFill.setHeight(acInnerH);
+        autoCloseFill.setArcWidth(0); autoCloseFill.setArcHeight(0); // 직각 (클리핑)
+        autoCloseFill.setFill(COLOR_P1);
+        autoCloseFill.setStroke(null);
+
+        autoCloseClip.setWidth(AUTO_CLOSE_WIDTH); autoCloseClip.setHeight(AUTO_CLOSE_HEIGHT);
+        autoCloseClip.setArcWidth(AUTO_CLOSE_HEIGHT); autoCloseClip.setArcHeight(AUTO_CLOSE_HEIGHT);
+
+        autoCloseFillWrapper.setMaxSize(AUTO_CLOSE_WIDTH, AUTO_CLOSE_HEIGHT);
+        autoCloseFillWrapper.setAlignment(Pos.CENTER_LEFT);
+        if(autoCloseFillWrapper.getChildren().isEmpty()) autoCloseFillWrapper.getChildren().add(autoCloseFill);
+        autoCloseFillWrapper.setClip(autoCloseClip);
+
+        autoCloseBorder.setWidth(AUTO_CLOSE_WIDTH); autoCloseBorder.setHeight(AUTO_CLOSE_HEIGHT);
+        autoCloseBorder.setArcWidth(AUTO_CLOSE_HEIGHT); autoCloseBorder.setArcHeight(AUTO_CLOSE_HEIGHT);
+        autoCloseBorder.setFill(Color.TRANSPARENT);
+        autoCloseBorder.setStroke(THEME_STROKE);
+        autoCloseBorder.setStrokeWidth(AUTO_CLOSE_STROKE);
+        autoCloseBorder.setStrokeType(StrokeType.INSIDE);
+
+        lblAutoCloseText.setFont(getBoldFont(16));
+        lblAutoCloseText.setTextFill(THEME_STROKE);
+
+        StackPane.setAlignment(autoCloseBg, Pos.CENTER);
+        StackPane.setAlignment(autoCloseFillWrapper, Pos.CENTER);
+        StackPane.setAlignment(autoCloseBorder, Pos.CENTER);
+        StackPane.setAlignment(lblAutoCloseText, Pos.CENTER);
+
+        // [중요] 왼쪽 테두리만큼 여백 추가하여 침범 방지
+        StackPane.setMargin(autoCloseFill, new Insets(0, 0, 0, AUTO_CLOSE_STROKE));
+
+        autoCloseContainer.getChildren().setAll(autoCloseBg, autoCloseFillWrapper, autoCloseBorder, lblAutoCloseText);
+        autoCloseContainer.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
 
         lblRematchStatus.setFont(getBoldFont(14));
-        lblRematchStatus.setMinHeight(20);
+        lblRematchStatus.setMinHeight(25);
     }
 
     private void buildUI() {
@@ -277,14 +324,14 @@ public class LandGrabMatchView {
                 new Region() {{ setMinHeight(10); }},
                 btnBox,
                 lblRematchStatus,
-                autoCloseBar // 이제 잘리지 않고 맨 아래에 나옵니다
+                autoCloseContainer
         );
         gameOverOverlay.getChildren().add(gameOverBox);
 
         root.getChildren().addAll(mainLayout, gameOverOverlay);
     }
 
-    // ... (나머지 기존 코드 동일) ...
+    // ... (Header 등 기존 코드) ...
     private StackPane buildUnifiedHeader() {
         StackPane headerContainer = new StackPane(); headerContainer.setPadding(new Insets(0, 0, 10, 0)); headerContainer.setAlignment(Pos.CENTER);
         Rectangle bg = new Rectangle(1100, 110); bg.setArcWidth(40); bg.setArcHeight(40); bg.setFill(Color.rgb(255, 248, 225, 0.7)); bg.setStroke(Color.rgb(93, 64, 55, 0.2)); bg.setStrokeWidth(2);
@@ -373,7 +420,6 @@ public class LandGrabMatchView {
     public Button getRematchButton() { return btnRematch; }
     public Button getQuitButton() { return btnQuit; }
 
-    // 타이머 업데이트 (정밀 보정 유지)
     public void setTimeText(String text) {
         try {
             String numStr = text.replaceAll("[^0-9.]", "");
@@ -429,16 +475,43 @@ public class LandGrabMatchView {
         startAutoCloseTimer();
     }
 
+    // [수정] 게임 오버 타이머 로직 (핏 보정 적용)
     private void startAutoCloseTimer() {
         if (autoCloseTimeline != null) autoCloseTimeline.stop();
-        autoCloseBar.setProgress(1.0);
-        autoCloseBar.setStyle("-fx-accent: " + toHex(COLOR_P1) + "; -fx-control-inner-background: #D7CCC8; -fx-background-radius: 10; -fx-border-radius: 10; -fx-border-color: #5D4037; -fx-border-width: 2px;");
-        autoCloseTimeline = new Timeline(new KeyFrame(Duration.seconds(0.1), e -> {
-            double p = autoCloseBar.getProgress(); double newP = p - (0.1 / 30.0);
-            if (newP <= 0) { autoCloseBar.setProgress(0); autoCloseTimeline.stop(); performClose(); }
-            else { autoCloseBar.setProgress(newP); if (newP < 0.2) autoCloseBar.setStyle("-fx-accent: #FF5252; -fx-control-inner-background: #D7CCC8; -fx-background-radius: 10; -fx-border-radius: 10; -fx-border-color: #5D4037; -fx-border-width: 2px;"); }
+
+        final double TOTAL_SECONDS = 30.0;
+        final double UPDATE_INTERVAL = 0.1;
+
+        double innerMaxWidth = AUTO_CLOSE_WIDTH - (AUTO_CLOSE_STROKE * 2);
+        autoCloseFill.setWidth(innerMaxWidth); // 꽉 찬 상태로 시작
+        autoCloseFill.setFill(COLOR_P1);
+
+        autoCloseTimeline = new Timeline(new KeyFrame(Duration.seconds(UPDATE_INTERVAL), e -> {
+            double currentWidth = autoCloseFill.getWidth();
+            double decreaseAmount = (innerMaxWidth * UPDATE_INTERVAL) / TOTAL_SECONDS;
+            double newWidth = currentWidth - decreaseAmount;
+
+            if (newWidth <= 0) {
+                autoCloseFill.setWidth(0);
+                autoCloseTimeline.stop();
+                performClose();
+            } else {
+                autoCloseFill.setWidth(newWidth);
+                // 전체 비율 기준 시간 표시
+                double ratio = newWidth / innerMaxWidth;
+                lblAutoCloseText.setText(String.valueOf((int)Math.ceil(ratio * TOTAL_SECONDS)));
+
+                if (ratio < 0.2) {
+                    autoCloseFill.setFill(COLOR_P2);
+                    lblAutoCloseText.setTextFill(Color.RED);
+                } else {
+                    autoCloseFill.setFill(COLOR_P1);
+                    lblAutoCloseText.setTextFill(THEME_STROKE);
+                }
+            }
         }));
-        autoCloseTimeline.setCycleCount(Timeline.INDEFINITE); autoCloseTimeline.play();
+        autoCloseTimeline.setCycleCount(Timeline.INDEFINITE);
+        autoCloseTimeline.play();
     }
 
     public void hideGameOver() { gameOverOverlay.setVisible(false); if (autoCloseTimeline != null) autoCloseTimeline.stop(); }
