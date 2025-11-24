@@ -2,11 +2,12 @@ package typingarena.minigames.landgrab;
 
 import javafx.animation.FadeTransition;
 import javafx.animation.PauseTransition;
-import javafx.animation.ScaleTransition;
+import javafx.animation.ScaleTransition; // [수정] 이 부분이 빠져서 오류가 났습니다. 추가 완료!
 import javafx.application.Platform;
 import javafx.geometry.HPos;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Group;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Button;
@@ -26,22 +27,20 @@ import javafx.scene.shape.Rectangle;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
-import javafx.scene.transform.Scale; // [중요] Scale 객체 사용
+import javafx.scene.transform.Scale;
 import javafx.util.Duration;
 
 public class LandGrabMatchView {
 
-    // [레이아웃] 루트 패널 (강제 좌표 제어용 Pane)
-    private final Pane mainRoot = new Pane();
+    // [1] 최상위 루트: 윈도우 배경 (여백이 생길 경우 이 색상이 보임)
+    private final StackPane mainRoot = new StackPane();
 
-    // [콘텐츠] 1280x800 고정 크기 패널
+    // [2] 스케일링 그룹: 게임 콘텐츠를 통째로 담아서 확대/축소할 컨테이너
+    private final Group contentGroup = new Group();
+
+    // [3] 실제 콘텐츠 패널: 개발 기준 해상도 (1200 x 800)
     private final StackPane contentPane = new StackPane();
-
-    // [스케일] 확대/축소를 담당할 변환 객체 (Pivot 0,0 설정)
-    private final Scale contentScale = new Scale(1, 1, 0, 0);
-
-    // 기준 해상도
-    private static final double BASE_WIDTH = 1280;
+    private static final double BASE_WIDTH = 1200;
     private static final double BASE_HEIGHT = 800;
 
     private final BorderPane gameRoot = new BorderPane();
@@ -71,7 +70,8 @@ public class LandGrabMatchView {
     private final HBox controlBox = new HBox(10);
 
     // --- Game Over Overlay ---
-    private final VBox gameOverOverlay = new VBox(20);
+    private final StackPane gameOverOverlay = new StackPane();
+    private final VBox resultBox = new VBox(20);
     private final Label lblResultTitle = new Label("VICTORY");
     private final Label lblResultReason = new Label("");
     private final Label lblResultScore = new Label("");
@@ -85,60 +85,51 @@ public class LandGrabMatchView {
     public LandGrabMatchView() {
         this.landGrabPanel = new LandGrabPanel();
 
-        // 1. 배경색 설정
+        // 1. 전체 배경색
         mainRoot.setStyle("-fx-background-color: #FFF3E0;");
 
-        // 2. 콘텐츠 패널 설정 (크기 고정)
+        // 2. 콘텐츠 패널 설정 (기준 해상도 고정)
         contentPane.setPrefSize(BASE_WIDTH, BASE_HEIGHT);
         contentPane.setMinSize(BASE_WIDTH, BASE_HEIGHT);
         contentPane.setMaxSize(BASE_WIDTH, BASE_HEIGHT);
         contentPane.setStyle("-fx-background-color: transparent;");
 
-        // [수정 핵심] Scale 변환 객체를 콘텐츠 패널에 등록
-        contentPane.getTransforms().add(contentScale);
-
         // 3. UI 조립
         buildGameUI();
 
-        // 4. 루트에 추가
-        mainRoot.getChildren().add(contentPane);
+        // 4. 구조 연결: Root -> Group -> ContentPane
+        contentGroup.getChildren().add(contentPane);
+        mainRoot.getChildren().add(contentGroup);
 
-        // 5. 리사이즈 리스너
-        mainRoot.widthProperty().addListener((obs, o, n) -> resizeContent());
-        mainRoot.heightProperty().addListener((obs, o, n) -> resizeContent());
+        // 5. 리사이즈 리스너 (정석 레터박스 스케일링)
+        mainRoot.widthProperty().addListener((o, oldVal, newVal) -> scaleContent());
+        mainRoot.heightProperty().addListener((o, oldVal, newVal) -> scaleContent());
 
-        // 초기화
-        Platform.runLater(this::resizeContent);
+        // 초기화 시 강제 호출
+        Platform.runLater(this::scaleContent);
     }
 
-    // [수정 핵심] 수동 레이아웃 및 스케일 적용 로직
-    private void resizeContent() {
-        double windowWidth = mainRoot.getWidth();
-        double windowHeight = mainRoot.getHeight();
+    // =================================================================================
+    // [핵심 로직] 레터박스 스케일링 (Fit Inside)
+    // =================================================================================
+    private void scaleContent() {
+        double width = mainRoot.getWidth();
+        double height = mainRoot.getHeight();
 
-        if (windowWidth <= 0 || windowHeight <= 0) return;
+        if (width == 0 || height == 0) return;
 
-        // 1. 배율 계산 (Fit Inside)
-        double scaleX = windowWidth / BASE_WIDTH;
-        double scaleY = windowHeight / BASE_HEIGHT;
+        // 1. 가로/세로 비율 계산
+        double scaleX = width / BASE_WIDTH;
+        double scaleY = height / BASE_HEIGHT;
+
+        // 2. 더 작은 비율을 선택 (화면 밖으로 나가지 않게 함)
         double scale = Math.min(scaleX, scaleY);
 
-        // 2. Scale 객체 업데이트 (Scale 객체는 setPivotX/Y를 가지고 있음 - 기본값 0,0)
-        contentScale.setX(scale);
-        contentScale.setY(scale);
-        // contentScale.setPivotX(0); // 이미 생성자에서 0으로 설정됨
-        // contentScale.setPivotY(0);
+        // 3. Group에 스케일 적용
+        contentGroup.setScaleX(scale);
+        contentGroup.setScaleY(scale);
 
-        // 3. 중앙 정렬을 위한 좌표 계산
-        double actualWidth = BASE_WIDTH * scale;
-        double actualHeight = BASE_HEIGHT * scale;
-
-        double x = (windowWidth - actualWidth) / 2;
-        double y = (windowHeight - actualHeight) / 2;
-
-        // 4. 좌표 강제 이동
-        contentPane.setLayoutX(x);
-        contentPane.setLayoutY(y);
+        // 4. StackPane 덕분에 Group은 항상 화면 정중앙에 위치함
     }
 
     private void buildGameUI() {
@@ -158,7 +149,6 @@ public class LandGrabMatchView {
         StackPane centerWrapper = new StackPane(landGrabPanel);
         centerWrapper.setPadding(new Insets(10));
         centerWrapper.setEffect(new DropShadow(25, Color.rgb(0,0,0,0.25)));
-        centerWrapper.setMinSize(0, 0);
         gameRoot.setCenter(centerWrapper);
 
         setupInputBar();
@@ -173,25 +163,31 @@ public class LandGrabMatchView {
         return mainRoot;
     }
 
-    // --- HUD 및 디자인 요소 ---
+    // --- UI 구성 요소 ---
 
     private StackPane createStyledHeader() {
         StackPane root = new StackPane();
         root.setMaxHeight(160);
+
         StackPane bg = new StackPane();
         bg.setMaxHeight(140);
         bg.setStyle("-fx-background-color: rgba(255,255,255,0.95); -fx-background-radius: 0 0 60 60; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.15), 15, 0, 0, 5);");
         StackPane.setAlignment(bg, Pos.TOP_CENTER);
+
         GridPane grid = new GridPane();
         grid.setAlignment(Pos.CENTER);
         grid.setPadding(new Insets(10, 40, 0, 40));
+
         ColumnConstraints colLeft = new ColumnConstraints(); colLeft.setPercentWidth(33); colLeft.setHalignment(HPos.LEFT);
         ColumnConstraints colCenter = new ColumnConstraints(); colCenter.setPercentWidth(34); colCenter.setHalignment(HPos.CENTER);
         ColumnConstraints colRight = new ColumnConstraints(); colRight.setPercentWidth(33); colRight.setHalignment(HPos.RIGHT);
+
         grid.getColumnConstraints().addAll(colLeft, colCenter, colRight);
+
         VBox timeGaugeBox = createGlossyTimeBar(); grid.add(timeGaugeBox, 0, 0);
         HBox scoreBoard = createScoreBoard(); grid.add(scoreBoard, 1, 0);
         VBox comboUI = createComboUI(); grid.add(comboUI, 2, 0);
+
         root.getChildren().addAll(bg, grid);
         return root;
     }
@@ -213,8 +209,8 @@ public class LandGrabMatchView {
 
     private HBox createScoreBoard() {
         HBox scoreBoard = new HBox(20); scoreBoard.setAlignment(Pos.CENTER);
-        StackPane myScorePanel = createScorePanel(txtMyName, txtMyScore, Color.web("#0288D1"), true);
-        StackPane oppScorePanel = createScorePanel(txtOppName, txtAiScore, Color.web("#D32F2F"), false);
+        StackPane myScorePanel = createScorePanel(txtMyName, txtMyScore, Color.web("#0288D1"));
+        StackPane oppScorePanel = createScorePanel(txtOppName, txtAiScore, Color.web("#D32F2F"));
         Text txtVS = new Text("VS"); txtVS.setFont(Font.font("Impact", 60));
         txtVS.setFill(new LinearGradient(0,0,0,1, true, CycleMethod.NO_CYCLE, new Stop(0, Color.LIGHTGRAY), new Stop(0.5, Color.GRAY), new Stop(1, Color.DARKGRAY)));
         txtVS.setEffect(new DropShadow(5, Color.WHITE));
@@ -231,7 +227,7 @@ public class LandGrabMatchView {
         return comboContainer;
     }
 
-    private StackPane createScorePanel(Text nameTxt, Text scoreTxt, Color themeColor, boolean isLeft) {
+    private StackPane createScorePanel(Text nameTxt, Text scoreTxt, Color themeColor) {
         StackPane panel = new StackPane(); panel.setMinWidth(200); panel.setMaxWidth(200);
         Rectangle bg = new Rectangle(200, 80); bg.setArcWidth(20); bg.setArcHeight(20);
         bg.setFill(new LinearGradient(0, 0, 0, 1, true, CycleMethod.NO_CYCLE, new Stop(0, Color.WHITE), new Stop(1, Color.web("#F5F5F5"))));
@@ -244,7 +240,6 @@ public class LandGrabMatchView {
         return panel;
     }
 
-    // --- Getter & Setter ---
     public LandGrabPanel getLandGrabPanel() { return landGrabPanel; }
     public TextField getInputField() { return inputField; }
     public Button getRematchButton() { return btnRematch; }
@@ -313,7 +308,6 @@ public class LandGrabMatchView {
         }
     }
 
-    // [참고] LandGrabGame에서 이 메서드들을 호출할 수 있도록 유지
     public void flashHit() { landGrabPanel.flashHit(); }
     public void flashMiss() { landGrabPanel.flashMiss(); }
     public void flashItem(Color color) { landGrabPanel.flashBuffColor(color); }
@@ -330,9 +324,9 @@ public class LandGrabMatchView {
     }
 
     private void setupGameOverOverlay() {
-        gameOverOverlay.setAlignment(Pos.CENTER);
         gameOverOverlay.setStyle("-fx-background-color: rgba(0, 0, 0, 0.85);");
         gameOverOverlay.setVisible(false);
+        resultBox.setAlignment(Pos.CENTER);
 
         lblResultTitle.setFont(Font.font("Impact", 70)); lblResultTitle.setEffect(new Glow(0.8));
         lblResultReason.setFont(Font.font("Malgun Gothic", FontWeight.BOLD, 20)); lblResultReason.setTextFill(Color.LIGHTGRAY);
@@ -352,7 +346,8 @@ public class LandGrabMatchView {
         blinkAnimation.setCycleCount(FadeTransition.INDEFINITE);
 
         HBox btnBox = new HBox(30, btnQuit, btnRematch); btnBox.setAlignment(Pos.CENTER);
-        gameOverOverlay.getChildren().addAll(lblResultTitle, lblResultReason, lblResultScore, lblRematchNoti, btnBox, lblCooldown);
+        resultBox.getChildren().addAll(lblResultTitle, lblResultReason, lblResultScore, lblRematchNoti, btnBox, lblCooldown);
+        gameOverOverlay.getChildren().add(resultBox);
     }
 
     private void styleButton(Button btn, String colorHex) {
@@ -404,7 +399,7 @@ public class LandGrabMatchView {
     }
 
     private VBox createLeftInfoPanel() {
-        VBox panel = new VBox(15); panel.setPadding(new Insets(20, 15, 20, 20)); panel.setAlignment(Pos.TOP_LEFT);
+        VBox panel = new VBox(15); panel.setPadding(new Insets(20, 15, 20, 15)); panel.setAlignment(Pos.TOP_LEFT);
         panel.setStyle("-fx-background-color: rgba(255,255,255,0.5); -fx-background-radius: 0 20 20 0;");
         Label title = new Label("HOW TO PLAY"); title.setFont(Font.font("Impact", 20)); title.setTextFill(Color.web("#3E2723")); title.setUnderline(true);
         VBox goalBox = new VBox(5);
