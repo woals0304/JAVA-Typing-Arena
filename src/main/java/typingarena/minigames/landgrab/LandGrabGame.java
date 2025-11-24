@@ -51,8 +51,10 @@ public class LandGrabGame extends Stage {
     private long confusionUntilPlayer = 0L;
 
     public LandGrabGame() {
-        setTitle("Typing Arena - 땅따먹기 (Single)");
+        setTitle("싱글 땅따먹기 ");
         initModality(Modality.NONE);
+
+        setResizable(false);
 
         inputField.setDisable(true);
 

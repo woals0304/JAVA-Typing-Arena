@@ -37,6 +37,7 @@ public class LandGrabOnlineStage extends Stage {
         this.client = client;
         this.myNickname = myNickname;
         setTitle("온라인 땅따먹기");
+        setResizable(false);
 
         // [1] UI 이벤트 연결
         view.getInputField().setOnAction(e -> submitWord());
