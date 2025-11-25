@@ -22,6 +22,9 @@ public class LandGrabEffects {
     private long comboGuardUntilA = 0L;
     private long comboGuardUntilB = 0L;
 
+    private ItemType lastActivatedItem = ItemType.NONE;
+    private long lastItemActivatedAt = 0L;
+
     // ===== 메서드 =====
 
     public boolean isTileBlinded(int r, int c, boolean isPlayerA) {
@@ -76,6 +79,14 @@ public class LandGrabEffects {
         else comboGuardUntilB = now + durationMs;
     }
 
+    public void recordItemActivation(ItemType itemType) {
+        this.lastActivatedItem = itemType;
+        this.lastItemActivatedAt = System.currentTimeMillis();
+    }
+
+    public ItemType getLastActivatedItem() { return lastActivatedItem; }
+    public long getLastItemActivatedAt() { return lastItemActivatedAt; }
+
     public void clearAll() {
         blindedTilesA.clear();
         blindedTilesB.clear();
@@ -83,5 +94,18 @@ public class LandGrabEffects {
         barrierUntilB = 0L;
         comboGuardUntilA = 0L;
         comboGuardUntilB = 0L;
+        lastActivatedItem = ItemType.NONE;
+        lastItemActivatedAt = 0L;
+    }
+
+    public String describeEffects(boolean isPlayerA) {
+        cleanupExpiredTiles();
+        StringBuilder sb = new StringBuilder();
+        List<BlindedTile> myList = isPlayerA ? blindedTilesA : blindedTilesB;
+
+        if (!myList.isEmpty()) sb.append("[먹물 ").append(myList.size()).append("] ");
+        if (isBarrierActive(isPlayerA)) sb.append("[보호막] ");
+        if (isComboGuardActive(isPlayerA)) sb.append("[콤보가드] ");
+        return sb.length() == 0 ? "효과: 없음" : "효과: " + sb.toString().trim();
     }
 }

@@ -13,6 +13,7 @@ import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.control.ProgressBar;
 import javafx.scene.control.Separator;
 import javafx.scene.control.TextField;
 import javafx.scene.effect.DropShadow;
@@ -412,12 +413,7 @@ public class LandGrabMatchView {
             case "CONFUSION" -> { gc.setFill(Color.MAGENTA); gc.setFont(Font.font("Arial", FontWeight.BOLD, 20)); gc.fillText("?", 7, 20); }
         }
     }
-    private void updateScale() {
-        double scale = Math.min(root.getWidth() / BASE_WIDTH, root.getHeight() / BASE_HEIGHT);
-        if (Double.isNaN(scale) || Double.isInfinite(scale) || scale <= 0) return;
-        contentScale.setX(scale);
-        contentScale.setY(scale);
-    }
+    private void updateScale() { }
     public StackPane getRoot() { return root; }
     public LandGrabPanel getLandGrabPanel() { return landGrabPanel; }
     public TextField getInputField() { return inputField; }
@@ -460,6 +456,7 @@ public class LandGrabMatchView {
     public void setPlayerNames(String myName, String oppName) { txtMyName.setText(myName); txtOppName.setText(oppName); }
     public void flashHit() { landGrabPanel.flashHit(); }
     public void flashMiss() { landGrabPanel.flashMiss(); }
+    public void flashItem(Color color) { landGrabPanel.flashBuffColor(color); }
 
     public void showGameOver(boolean isWin, String reason, int myScore, int oppScore) {
         if (reason.contains("무승부") || myScore == oppScore) {

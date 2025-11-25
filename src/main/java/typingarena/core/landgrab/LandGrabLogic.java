@@ -142,6 +142,7 @@ public class LandGrabLogic {
             else resultItem = ItemType.TRAP_CONFUSION;
         }
 
+        if (resultItem != ItemType.NONE) effects.recordItemActivation(resultItem);
         return resultItem;
     }
 

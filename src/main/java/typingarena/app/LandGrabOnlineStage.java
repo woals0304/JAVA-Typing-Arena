@@ -3,9 +3,7 @@ package typingarena.app;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
-import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
-import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 import typingarena.core.landgrab.LandGrabViewState;
@@ -39,6 +37,7 @@ public class LandGrabOnlineStage extends Stage {
         this.client = client;
         this.myNickname = myNickname;
         setTitle("온라인 땅따먹기");
+        setResizable(false);
 
         // [1] UI 이벤트 연결
         view.getInputField().setOnAction(e -> submitWord());
@@ -54,13 +53,8 @@ public class LandGrabOnlineStage extends Stage {
             close();
         });
 
-        Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
-        double targetW = Math.min(1200, bounds.getWidth() * 0.9);
-        double targetH = Math.min(800, bounds.getHeight() * 0.9);
-        Scene scene = new Scene(view.getRoot(), targetW, targetH);
+        Scene scene = new Scene(view.getRoot(), 1200, 800);
         setScene(scene);
-        setMinWidth(Math.min(1100, bounds.getWidth() * 0.85));
-        setMinHeight(Math.min(720, bounds.getHeight() * 0.85));
 
         // 창 X버튼 눌렀을 때
         setOnCloseRequest(e -> {
