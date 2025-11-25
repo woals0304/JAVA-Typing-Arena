@@ -1,6 +1,8 @@
 package typingarena.minigames.tugofwar;
 
+import javafx.animation.KeyFrame;
 import javafx.animation.ScaleTransition;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.collections.ListChangeListener;
 import javafx.geometry.HPos;
@@ -109,6 +111,32 @@ public class TugOfWarMatchView {
     private final TextField inputField = new TextField();
     private final HBox controlBox = new HBox(12);
 
+    // Game Over Overlay
+    private final StackPane gameOverOverlay = new StackPane();
+    private final VBox gameOverBox = new VBox(15);
+    private final Label lblResultTitle = new Label("RESULT");
+    private final Label lblResultDetail = new Label("");
+    private final Label lblResultExtra = new Label("");
+    private final Button btnRematch = new Button("재경기 신청");
+    private final Button btnQuit = new Button("나가기");
+    private final Label lblRematchStatus = new Label("");
+
+    // auto-close bar
+    private final StackPane autoCloseContainer = new StackPane();
+    private final Rectangle autoCloseBg = new Rectangle();
+    private final Rectangle autoCloseFill = new Rectangle();
+    private final StackPane autoCloseFillWrapper = new StackPane();
+    private final Rectangle autoCloseClip = new Rectangle();
+    private final Rectangle autoCloseBorder = new Rectangle();
+    private final Label lblAutoCloseText = new Label("30");
+
+    private final double AUTO_CLOSE_WIDTH = 280.0;
+    private final double AUTO_CLOSE_HEIGHT = 32.0;
+    private final double AUTO_CLOSE_STROKE = 3.0;
+
+    private Timeline autoCloseTimeline;
+    private Runnable onCloseAction;
+
     private double lastTimeMs = 60_000;
 
     public TugOfWarMatchView() {
@@ -196,6 +224,14 @@ public class TugOfWarMatchView {
         lblLastItem.setTextFill(THEME_TEXT_MAIN);
         lblEffects.setWrapText(true);
         lblLastItem.setWrapText(true);
+
+        // Game over labels
+        lblResultTitle.setFont(getBoldFont(46));
+        lblResultDetail.setFont(getBoldFont(20));
+        lblResultExtra.setFont(getBoldFont(16));
+
+        lblRematchStatus.setFont(getBoldFont(14));
+        lblRematchStatus.setMinHeight(25);
     }
 
     private void buildUI() {
@@ -211,6 +247,8 @@ public class TugOfWarMatchView {
         mainLayout.setBottom(bottom);
 
         gameContent.getChildren().add(mainLayout);
+        buildGameOverOverlay();
+        gameContent.getChildren().add(gameOverOverlay);
     }
 
     private StackPane buildUnifiedHeader() {
@@ -589,6 +627,10 @@ public class TugOfWarMatchView {
                 }
             }
         });
+
+        // 게임오버 버튼 기본 스타일
+        styleCookieButton(btnRematch, COLOR_P1);
+        styleCookieButton(btnQuit, COLOR_P2);
     }
 
     private void styleCookieButton(Button btn, Color color) {
@@ -612,6 +654,73 @@ public class TugOfWarMatchView {
         contentScale.setY(scale);
     }
 
+    private void buildGameOverOverlay() {
+        gameOverOverlay.setStyle("-fx-background-color: rgba(0, 0, 0, 0.6);");
+        gameOverOverlay.setVisible(false);
+
+        gameOverBox.setAlignment(Pos.CENTER);
+        gameOverBox.setMinWidth(480);
+        gameOverBox.setMaxWidth(550);
+        gameOverBox.setMaxHeight(Region.USE_PREF_SIZE);
+        gameOverBox.setPadding(new Insets(30));
+        gameOverBox.setStyle("-fx-background-color: #FFF8E1; -fx-background-radius: 40; -fx-border-color: #5D4037; -fx-border-width: 6px; -fx-border-radius: 40; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.5), 20, 0, 0, 10);");
+
+        // Auto close bar styled to match main timer
+        autoCloseBg.setWidth(AUTO_CLOSE_WIDTH); autoCloseBg.setHeight(AUTO_CLOSE_HEIGHT);
+        autoCloseBg.setArcWidth(AUTO_CLOSE_HEIGHT); autoCloseBg.setArcHeight(AUTO_CLOSE_HEIGHT);
+        autoCloseBg.setFill(COLOR_TIMER_BG);
+        autoCloseBg.setStroke(null);
+
+        double acInnerH = AUTO_CLOSE_HEIGHT - (AUTO_CLOSE_STROKE * 2);
+        double acInnerW = AUTO_CLOSE_WIDTH - (AUTO_CLOSE_STROKE * 2);
+
+        autoCloseFill.setWidth(acInnerW); autoCloseFill.setHeight(acInnerH);
+        autoCloseFill.setArcWidth(0); autoCloseFill.setArcHeight(0);
+        autoCloseFill.setFill(COLOR_P1);
+        autoCloseFill.setStroke(null);
+
+        autoCloseClip.setWidth(AUTO_CLOSE_WIDTH); autoCloseClip.setHeight(AUTO_CLOSE_HEIGHT);
+        autoCloseClip.setArcWidth(AUTO_CLOSE_HEIGHT); autoCloseClip.setArcHeight(AUTO_CLOSE_HEIGHT);
+
+        autoCloseFillWrapper.setMaxSize(AUTO_CLOSE_WIDTH, AUTO_CLOSE_HEIGHT);
+        autoCloseFillWrapper.setAlignment(Pos.CENTER_LEFT);
+        if (autoCloseFillWrapper.getChildren().isEmpty()) autoCloseFillWrapper.getChildren().add(autoCloseFill);
+        autoCloseFillWrapper.setClip(autoCloseClip);
+
+        autoCloseBorder.setWidth(AUTO_CLOSE_WIDTH); autoCloseBorder.setHeight(AUTO_CLOSE_HEIGHT);
+        autoCloseBorder.setArcWidth(AUTO_CLOSE_HEIGHT); autoCloseBorder.setArcHeight(AUTO_CLOSE_HEIGHT);
+        autoCloseBorder.setFill(Color.TRANSPARENT);
+        autoCloseBorder.setStroke(THEME_STROKE);
+        autoCloseBorder.setStrokeWidth(AUTO_CLOSE_STROKE);
+        autoCloseBorder.setStrokeType(StrokeType.INSIDE);
+
+        lblAutoCloseText.setFont(getBoldFont(16));
+        lblAutoCloseText.setTextFill(THEME_STROKE);
+
+        StackPane.setAlignment(autoCloseBg, Pos.CENTER);
+        StackPane.setAlignment(autoCloseFillWrapper, Pos.CENTER);
+        StackPane.setAlignment(autoCloseBorder, Pos.CENTER);
+        StackPane.setAlignment(lblAutoCloseText, Pos.CENTER);
+        StackPane.setMargin(autoCloseFill, new Insets(0, 0, 0, AUTO_CLOSE_STROKE));
+
+        autoCloseContainer.getChildren().setAll(autoCloseBg, autoCloseFillWrapper, autoCloseBorder, lblAutoCloseText);
+        autoCloseContainer.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+
+        HBox buttons = new HBox(12, btnQuit, btnRematch);
+        buttons.setAlignment(Pos.CENTER);
+        buttons.setPadding(new Insets(10, 0, 0, 0));
+
+        gameOverBox.getChildren().setAll(
+                lblResultTitle,
+                lblResultDetail,
+                lblResultExtra,
+                buttons,
+                lblRematchStatus,
+                autoCloseContainer
+        );
+        gameOverOverlay.getChildren().add(gameOverBox);
+    }
+
     // ===== 외부 노출 =====
     public StackPane getRoot() {
         return root;
@@ -627,6 +736,37 @@ public class TugOfWarMatchView {
 
     public HBox getControlBox() {
         return controlBox;
+    }
+
+    public Button getRematchButton() { return btnRematch; }
+    public Button getQuitButton() { return btnQuit; }
+    public Label getRematchStatusLabel() { return lblRematch; }
+    public void setOnCloseAction(Runnable action) { this.onCloseAction = action; }
+
+    public void showGameOver(String title, String detail, String extra, Color accent, String rematchText, String quitText) {
+        if (autoCloseTimeline != null) autoCloseTimeline.stop();
+        lblResultTitle.setText(title);
+        lblResultDetail.setText(detail);
+        lblResultExtra.setText(extra);
+        lblResultTitle.setTextFill(accent);
+        lblResultDetail.setTextFill(THEME_TEXT_MAIN);
+        lblResultExtra.setTextFill(THEME_TEXT_MUTED);
+        lblRematchStatus.setText("");
+        btnRematch.setDisable(false);
+        btnQuit.setDisable(false);
+        btnRematch.setText(rematchText);
+        btnQuit.setText(quitText);
+        styleCookieButton(btnRematch, accent);
+        styleCookieButton(btnQuit, COLOR_P2);
+
+        gameOverOverlay.setVisible(true);
+        gameOverOverlay.toFront();
+        startAutoCloseTimer();
+    }
+
+    public void hideGameOver() {
+        gameOverOverlay.setVisible(false);
+        if (autoCloseTimeline != null) autoCloseTimeline.stop();
     }
 
     // ===== HUD 업데이트 =====
@@ -709,13 +849,52 @@ public class TugOfWarMatchView {
         ropePanel.flashBuffColor(color);
     }
 
-    public Label getRematchStatusLabel() {
-        return lblRematch;
-    }
-
     public void setRematchStatus(String text, boolean accent) {
         lblRematch.setText(text);
         lblRematch.setTextFill(accent ? REMATCH_ACCENT : REMATCH_MUTED);
+    }
+
+    // ===== Game over timer =====
+    private void startAutoCloseTimer() {
+        if (autoCloseTimeline != null) autoCloseTimeline.stop();
+
+        final double TOTAL_SECONDS = 30.0;
+        final double UPDATE_INTERVAL = 0.1;
+
+        double innerMaxWidth = AUTO_CLOSE_WIDTH - (AUTO_CLOSE_STROKE * 2);
+        autoCloseFill.setWidth(innerMaxWidth);
+        autoCloseFill.setFill(COLOR_P1);
+
+        autoCloseTimeline = new Timeline(new KeyFrame(Duration.seconds(UPDATE_INTERVAL), e -> {
+            double currentWidth = autoCloseFill.getWidth();
+            double decreaseAmount = (innerMaxWidth * UPDATE_INTERVAL) / TOTAL_SECONDS;
+            double newWidth = currentWidth - decreaseAmount;
+
+            if (newWidth <= 0) {
+                autoCloseFill.setWidth(0);
+                autoCloseTimeline.stop();
+                performClose();
+            } else {
+                autoCloseFill.setWidth(newWidth);
+                double ratio = newWidth / innerMaxWidth;
+                lblAutoCloseText.setText(String.valueOf((int) Math.ceil(ratio * TOTAL_SECONDS)));
+
+                if (ratio < 0.2) {
+                    autoCloseFill.setFill(COLOR_P2);
+                    lblAutoCloseText.setTextFill(Color.RED);
+                } else {
+                    autoCloseFill.setFill(COLOR_P1);
+                    lblAutoCloseText.setTextFill(THEME_STROKE);
+                }
+            }
+        }));
+        autoCloseTimeline.setCycleCount(Timeline.INDEFINITE);
+        autoCloseTimeline.play();
+    }
+
+    private void performClose() {
+        if (autoCloseTimeline != null) autoCloseTimeline.stop();
+        if (onCloseAction != null) onCloseAction.run();
     }
 
     // ===== 유틸 =====

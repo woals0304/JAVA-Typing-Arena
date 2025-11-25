@@ -4,7 +4,6 @@ import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.TextField;
 import javafx.scene.paint.Color;
@@ -24,6 +23,8 @@ public class TugOfWarGame extends Stage {
     private final RopePanel ropePanel = view.getRopePanel();
     private final TextField inputField = view.getInputField();
     private final Button startButton = new Button("게임 시작");
+    private final Button overlayPrimary = view.getRematchButton();
+    private final Button overlaySecondary = view.getQuitButton();
 
     private final Timeline gameLoop;
     private long lastItemNotifiedAt = 0L;
@@ -35,6 +36,9 @@ public class TugOfWarGame extends Stage {
         startButton.setOnAction(e -> startGame());
         startButton.setFont(inputField.getFont());
         view.getControlBox().getChildren().add(startButton);
+
+        overlayPrimary.setOnAction(e -> startGame());
+        overlaySecondary.setOnAction(e -> close());
 
         Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
         double targetW = Math.min(1280, bounds.getWidth() * 0.9);
@@ -69,6 +73,7 @@ public class TugOfWarGame extends Stage {
     }
 
     private void startGame() {
+        view.hideGameOver();
         logic.startGame();
         startButton.setDisable(true);
         inputField.setDisable(false);
@@ -112,17 +117,17 @@ public class TugOfWarGame extends Stage {
             gameLoop.stop();
             startButton.setDisable(false);
             inputField.setDisable(true);
-            showResultDialog(result);
+            boolean isWin = result.contains("승리");
+            boolean isDraw = result.contains("무승부");
+            String extra = "점수: " + logic.getScore() + " / 콤보: " + logic.getCombo();
+            if (isDraw) {
+                view.showGameOver("DRAW", result, extra, Color.web("#9575CD"), "다시하기", "닫기");
+            } else if (isWin) {
+                view.showGameOver("VICTORY!", result, extra, Color.web("#FFD54F"), "다시하기", "닫기");
+            } else {
+                view.showGameOver("DEFEAT...", result, extra, Color.web("#EF5350"), "다시하기", "닫기");
+            }
         }
-    }
-
-    private void showResultDialog(String message) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("결과");
-        alert.setHeaderText("게임 종료");
-        alert.setContentText(message + "\n점수: " + logic.getScore() + " / 콤보: " + logic.getCombo());
-        alert.initOwner(getOwner() != null ? getOwner() : this);
-        alert.show();
     }
 
     private void updateHUD() {

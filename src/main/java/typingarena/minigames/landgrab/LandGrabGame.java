@@ -3,6 +3,7 @@ package typingarena.minigames.landgrab;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.geometry.Pos;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -15,6 +16,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.stage.Modality;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
@@ -54,8 +56,6 @@ public class LandGrabGame extends Stage {
         setTitle("싱글 땅따먹기 ");
         initModality(Modality.NONE);
 
-        setResizable(false);
-
         inputField.setDisable(true);
 
         styleStartOverlay();
@@ -67,8 +67,13 @@ public class LandGrabGame extends Stage {
         view.getRematchButton().setOnAction(e -> startGame());
         view.getQuitButton().setOnAction(e -> close());
 
-        Scene scene = new Scene(view.getRoot(), 1200, 800);
+        Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
+        double targetW = Math.min(1200, bounds.getWidth() * 0.9);
+        double targetH = Math.min(800, bounds.getHeight() * 0.9);
+        Scene scene = new Scene(view.getRoot(), targetW, targetH);
         setScene(scene);
+        setMinWidth(Math.min(1100, bounds.getWidth() * 0.85));
+        setMinHeight(Math.min(720, bounds.getHeight() * 0.85));
 
         inputField.setOnAction(e -> handleSubmit());
         scene.setOnMouseClicked(e -> {

@@ -28,6 +28,8 @@ public class TugOfWarOnlineStage extends Stage {
     private final Button surrenderBtn = new Button("기권");
     private final Button rematchBtn = new Button("재경기");
     private final javafx.scene.control.Label rematchStatus = view.getRematchStatusLabel();
+    private final Button overlayPrimary = view.getRematchButton();
+    private final Button overlaySecondary = view.getQuitButton();
 
     private String sessionId;
     private boolean running = false;
@@ -46,6 +48,15 @@ public class TugOfWarOnlineStage extends Stage {
         view.setRematchStatus("", false);
 
         view.getInputField().setOnAction(e -> submitWord());
+        overlayPrimary.setOnAction(e -> sendRematchRequest());
+        overlaySecondary.setOnAction(e -> {
+            if (running) sendForfeit();
+            close();
+        });
+        view.setOnCloseAction(() -> {
+            if (running) sendForfeit();
+            close();
+        });
 
         Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
         double targetW = Math.min(1280, bounds.getWidth() * 0.9);
@@ -85,6 +96,9 @@ public class TugOfWarOnlineStage extends Stage {
         rematchBtn.setText("재경기");
         rematchStatus.setText("");
         view.setRematchStatus("", false);
+        view.hideGameOver();
+        overlayPrimary.setText("재경기");
+        overlaySecondary.setText("닫기");
         view.getInputField().clear();
         view.getInputField().requestFocus();
 
@@ -146,6 +160,12 @@ public class TugOfWarOnlineStage extends Stage {
             view.setEffectsText(valueOf(data.get("result")));
             view.setLastItemText(valueOf(data.get("message")));
         }
+        String result = data != null ? valueOf(data.get("result")) : "게임 종료";
+        String message = data != null ? valueOf(data.get("message")) : "";
+        Color accent = Color.web("#9575CD");
+        if (result.contains("승")) accent = Color.web("#FFD54F");
+        else if (result.contains("패")) accent = Color.web("#EF5350");
+        view.showGameOver("MATCH END", result, message, accent, "재경기", "닫기");
     }
 
     private void handleRematchNotice() {

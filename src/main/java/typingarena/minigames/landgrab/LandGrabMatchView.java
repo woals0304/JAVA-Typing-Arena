@@ -412,7 +412,12 @@ public class LandGrabMatchView {
             case "CONFUSION" -> { gc.setFill(Color.MAGENTA); gc.setFont(Font.font("Arial", FontWeight.BOLD, 20)); gc.fillText("?", 7, 20); }
         }
     }
-    private void updateScale() { }
+    private void updateScale() {
+        double scale = Math.min(root.getWidth() / BASE_WIDTH, root.getHeight() / BASE_HEIGHT);
+        if (Double.isNaN(scale) || Double.isInfinite(scale) || scale <= 0) return;
+        contentScale.setX(scale);
+        contentScale.setY(scale);
+    }
     public StackPane getRoot() { return root; }
     public LandGrabPanel getLandGrabPanel() { return landGrabPanel; }
     public TextField getInputField() { return inputField; }
