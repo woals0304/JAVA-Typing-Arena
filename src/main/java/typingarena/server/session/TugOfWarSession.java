@@ -30,6 +30,8 @@ public class TugOfWarSession {
     private boolean running = true;
     private ScheduledFuture<?> ticker;
     private final String gameType = "tug_of_war";
+    private boolean rematchRequestA = false;
+    private boolean rematchRequestB = false;
     
     public TugOfWarSession(ServerContext context, ClientHandler a, ClientHandler b) {
         this.context = context;
@@ -42,6 +44,46 @@ public class TugOfWarSession {
     }
 
     public void start() {
+        resetState();
+        left.assignWord();
+        right.assignWord();
+        sendStart(left, right.getNickname());
+        sendStart(right, left.getNickname());
+        ticker = context.getScheduler().scheduleAtFixedRate(this::tick, 100, 100, TimeUnit.MILLISECONDS);
+    }
+
+    private void resetState() {
+        pos = 0.0;
+        timeMs = 60_000;
+        running = true;
+        rematchRequestA = false;
+        rematchRequestB = false;
+        left.resetScore();
+        right.resetScore();
+        if (ticker != null && !ticker.isCancelled()) {
+            ticker.cancel(true);
+        }
+    }
+
+    public void handleRematchRequest(ClientHandler client) {
+        if (running) return;
+        if (client == left.getClient()) rematchRequestA = true;
+        else if (client == right.getClient()) rematchRequestB = true;
+
+        if (rematchRequestA && rematchRequestB) {
+            restartGame();
+        } else {
+            ClientHandler opponent = (client == left.getClient()) ? right.getClient() : left.getClient();
+            if (opponent != null && opponent.isConnected()) {
+                Message notice = Message.of("GAME_REMATCH_NOTICE");
+                notice.sessionId = this.id;
+                opponent.send(notice);
+            }
+        }
+    }
+
+    private void restartGame() {
+        resetState();
         left.assignWord();
         right.assignWord();
         sendStart(left, right.getNickname());
@@ -89,10 +131,15 @@ public class TugOfWarSession {
     }
 
     public void forfeit(ClientHandler quitter, String reason) {
-        if (!running) return;
+        if (!running) {
+            // 이미 종료 상태라면 세션을 정리
+            dispose();
+            return;
+        }
         PlayerState winner = (quitter == left.getClient()) ? right : left;
         PlayerState loser = (winner == left) ? right : left;
         finish(winner, loser, reason);
+        dispose();
     }
 
     private void applyModifierReward(PlayerState player, PlayerState opponent) {
@@ -169,7 +216,7 @@ public class TugOfWarSession {
     private void finish(PlayerState winner, PlayerState loser, String reason) {
         if (!running) return;
         running = false;
-        dispose();
+        if (ticker != null) ticker.cancel(false);
 
         recordGameResults(winner, loser);
 
@@ -213,6 +260,8 @@ public class TugOfWarSession {
         private void incrementScore() {
             score++;
         }
+
+        private void resetScore() { score = 0; }
 
         private void send(Message m) {
             client.send(m);

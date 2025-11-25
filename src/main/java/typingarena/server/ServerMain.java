@@ -99,10 +99,17 @@ public class ServerMain implements Matchmaker.Listener {
         String sessionId = client.getCurrentSession();
         if (sessionId == null) return;
 
-        // LandGrab 세션만 재경기 지원
+        // LandGrab 세션
         LandGrabSession landGrabSession = context.getLandGrabSessions().get(sessionId);
         if (landGrabSession != null) {
             landGrabSession.handleRematchRequest(client);
+            return;
+        }
+
+        // TugOfWar 세션
+        TugOfWarSession tugSession = context.getTugSessions().get(sessionId);
+        if (tugSession != null) {
+            tugSession.handleRematchRequest(client);
         }
     }
 

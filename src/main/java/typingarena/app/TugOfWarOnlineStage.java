@@ -24,6 +24,8 @@ public class TugOfWarOnlineStage extends Stage {
     private final TugOfWarMatchView view = new TugOfWarMatchView();
     private final RopePanel ropePanel = view.getRopePanel();
     private final Button surrenderBtn = new Button("기권");
+    private final Button rematchBtn = new Button("재경기");
+    private final javafx.scene.control.Label rematchStatus = view.getRematchStatusLabel();
 
     private String sessionId;
     private boolean running = false;
@@ -33,8 +35,13 @@ public class TugOfWarOnlineStage extends Stage {
         setTitle("온라인 줄다리기");
 
         view.getControlBox().getChildren().add(surrenderBtn);
+        view.getControlBox().getChildren().add(rematchBtn);
         surrenderBtn.setDisable(true);
+        rematchBtn.setDisable(true);
         surrenderBtn.setOnAction(e -> sendForfeit());
+        rematchBtn.setOnAction(e -> sendRematchRequest());
+        rematchStatus.setText("");
+        view.setRematchStatus("", false);
 
         view.getInputField().setOnAction(e -> submitWord());
 
@@ -57,6 +64,7 @@ public class TugOfWarOnlineStage extends Stage {
                 case "GAME_START_BROADCAST" -> handleStart(msg);
                 case "GAME_UPDATE_BROADCAST" -> handleUpdate(msg);
                 case "GAME_END_BROADCAST" -> handleEnd(msg);
+                case "GAME_REMATCH_NOTICE" -> handleRematchNotice();
                 default -> {}
             }
         });
@@ -67,6 +75,10 @@ public class TugOfWarOnlineStage extends Stage {
         running = true;
         view.getInputField().setDisable(false);
         surrenderBtn.setDisable(false);
+        rematchBtn.setDisable(true);
+        rematchBtn.setText("재경기");
+        rematchStatus.setText("");
+        view.setRematchStatus("", false);
         view.getInputField().clear();
         view.getInputField().requestFocus();
 
@@ -120,11 +132,19 @@ public class TugOfWarOnlineStage extends Stage {
         running = false;
         view.getInputField().setDisable(true);
         surrenderBtn.setDisable(true);
+        rematchBtn.setDisable(false);
+        view.setRematchStatus("재경기 가능", true);
         Map<String, Object> data = msg.data;
         if (data != null) {
             view.setEffectsText(valueOf(data.get("result")));
             view.setLastItemText(valueOf(data.get("message")));
         }
+    }
+
+    private void handleRematchNotice() {
+        rematchBtn.setDisable(false);
+        rematchBtn.setText("상대가 재경기를 원합니다");
+        view.setRematchStatus("상대가 재경기를 원합니다", true);
     }
 
     private void submitWord() {
@@ -146,6 +166,17 @@ public class TugOfWarOnlineStage extends Stage {
         running = false;
         view.getInputField().setDisable(true);
         surrenderBtn.setDisable(true);
+        rematchBtn.setDisable(true);
+    }
+
+    private void sendRematchRequest() {
+        if (sessionId == null) return;
+        Message msg = Message.of("GAME_REMATCH_REQUEST");
+        msg.sessionId = sessionId;
+        client.send(msg);
+        rematchBtn.setText("재경기 요청됨");
+        rematchBtn.setDisable(true);
+        view.setRematchStatus("재경기 요청 보냄", false);
     }
 
     private void updateRopeState(TugOfWarViewState state) {

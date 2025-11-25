@@ -34,6 +34,9 @@ public class TugOfWarMatchView {
     private final Label lblPos = createHudLabel("위치: 0.0");
     private final Label lblEffects = createHudLabel("효과: 없음");
     private final Label lblLastItem = createHudLabel("최근 아이템: 없음");
+    private final Label lblRematch = createHudLabel("");
+    private static final Color REMATCH_ACCENT = Color.web("#29B6F6");
+    private static final Color REMATCH_MUTED = Color.web("#8D6E63");
 
     private final TextField inputField = new TextField();
     private final HBox controlBox = new HBox(12);
@@ -78,6 +81,7 @@ public class TugOfWarMatchView {
 
         controlBox.setAlignment(Pos.CENTER_LEFT);
         controlBox.getChildren().add(inputField);
+        controlBox.getChildren().add(lblRematch);
         controlBox.setSpacing(12);
 
         BorderPane bottom = new BorderPane();
@@ -145,5 +149,14 @@ public class TugOfWarMatchView {
 
     public void flashItem(Color color) {
         ropePanel.flashBuffColor(color);
+    }
+
+    public Label getRematchStatusLabel() {
+        return lblRematch;
+    }
+
+    public void setRematchStatus(String text, boolean accent) {
+        lblRematch.setText(text);
+        lblRematch.setTextFill(accent ? REMATCH_ACCENT : REMATCH_MUTED);
     }
 }
