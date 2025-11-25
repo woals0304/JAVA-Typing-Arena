@@ -3,6 +3,10 @@ package typingarena.minigames.tugofwar;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.paint.Color;
+import javafx.scene.paint.CycleMethod;
+import javafx.scene.paint.LinearGradient;
+import javafx.scene.paint.Paint;
+import javafx.scene.paint.Stop;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
@@ -10,14 +14,21 @@ import typingarena.core.tugofwar.GameLogic;
 
 public class RopePanel extends Canvas {
 
-    private static final Color BACKGROUND = Color.web("#FDF5E6");
+    private static final Color SKY_TOP = Color.web("#FFF8E1");
+    private static final Color SKY_BOTTOM = Color.web("#FFEBD1");
+    private static final Color GROUND_TOP = Color.web("#E0D3C2");
+    private static final Color GROUND_BOTTOM = Color.web("#C9B69F");
     private static final Color LEFT_ZONE = Color.web("#FFF3E0");
     private static final Color RIGHT_ZONE = Color.web("#FFE0B2");
     private static final Color CENTER_LINE = Color.web("#D7CCC8");
-    private static final Color ROPE_COLOR = Color.web("#5D4037");
+    private static final Color ROPE_SHADOW = Color.web("#4E342E");
+    private static final Color ROPE_LIGHT = Color.web("#D2A26A");
+    private static final Color FLAG_COLOR = Color.web("#FF7043");
     private static final Color WIN_LINE = Color.web("#29B6F6");
     private static final Color LOSE_LINE = Color.web("#EF5350");
     private static final Color PLAYER_COLOR = Color.web("#FFB74D");
+    private static final Color TEAM_LEFT = Color.web("#64B5F6");
+    private static final Color TEAM_RIGHT = Color.web("#EF9A9A");
     private static final Color TEXT_DEFAULT = Color.web("#4E342E");
     private static final Color FLASH_HIT = Color.web("#A5D6A7");
     private static final Color FLASH_MISS = Color.web("#EF9A9A");
@@ -73,8 +84,17 @@ public class RopePanel extends Canvas {
         GraphicsContext gc = getGraphicsContext2D();
         gc.clearRect(0, 0, w, h);
 
-        gc.setFill(BACKGROUND);
+        // 하늘/땅 배경
+        Paint sky = new LinearGradient(0, 0, 0, 1, true, CycleMethod.NO_CYCLE,
+                new Stop(0, SKY_TOP), new Stop(1, SKY_BOTTOM));
+        gc.setFill(sky);
         gc.fillRect(0, 0, w, h);
+
+        double groundTop = h * 0.62;
+        Paint ground = new LinearGradient(0, groundTop / h, 0, 1, true, CycleMethod.NO_CYCLE,
+                new Stop(0, GROUND_TOP), new Stop(1, GROUND_BOTTOM));
+        gc.setFill(ground);
+        gc.fillRect(0, groundTop, w, h - groundTop);
 
         double centerY = h / 2.0;
 
@@ -89,11 +109,15 @@ public class RopePanel extends Canvas {
         gc.setFill(CENTER_LINE);
         gc.fillRect((w / 2) - 3, centerY - 120, 6, 240);
 
-        // 2) 밧줄
-        gc.setStroke(ROPE_COLOR);
-        gc.setLineWidth(8);
-        gc.setLineCap(javafx.scene.shape.StrokeLineCap.ROUND);
-        gc.strokeLine(60, centerY, w - 60, centerY);
+        drawCrowd(gc, w, centerY);
+
+        // 2) 밧줄 + 말뚝
+        double ropeStartX = 80;
+        double ropeEndX = w - 80;
+        double ropeY = centerY;
+
+        drawAnchors(gc, ropeStartX, ropeEndX, ropeY);
+        drawRope(gc, ropeStartX, ropeEndX, ropeY, state.pos);
 
         // 3) 승리/패배 라인
         gc.setStroke(LOSE_LINE);
@@ -129,7 +153,8 @@ public class RopePanel extends Canvas {
         double wordWidth = wordNode.getLayoutBounds().getWidth();
         double wordHeight = wordNode.getLayoutBounds().getHeight();
         double wordX = (w - wordWidth) / 2.0;
-        double wordBaseY = centerY + 140;
+        double wordYOffset = Math.min(140, h * 0.22);
+        double wordBaseY = centerY + wordYOffset;
 
         Color wordColor = TEXT_DEFAULT;
         GameLogic.WordModifier modifier = state.modifier;
@@ -183,6 +208,78 @@ public class RopePanel extends Canvas {
             gc.fillRect(0, 0, w, h);
             gc.setGlobalAlpha(1.0);
         }
+    }
+
+    private void drawCrowd(GraphicsContext gc, double w, double centerY) {
+        gc.setGlobalAlpha(0.22);
+        gc.setFill(Color.web("#BCAAA4"));
+        double crowdY = centerY - 100;
+        double spacing = 24;
+        for (double x = 10; x < w; x += spacing) {
+            double radius = 6 + (x % 36) / 18.0;
+            gc.fillOval(x, crowdY + (x % 16) * 0.4, radius, radius);
+        }
+        gc.setGlobalAlpha(1.0);
+    }
+
+    private void drawAnchors(GraphicsContext gc, double startX, double endX, double y) {
+        gc.setFill(Color.web("#8D6E63"));
+        gc.fillRoundRect(startX - 18, y - 40, 12, 80, 6, 6);
+        gc.fillRoundRect(endX + 6, y - 40, 12, 80, 6, 6);
+
+        gc.setFill(Color.web("#6D4C41"));
+        gc.fillRoundRect(startX - 24, y - 8, 22, 16, 8, 8);
+        gc.fillRoundRect(endX + 2, y - 8, 22, 16, 8, 8);
+    }
+
+    private void drawRope(GraphicsContext gc, double startX, double endX, double y, double pos) {
+        double offset = (pos / 100.0) * 12; // 밧줄이 당겨진 느낌
+        double sag = 8 + Math.abs(pos) * 0.05;
+
+        // 밧줄 그림자
+        gc.setStroke(ROPE_SHADOW);
+        gc.setLineWidth(14);
+        gc.setLineCap(javafx.scene.shape.StrokeLineCap.ROUND);
+        gc.beginPath();
+        gc.moveTo(startX, y);
+        gc.bezierCurveTo(wobble(startX, offset), y + sag, wobble(endX, offset), y + sag, endX, y);
+        gc.stroke();
+
+        // 밝은 밧줄 겉면
+        gc.setStroke(ROPE_LIGHT);
+        gc.setLineWidth(10);
+        gc.beginPath();
+        gc.moveTo(startX, y);
+        gc.bezierCurveTo(wobble(startX, offset), y + sag * 0.6, wobble(endX, offset), y + sag * 0.6, endX, y);
+        gc.stroke();
+
+        // 꼬임 느낌
+        gc.setStroke(Color.rgb(255, 255, 255, 0.6));
+        gc.setLineWidth(2.8);
+        double segment = 18;
+        for (double x = startX + 6; x < endX - 6; x += segment) {
+            double twistY = y + Math.sin((x + offset) * 0.15) * 5;
+            gc.strokeLine(x, twistY - 4, x + segment * 0.5, twistY + 4);
+        }
+
+        // 중앙 깃발
+        double rangePx = (endX - startX) / 2.0;
+        double flagX = (startX + endX) / 2.0 + (pos / 100.0) * rangePx;
+        gc.setFill(FLAG_COLOR);
+        gc.fillPolygon(new double[]{flagX, flagX, flagX + 18}, new double[]{y - 12, y + 12, y}, 3);
+        gc.setStroke(Color.WHITE);
+        gc.setLineWidth(2);
+        gc.strokePolygon(new double[]{flagX, flagX, flagX + 18}, new double[]{y - 12, y + 12, y}, 3);
+
+        // 양 팀 손잡이
+        gc.setFill(TEAM_LEFT);
+        gc.fillRoundRect(startX - 10, y - 14, 18, 28, 6, 6);
+        gc.setFill(TEAM_RIGHT);
+        gc.fillRoundRect(endX - 8, y - 14, 18, 28, 6, 6);
+    }
+
+    private double wobble(double x, double offset) {
+        return x + Math.sin(x * 0.02 + offset * 0.1) * 6 + offset * 0.4;
     }
 
     private void drawCenteredText(GraphicsContext gc, String text, double x, double y, double width, double height) {

@@ -2,11 +2,13 @@ package typingarena.minigames.tugofwar;
 
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.TextField;
 import javafx.scene.paint.Color;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 import typingarena.core.tugofwar.GameLogic;
@@ -34,8 +36,13 @@ public class TugOfWarGame extends Stage {
         startButton.setFont(inputField.getFont());
         view.getControlBox().getChildren().add(startButton);
 
-        Scene scene = new Scene(view.getRoot(), 1000, 600);
+        Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
+        double targetW = Math.min(1280, bounds.getWidth() * 0.9);
+        double targetH = Math.min(820, bounds.getHeight() * 0.9);
+        Scene scene = new Scene(view.getRoot(), targetW, targetH);
         setScene(scene);
+        setMinWidth(Math.min(1100, bounds.getWidth() * 0.85));
+        setMinHeight(Math.min(720, bounds.getHeight() * 0.85));
 
         inputField.setOnAction(e -> handleSubmit());
         scene.setOnMouseClicked(e -> {
@@ -120,6 +127,7 @@ public class TugOfWarGame extends Stage {
 
     private void updateHUD() {
         view.setTimeText(String.format("남은 시간: %.1fs", logic.getTimeMs() / 1000.0));
+        view.setTimeMs(logic.getTimeMs());
         view.setScoreText("점수: " + logic.getScore());
         view.setComboText("콤보: " + logic.getCombo());
         view.setPosText(String.format("위치: %.1f", logic.getPos()));

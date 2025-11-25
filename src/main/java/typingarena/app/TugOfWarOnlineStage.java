@@ -1,10 +1,12 @@
 package typingarena.app;
 
 import javafx.application.Platform;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
+import javafx.stage.Screen;
 import typingarena.core.tugofwar.GameLogic;
 import typingarena.minigames.tugofwar.RopePanel;
 import typingarena.minigames.tugofwar.TugOfWarMatchView;
@@ -45,9 +47,13 @@ public class TugOfWarOnlineStage extends Stage {
 
         view.getInputField().setOnAction(e -> submitWord());
 
-        // 싱글 플레이 화면과 동일한 폭/높이로 맞춰 UI가 작게 보이지 않도록 조정
-        Scene scene = new Scene(view.getRoot(), 1000, 600);
+        Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
+        double targetW = Math.min(1280, bounds.getWidth() * 0.9);
+        double targetH = Math.min(820, bounds.getHeight() * 0.9);
+        Scene scene = new Scene(view.getRoot(), targetW, targetH);
         setScene(scene);
+        setMinWidth(Math.min(1100, bounds.getWidth() * 0.85));
+        setMinHeight(Math.min(720, bounds.getHeight() * 0.85));
 
         setOnCloseRequest(e -> {
             if (running) {
@@ -108,6 +114,7 @@ public class TugOfWarOnlineStage extends Stage {
         if (data == null) return;
 
         view.setTimeText(formatTime(toDouble(data.get("timeMs"))));
+        view.setTimeMs(toDouble(data.get("timeMs")));
         view.setScoreText(String.format("점수 (나/상대): %d / %d",
                 toInt(data.get("scoreSelf")),
                 toInt(data.get("scoreOpponent"))));
