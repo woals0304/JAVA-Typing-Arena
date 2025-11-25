@@ -5,5 +5,5 @@
 - `MultiLobbyStage`는 로그인/회원가입 → 게임 선택 플로우를 담당하며, `NetClient`로 서버에 매칭을 요청합니다.
   - 지원 게임: 줄다리기(PvP), 땅따먹기(PvP). 성 지키기 버튼은 비활성화.
   - 창이 열리면 기본 Host/Port(127.0.0.1:7777)로 자동 연결을 시도합니다.
-- 멀티 Stage(`TugOfWarOnlineStage`, `LandGrabOnlineStage`)는 서버가 주는 세션 ID와 닉네임을 받아 UI를 갱신합니다. 경기 종료 후 재경기(GAME_REMATCH_REQUEST)를 보낼 수 있습니다.
+- 멀티 Stage(`TugOfWarOnlineStage`, `LandGrabOnlineStage`)는 서버가 주는 세션 ID와 닉네임을 받아 UI를 갱신합니다. 경기 종료 후 `GAME_REMATCH_REQUEST`로 재경기를 요청하며, 한쪽이 먼저 보내면 상대가 `GAME_REMATCH_NOTICE`를 통해 안내를 받습니다.
 - 새 미니게임을 추가하려면 버튼을 연결하고 README도 함께 갱신해 주세요.

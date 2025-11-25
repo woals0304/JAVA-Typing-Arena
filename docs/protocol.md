@@ -29,9 +29,9 @@
 ### 3. 공통 게임 액션
 - **입력 전송** `GAME_ACTION` with `data: {"word":"..."}` (줄다리기/땅따먹기 모두 단어 제출용).
 - **기권** `GAME_FORFEIT` (sessionId가 없으면 현재 세션 기준). 상대는 `GAME_END_BROADCAST` 또는 `GAME_OPPONENT_LEFT`로 알림을 받습니다.
-- **재경기 요청 (Land Grab 전용)** `GAME_REMATCH_REQUEST`
-  - 한쪽만 요청: 상대에게 `GAME_REMATCH_NOTICE`
-  - 양쪽 모두 요청: 기존 세션 ID로 `GAME_START_BROADCAST`가 다시 발행되며 보드/타이머가 초기화됩니다.
+- **재경기 요청 (공통)** `GAME_REMATCH_REQUEST`
+  - 한쪽만 요청: 상대에게 `GAME_REMATCH_NOTICE` 전송
+  - 양쪽 모두 요청: 기존 세션 ID로 `GAME_START_BROADCAST`가 다시 발행되며 보드/타이머(줄다리기 밧줄 포함)가 초기화됩니다.
 
 ### 4. 게임별 브로드캐스트 페이로드
 
@@ -47,6 +47,7 @@
       "opponentWord":"???",
       "opponent":"상대닉",
       "timeMs":60000,
+      "comboSelf":0,
       "modifierSelf":"BUFF|TRAP|NEUTRAL",
       "effectsSelf":"효과: ...",
       "lastItemSelf":"없음",
@@ -59,6 +60,7 @@
   - 주요 필드: `gameType`, `pos`(double, 왼쪽 +), `timeMs`, `yourWord`, `modifierSelf`, `scoreSelf`, `scoreOpponent`, `effectsSelf`, `lastItemSelf`, `blindSelf`, `jamoSplitSelf`.
 - **GAME_END_BROADCAST**
   - `gameType`, `result`(`승리|패배|무승부`), `message`(종료 사유), `scoreSelf`, `scoreOpponent`, `pos`.
+- 재경기: 종료 후 어느 한쪽이 `GAME_REMATCH_REQUEST`를 보내면 상대가 `GAME_REMATCH_NOTICE`를 받고, 양쪽 모두 요청 시 동일 sessionId에서 즉시 재시작합니다.
 - 아이템 규칙 요약: 단어 모디파이어 50/25/25, 버프(파워그립, 앵커), 트랩(먹물 3초, 자소 분리 4초).
 
 #### 4-2. 땅따먹기 (LAND_GRAB)
