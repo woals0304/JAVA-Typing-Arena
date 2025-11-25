@@ -28,10 +28,10 @@ public class TypingGameApp extends Application {
     public void start(Stage primaryStage) {
         this.primaryStage = primaryStage;
         this.root = new BorderPane();
-        root.setStyle("-fx-background-color: #FFFFFF;");
-        root.setPadding(new Insets(40));
+        root.setStyle("-fx-background-color: #FDF5E6;");
+        root.setPadding(new Insets(36));
 
-        Scene scene = new Scene(root, 720, 540);
+        Scene scene = new Scene(root, 760, 560);
         primaryStage.setTitle("Typing Mini Game");
         primaryStage.setScene(scene);
         showMainMenu();
@@ -41,12 +41,12 @@ public class TypingGameApp extends Application {
     // === Main Menu (Single / Multi) ===
     private void showMainMenu() {
         Label title = new Label("멀티플레이 타자 미니게임 로비");
-        title.setFont(Font.font("System", FontWeight.BOLD, 32));
-        title.setTextFill(Color.rgb(30, 30, 30));
+        title.setFont(Font.font("Malgun Gothic", FontWeight.EXTRA_BOLD, 30));
+        title.setTextFill(Color.web("#4E342E"));
 
         Label subtitle = new Label("싱글 플레이 또는 멀티 플레이를 선택하세요.");
-        subtitle.setFont(Font.font("System", FontWeight.NORMAL, 16));
-        subtitle.setTextFill(Color.rgb(100, 100, 100));
+        subtitle.setFont(Font.font("Malgun Gothic", FontWeight.NORMAL, 16));
+        subtitle.setTextFill(Color.web("#6D4C41"));
 
         Button singleBtn = createPrimaryButton("싱글 플레이", this::showSingleMenu);
         Button multiBtn = createPrimaryButton("멀티 플레이", this::openMultiLobby);
@@ -62,8 +62,8 @@ public class TypingGameApp extends Application {
     // === Single Player Menu ===
     private void showSingleMenu() {
         Label title = new Label("싱글 플레이 미니게임");
-        title.setFont(Font.font("System", FontWeight.BOLD, 28));
-        title.setTextFill(Color.rgb(30, 30, 30));
+        title.setFont(Font.font("Malgun Gothic", FontWeight.EXTRA_BOLD, 28));
+        title.setTextFill(Color.web("#4E342E"));
 
         Label description = new Label(
                 "준비된 미니게임:\n\n" +
@@ -72,8 +72,8 @@ public class TypingGameApp extends Application {
                         "3. 칸 채우기 땅따먹기 (Land Grab)\n\n" +
                         "버튼을 누르면 각 게임이 새로운 창에서 실행됩니다."
         );
-        description.setFont(Font.font(16));
-        description.setTextFill(Color.rgb(110, 110, 110));
+        description.setFont(Font.font("Malgun Gothic", 16));
+        description.setTextFill(Color.web("#6D4C41"));
         description.setLineSpacing(4);
         description.setAlignment(Pos.CENTER);
 
@@ -110,9 +110,9 @@ public class TypingGameApp extends Application {
     private Button createPrimaryButton(String text, Runnable action) {
         Button btn = new Button(text);
         btn.setMinWidth(200);
-        btn.setFont(Font.font("System", FontWeight.BOLD, 18));
-        String normal = "-fx-background-color: #EBF5FF; -fx-border-color: #B0D7FF; -fx-border-width: 1px; -fx-background-radius: 8; -fx-border-radius: 8;";
-        String hover = "-fx-background-color: #D6EAFF; -fx-border-color: #0078FF; -fx-border-width: 1px; -fx-background-radius: 8; -fx-border-radius: 8;";
+        btn.setFont(Font.font("Malgun Gothic", FontWeight.BOLD, 18));
+        String normal = "-fx-background-color: linear-gradient(to bottom, #FFD54F, #FFB300); -fx-text-fill: #4E342E; -fx-border-color: #D18816; -fx-border-width: 1px; -fx-background-radius: 10; -fx-border-radius: 10;";
+        String hover = "-fx-background-color: linear-gradient(to bottom, #FFECB3, #FFC107); -fx-text-fill: #4E342E; -fx-border-color: #BF7A10; -fx-border-width: 1px; -fx-background-radius: 10; -fx-border-radius: 10;";
         btn.setStyle(normal);
         btn.setOnAction(e -> action.run());
         btn.setOnMouseEntered(e -> btn.setStyle(hover));
@@ -128,8 +128,8 @@ public class TypingGameApp extends Application {
 
     private Button createSecondaryButton(String text, Runnable action) {
         Button btn = new Button(text);
-        btn.setFont(Font.font("System", FontWeight.BOLD, 14));
-        btn.setStyle("-fx-background-color: transparent; -fx-text-fill: #0078FF;");
+        btn.setFont(Font.font("Malgun Gothic", FontWeight.BOLD, 14));
+        btn.setStyle("-fx-background-color: transparent; -fx-text-fill: #8D6E63;");
         btn.setOnAction(e -> action.run());
         return btn;
     }

@@ -10,17 +10,17 @@ import typingarena.core.tugofwar.GameLogic;
 
 public class RopePanel extends Canvas {
 
-    private static final Color BACKGROUND = Color.rgb(245, 248, 252);
-    private static final Color LEFT_ZONE = Color.rgb(235, 242, 247);
-    private static final Color RIGHT_ZONE = Color.rgb(225, 240, 235);
-    private static final Color CENTER_LINE = Color.rgb(210, 220, 230);
-    private static final Color ROPE_COLOR = Color.rgb(120, 90, 60);
-    private static final Color WIN_LINE = Color.rgb(80, 160, 80);
-    private static final Color LOSE_LINE = Color.rgb(200, 80, 80);
-    private static final Color PLAYER_COLOR = Color.rgb(60, 120, 255);
-    private static final Color TEXT_DEFAULT = Color.rgb(30, 30, 30);
-    private static final Color FLASH_HIT = Color.rgb(50, 200, 120);
-    private static final Color FLASH_MISS = Color.rgb(220, 80, 80);
+    private static final Color BACKGROUND = Color.web("#FDF5E6");
+    private static final Color LEFT_ZONE = Color.web("#FFF3E0");
+    private static final Color RIGHT_ZONE = Color.web("#FFE0B2");
+    private static final Color CENTER_LINE = Color.web("#D7CCC8");
+    private static final Color ROPE_COLOR = Color.web("#5D4037");
+    private static final Color WIN_LINE = Color.web("#29B6F6");
+    private static final Color LOSE_LINE = Color.web("#EF5350");
+    private static final Color PLAYER_COLOR = Color.web("#FFB74D");
+    private static final Color TEXT_DEFAULT = Color.web("#4E342E");
+    private static final Color FLASH_HIT = Color.web("#A5D6A7");
+    private static final Color FLASH_MISS = Color.web("#EF9A9A");
     private static final char[] CHO = {'\u3131','\u3132','\u3134','\u3137','\u3138','\u3139','\u3141','\u3142','\u3143','\u3145','\u3146','\u3147','\u3148','\u3149','\u314a','\u314b','\u314c','\u314d','\u314e'};
     private static final char[] JUNG = {'\u314f','\u3150','\u3151','\u3152','\u3153','\u3154','\u3155','\u3156','\u3157','\u3158','\u3159','\u315a','\u315b','\u315c','\u315d','\u315e','\u315f','\u3160','\u3161','\u3162','\u3163'};
     private static final char[] JONG = {'\0','\u3131','\u3132','\u3133','\u3134','\u3135','\u3136','\u3137','\u3139','\u313a','\u313b','\u313c','\u313d','\u313e','\u313f','\u3140','\u3141','\u3142','\u3144','\u3145','\u3146','\u3147','\u3148','\u314a','\u314b','\u314c','\u314d','\u314e'};

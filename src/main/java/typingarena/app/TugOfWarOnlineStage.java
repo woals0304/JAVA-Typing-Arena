@@ -38,7 +38,8 @@ public class TugOfWarOnlineStage extends Stage {
 
         view.getInputField().setOnAction(e -> submitWord());
 
-        Scene scene = new Scene(view.getRoot(), 720, 420);
+        // 싱글 플레이 화면과 동일한 폭/높이로 맞춰 UI가 작게 보이지 않도록 조정
+        Scene scene = new Scene(view.getRoot(), 1000, 600);
         setScene(scene);
 
         setOnCloseRequest(e -> {

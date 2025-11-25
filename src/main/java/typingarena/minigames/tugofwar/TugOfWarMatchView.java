@@ -6,10 +6,7 @@ import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
-import javafx.scene.layout.BorderPane;
-import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.StackPane;
+import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
@@ -18,6 +15,14 @@ import javafx.scene.text.FontWeight;
  * 싱글/멀티 모두에서 사용하는 공통 UI.
  */
 public class TugOfWarMatchView {
+
+    // LandGrab 테마에 맞춘 색/여백 토큰
+    private static final Color THEME_BG = Color.web("#FDF5E6");
+    private static final Color PANEL_BG = Color.web("#FFF3E0");
+    private static final Color PANEL_BORDER = Color.web("#D7CCC8");
+    private static final Color TEXT_MAIN = Color.web("#4E342E");
+    private static final Color TEXT_MUTED = Color.web("#6D4C41");
+    private static final Color ACCENT = Color.web("#29B6F6");
 
     private final BorderPane root = new BorderPane();
     private final RopePanel ropePanel = new RopePanel();
@@ -34,15 +39,20 @@ public class TugOfWarMatchView {
     private final HBox controlBox = new HBox(12);
 
     public TugOfWarMatchView() {
+        root.setBackground(new Background(new BackgroundFill(THEME_BG, CornerRadii.EMPTY, Insets.EMPTY)));
+        root.setPadding(new Insets(18, 22, 18, 22));
+
         HBox top = new HBox(18, lblTime, lblScore, lblCombo, lblPos, lblEffects, lblLastItem);
         top.setAlignment(Pos.CENTER);
-        top.setPadding(new Insets(12, 24, 12, 24));
+        top.setPadding(new Insets(12, 20, 12, 20));
+        top.setBackground(new Background(new BackgroundFill(PANEL_BG, new CornerRadii(10), Insets.EMPTY)));
+        top.setBorder(new Border(new BorderStroke(PANEL_BORDER, BorderStrokeStyle.SOLID, new CornerRadii(10), BorderWidths.DEFAULT)));
         root.setTop(top);
 
         ropePanel.setWidth(900);
         ropePanel.setHeight(380);
         StackPane centerWrapper = new StackPane(ropePanel);
-        centerWrapper.setPadding(new Insets(0, 24, 0, 24));
+        centerWrapper.setPadding(new Insets(16, 12, 4, 12));
         centerWrapper.setMinSize(300, 200);
         centerWrapper.widthProperty().addListener((obs, oldV, newV) -> {
             ropePanel.setWidth(Math.max(1, newV.doubleValue()));
@@ -54,22 +64,34 @@ public class TugOfWarMatchView {
         });
         root.setCenter(centerWrapper);
 
-        inputField.setFont(Font.font("System", FontWeight.NORMAL, 22));
+        inputField.setFont(Font.font("Malgun Gothic", FontWeight.NORMAL, 22));
         inputField.setPromptText("단어를 입력하고 Enter 키를 누르세요");
+        inputField.setStyle("""
+                -fx-background-color: #fff7e6;
+                -fx-border-color: #d7ccc8;
+                -fx-border-radius: 8;
+                -fx-background-radius: 8;
+                -fx-text-fill: #4e342e;
+                -fx-padding: 10 12;
+                """);
         HBox.setHgrow(inputField, Priority.ALWAYS);
 
         controlBox.setAlignment(Pos.CENTER_LEFT);
         controlBox.getChildren().add(inputField);
+        controlBox.setSpacing(12);
 
         BorderPane bottom = new BorderPane();
-        bottom.setPadding(new Insets(16, 24, 16, 24));
+        bottom.setPadding(new Insets(14, 20, 14, 20));
         bottom.setCenter(controlBox);
+        bottom.setBackground(new Background(new BackgroundFill(PANEL_BG, new CornerRadii(10), Insets.EMPTY)));
+        bottom.setBorder(new Border(new BorderStroke(PANEL_BORDER, BorderStrokeStyle.SOLID, new CornerRadii(10), BorderWidths.DEFAULT)));
         root.setBottom(bottom);
     }
 
     private Label createHudLabel(String text) {
         Label lbl = new Label(text);
-        lbl.setFont(Font.font("System", FontWeight.BOLD, 16));
+        lbl.setFont(Font.font("Malgun Gothic", FontWeight.BOLD, 15));
+        lbl.setTextFill(TEXT_MAIN);
         return lbl;
     }
 
