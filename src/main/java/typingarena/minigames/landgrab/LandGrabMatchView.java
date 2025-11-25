@@ -13,7 +13,6 @@ import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.control.ProgressBar;
 import javafx.scene.control.Separator;
 import javafx.scene.control.TextField;
 import javafx.scene.effect.DropShadow;
@@ -456,7 +455,6 @@ public class LandGrabMatchView {
     public void setPlayerNames(String myName, String oppName) { txtMyName.setText(myName); txtOppName.setText(oppName); }
     public void flashHit() { landGrabPanel.flashHit(); }
     public void flashMiss() { landGrabPanel.flashMiss(); }
-    public void flashItem(Color color) { landGrabPanel.flashBuffColor(color); }
 
     public void showGameOver(boolean isWin, String reason, int myScore, int oppScore) {
         if (reason.contains("무승부") || myScore == oppScore) {
