@@ -173,6 +173,7 @@ public class TugOfWarSession {
         payload.put("opponent", opponentName);
         payload.put("timeMs", timeMs);
         payload.put("modifierSelf", player.currentWord.modifier().name());
+        payload.put("comboSelf", player.combo);
         payload.put("effectsSelf", player.effects.describeEffects());
         payload.put("lastItemSelf", player.lastItem);
         payload.put("blindSelf", player.effects.isBlindActive());
@@ -199,6 +200,7 @@ public class TugOfWarSession {
         payload.put("modifierSelf", self.currentWord.modifier().name());
         payload.put("scoreSelf", self.score);
         payload.put("scoreOpponent", opponent.score);
+        payload.put("comboSelf", self.combo);
         payload.put("effectsSelf", self.effects.describeEffects());
         payload.put("lastItemSelf", self.lastItem);
         payload.put("blindSelf", self.effects.isBlindActive());
@@ -247,6 +249,7 @@ public class TugOfWarSession {
         private final ActiveEffects effects = new ActiveEffects();
         private TugOfWarWordGenerator.Word currentWord;
         private int score = 0;
+        private int combo = 0;
         private String lastItem = "없음";
 
         private PlayerState(ClientHandler client) {
@@ -259,9 +262,10 @@ public class TugOfWarSession {
 
         private void incrementScore() {
             score++;
+            combo++;
         }
 
-        private void resetScore() { score = 0; }
+        private void resetScore() { score = 0; combo = 0; }
 
         private void send(Message m) {
             client.send(m);

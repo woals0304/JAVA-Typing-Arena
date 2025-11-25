@@ -106,7 +106,7 @@ public class TugOfWarOnlineStage extends Stage {
         if (data != null) {
             view.setTimeText(formatTime(toDouble(data.get("timeMs"))));
             view.setScoreText("점수: 0");
-            view.setComboText("매칭 모드");
+            view.setComboText("콤보: " + toInt(data.get("comboSelf")));
             view.setPosText("위치: 0.0");
             view.setEffectsText(valueOf(data.getOrDefault("effectsSelf", "효과: 없음")));
             view.setLastItemText("최근 아이템: 없음");
@@ -132,7 +132,7 @@ public class TugOfWarOnlineStage extends Stage {
         view.setScoreText(String.format("점수 (나/상대): %d / %d",
                 toInt(data.get("scoreSelf")),
                 toInt(data.get("scoreOpponent"))));
-        view.setComboText("온라인 경기 진행 중");
+        view.setComboText("콤보: " + toInt(data.get("comboSelf")));
         double pos = toDouble(data.get("pos"));
         view.setPosText(String.format("위치: %.1f", pos));
         view.setEffectsText(valueOf(data.getOrDefault("effectsSelf", "효과: 없음")));

@@ -97,6 +97,7 @@ public class TugOfWarMatchView {
     private final Polygon comboHexagon = new Polygon();
     private final Label lblComboValue = new Label("0");
     private final Label lblComboText = new Label("COMBO");
+    private int lastComboValue = 0;
 
     // HUD
     private final Label lblScore = new Label("점수: 0");
@@ -813,7 +814,10 @@ public class TugOfWarMatchView {
         lblComboText.setText(fever ? "FEVER!" : "COMBO");
         updateComboVisuals(fever);
 
-        if (comboVal > 0) {
+        boolean changed = comboVal != lastComboValue;
+        lastComboValue = comboVal;
+
+        if (comboVal > 0 && changed) {
             ScaleTransition st = new ScaleTransition(Duration.millis(120), comboBadgePane);
             st.setFromX(1.0);
             st.setFromY(1.0);
