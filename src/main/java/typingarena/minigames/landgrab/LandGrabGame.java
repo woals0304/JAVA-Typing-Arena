@@ -142,6 +142,9 @@ public class LandGrabGame extends Stage {
         // 게임 시작 시 1P(나)임을 패널에 알림 (파란색 표시)
         landGrabPanel.setMyIdentity(true);
 
+        // [Sound Update] 게임 시작 효과음 재생
+        LandGrabSoundManager.getInstance().play("sfx_start.wav");
+
         updateHUD(); updateView(); gameLoop.playFromStart();
     }
 
@@ -177,33 +180,36 @@ public class LandGrabGame extends Stage {
         if (result.resultCode() > 0) {
             int r = result.r(); int c = result.c(); ItemType type = result.itemType();
 
-            // === [Sound Update] 상황별(파괴, 점령, 각성, 진입) 사운드 분기 적용 ===
+            // === [Sound Update] 상황별 사운드 분기 적용 ===
             if (isMe) {
                 landGrabPanel.flashHit();
 
-                // 1. 현재 로직 상의 타일 상태와 콤보 확인
-                TileState currentTile = coreLogic.getTileState(r, c);
-                int currentCombo = coreLogic.getCombo(TileState.PLAYER_A);
+                // [중요] 아이템이 없을 때만 기본 사운드 재생 (아이템 획득 시에는 중복 재생 방지)
+                if (type == ItemType.NONE) {
+                    // 1. 현재 로직 상의 타일 상태와 콤보 확인
+                    TileState currentTile = coreLogic.getTileState(r, c);
+                    int currentCombo = coreLogic.getCombo(TileState.PLAYER_A);
 
-                // 2. 상황별 사운드 재생 (로직 순서를 멀티와 동일하게 통일)
-
-                // [Case A & B] 각성 상태 (10콤보 이상) -> 무조건 강력한 뺏기 사운드
-                if (currentCombo == 10) {
-                    sm.play("sfx_fever_start.wav");
-                    sm.play("sfx_steal.wav");
-                } else if (currentCombo > 10) {
-                    sm.play("sfx_steal.wav");
-                }
-                // [Case C] 일반 상태 -> 타일 종류에 따라 구분
-                else {
-                    if (currentTile == TileState.EMPTY) {
-                        // 빈 땅이 됨 -> 상대 땅 파괴(중립화)
-                        sm.play("sfx_destroy.wav");
-                    } else {
-                        // 내 땅이 됨 -> 일반 점령
-                        sm.play("sfx_hit.wav");
+                    // 2. 상황별 사운드 재생
+                    // [Case A & B] 각성 상태 (10콤보 이상) -> 무조건 강력한 뺏기 사운드
+                    if (currentCombo == 10) {
+                        sm.play("sfx_fever_start.wav");
+                        sm.play("sfx_steal.wav");
+                    } else if (currentCombo > 10) {
+                        sm.play("sfx_steal.wav");
+                    }
+                    // [Case C] 일반 상태 -> 타일 종류에 따라 구분
+                    else {
+                        if (currentTile == TileState.EMPTY) {
+                            // 빈 땅이 됨 -> 상대 땅 파괴(중립화)
+                            sm.play("sfx_destroy.wav");
+                        } else {
+                            // 내 땅이 됨 -> 일반 점령
+                            sm.play("sfx_hit.wav");
+                        }
                     }
                 }
+                // 아이템이 있는 경우(type != NONE)는 아래 switch문에서 해당 아이템 소리만 재생됨
             }
             // ====================================================
 

@@ -104,8 +104,9 @@ public class LandGrabOnlineStage extends Stage {
         clientTimeMs = 60000.0;
         displayTimer.playFromStart();
 
-        // [Sound] 멀티 게임 시작 시 BGM 재생
+        // [Sound] 멀티 게임 시작 시 BGM 재생 및 시작 효과음 재생
         LandGrabSoundManager.getInstance().playBgm("bgm_game.wav");
+        LandGrabSoundManager.getInstance().play("sfx_start.wav");
 
         view.hideGameOver();
         view.getInputField().setDisable(false);
