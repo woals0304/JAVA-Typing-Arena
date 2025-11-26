@@ -101,7 +101,7 @@ public class LandGrabSession {
         if (playerA != null && playerA.isConnected()) {
             Message msg = Message.of("GAME_START_BROADCAST");
             msg.sessionId = this.id;
-            Map<String, Object> data = buildStateFor(TileState.PLAYER_A, null);
+            Map<String, Object> data = buildStateFor(TileState.PLAYER_A, null, -1, -1);
             data.put("players", players);
             msg.data = data;
             playerA.send(msg);
@@ -109,7 +109,7 @@ public class LandGrabSession {
         if (playerB != null && playerB.isConnected()) {
             Message msg = Message.of("GAME_START_BROADCAST");
             msg.sessionId = this.id;
-            Map<String, Object> data = buildStateFor(TileState.PLAYER_B, null);
+            Map<String, Object> data = buildStateFor(TileState.PLAYER_B, null, -1, -1);
             data.put("players", players);
             msg.data = data;
             playerB.send(msg);
@@ -137,43 +137,33 @@ public class LandGrabSession {
         String animForActor = null;
         String animForOpponent = null;
 
-        if (result.resultCode() > 0 && result.itemType() != ItemType.NONE) {
-            switch (result.itemType()) {
-                case BUFF_SPLASH -> {
-                    animForActor = "BUFF_SPLASH";
-                    animForOpponent = "OPP_SPLASH";
+        // [수정] 정답일 때 처리
+        if (result.resultCode() > 0) {
+            if (result.itemType() != ItemType.NONE) {
+                switch (result.itemType()) {
+                    case BUFF_SPLASH -> { animForActor = "BUFF_SPLASH"; animForOpponent = "OPP_SPLASH"; }
+                    case BUFF_BARRIER -> { animForActor = "BUFF_BARRIER"; animForOpponent = "OPP_BARRIER"; }
+                    case BUFF_COMBO_GUARD -> { animForActor = "BUFF_COMBO_GUARD"; animForOpponent = "OPP_COMBO_GUARD"; }
+                    case TRAP_INK -> { animForActor = "ATTACK_INK"; animForOpponent = "TRAP_INK"; applyInkTo(!isPlayerA, 2); }
+                    case TRAP_EMP -> { animForActor = "ATTACK_EMP"; animForOpponent = "TRAP_EMP"; }
+                    case TRAP_CONFUSION -> { animForActor = "ATTACK_CONFUSION"; animForOpponent = "TRAP_CONFUSION"; applyConfusionTo(!isPlayerA, 5000); }
                 }
-                case BUFF_BARRIER -> {
-                    animForActor = "BUFF_BARRIER";
-                    animForOpponent = "OPP_BARRIER";
-                }
-                case BUFF_COMBO_GUARD -> {
-                    animForActor = "BUFF_COMBO_GUARD";
-                    animForOpponent = "OPP_COMBO_GUARD";
-                }
-                case TRAP_INK -> {
-                    animForActor = "ATTACK_INK";
-                    animForOpponent = "TRAP_INK";
-                    applyInkTo(!isPlayerA, 2);
-                }
-                case TRAP_EMP -> {
-                    animForActor = "ATTACK_EMP";
-                    animForOpponent = "TRAP_EMP";
-                }
-                case TRAP_CONFUSION -> {
-                    animForActor = "ATTACK_CONFUSION";
-                    animForOpponent = "TRAP_CONFUSION";
-                    applyConfusionTo(!isPlayerA, 5000);
-                }
+            } else {
+                animForActor = "HIT";
             }
-        } else if (result.resultCode() > 0) {
-            animForActor = "HIT";
+        }
+        // [추가] 오답일 때 MISS 메시지 설정 (이게 없어서 소리가 안 났음!)
+        else {
+            animForActor = "MISS";
         }
 
+        int r = result.r();
+        int c = result.c();
+
         if (isPlayerA) {
-            sendUpdate(animForActor, animForOpponent);
+            sendUpdate(animForActor, animForOpponent, r, c);
         } else {
-            sendUpdate(animForOpponent, animForActor);
+            sendUpdate(animForOpponent, animForActor, r, c);
         }
     }
 
@@ -217,7 +207,7 @@ public class LandGrabSession {
             }
 
             if (timeMs % 1000 == 0) {
-                sendUpdate(null, null);
+                sendUpdate(null, null, -1, -1);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -238,22 +228,22 @@ public class LandGrabSession {
         }
     }
 
-    private void sendUpdate(String animTriggerA, String animTriggerB) {
+    private void sendUpdate(String animTriggerA, String animTriggerB, int r, int c) {
         if (playerA != null && playerA.isConnected()) {
             Message msgA = Message.of("GAME_UPDATE_BROADCAST");
             msgA.sessionId = this.id;
-            msgA.data = buildStateFor(TileState.PLAYER_A, animTriggerA);
+            msgA.data = buildStateFor(TileState.PLAYER_A, animTriggerA, r, c);
             playerA.send(msgA);
         }
         if (playerB != null && playerB.isConnected()) {
             Message msgB = Message.of("GAME_UPDATE_BROADCAST");
             msgB.sessionId = this.id;
-            msgB.data = buildStateFor(TileState.PLAYER_B, animTriggerB);
+            msgB.data = buildStateFor(TileState.PLAYER_B, animTriggerB, r, c);
             playerB.send(msgB);
         }
     }
 
-    private Map<String, Object> buildStateFor(TileState me, String myAnimation) {
+    private Map<String, Object> buildStateFor(TileState me, String myAnimation, int r, int c) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("gameType", gameType);
         data.put("timeMs", (double) timeMs);
@@ -279,13 +269,11 @@ public class LandGrabSession {
 
         data.put("barrier_a", coreLogic.getEffects().isBarrierActive(true));
         data.put("barrier_b", coreLogic.getEffects().isBarrierActive(false));
-
-        // [수정] 콤보 가드 상태 추가 (이게 있어야 클라이언트가 언제 끄는지 앎)
         data.put("combo_guard_a", coreLogic.getEffects().isComboGuardActive(true));
         data.put("combo_guard_b", coreLogic.getEffects().isComboGuardActive(false));
 
         if (myAnimation != null) {
-            data.put("animation_trigger", Map.of("type", myAnimation, "r", -1, "c", -1));
+            data.put("animation_trigger", Map.of("type", myAnimation, "r", r, "c", c));
         }
 
         return data;
@@ -318,23 +306,19 @@ public class LandGrabSession {
         return inkList;
     }
 
-    // [수정] 나가기 처리: 메시지 전송 -> 세션 삭제 순서 보장
     public void forfeit(ClientHandler quitter, String reason) {
         ClientHandler opponent = (quitter == playerA) ? playerB : playerA;
 
         if (!running) {
-            // 이미 결과 화면 상태에서 나감
             if (opponent != null && opponent.isConnected()) {
                 Message leftMsg = Message.of("GAME_OPPONENT_LEFT");
                 leftMsg.sessionId = this.id;
                 opponent.send(leftMsg);
             }
-            // 메시지 전송 후 삭제
             context.getLandGrabSessions().remove(id);
             return;
         }
 
-        // 게임 도중 나감 (기권패)
         ClientHandler winner = (quitter == playerA) ? playerB : playerA;
         ClientHandler loser = (quitter == playerA) ? playerA : playerB;
 

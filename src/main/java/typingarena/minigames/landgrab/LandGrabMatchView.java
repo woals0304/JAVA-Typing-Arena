@@ -136,6 +136,10 @@ public class LandGrabMatchView {
 
         Platform.runLater(this::updateScale);
         root.layoutBoundsProperty().addListener((obs, old, bounds) -> updateScale());
+
+        // [Sound] 버튼 효과음 연결
+        addSoundToButton(btnRematch);
+        addSoundToButton(btnQuit);
     }
 
     public void setOnCloseAction(Runnable action) {
@@ -459,9 +463,17 @@ public class LandGrabMatchView {
     public void flashItem(Color color) { landGrabPanel.flashBuffColor(color); }
 
     public void showGameOver(boolean isWin, String reason, int myScore, int oppScore) {
+        // [Sound] 게임 종료 시 BGM 끄고 결과음 재생
+        LandGrabSoundManager sm = LandGrabSoundManager.getInstance();
+        sm.stopBgm();
+
         if (reason.contains("무승부") || myScore == oppScore) {
+            sm.play("sfx_draw.wav");
             lblResultTitle.setText("DRAW"); lblResultTitle.setTextFill(Color.web("#9575CD"));
         } else {
+            if (isWin) sm.play("sfx_win.wav");
+            else sm.play("sfx_lose.wav");
+
             lblResultTitle.setText(isWin ? "VICTORY!" : "DEFEAT...");
             lblResultTitle.setTextFill(isWin ? COLOR_GOLD_START : Color.GRAY);
         }
@@ -529,5 +541,11 @@ public class LandGrabMatchView {
 
     private void setupEventHandlers() {
         btnQuit.setOnAction(e -> performClose());
+    }
+
+    // [Sound] 버튼 효과음 연결 헬퍼 메서드
+    private void addSoundToButton(Button btn) {
+        btn.setOnMouseEntered(e -> LandGrabSoundManager.getInstance().play("sfx_ui_hover.wav"));
+        btn.setOnMouseClicked(e -> LandGrabSoundManager.getInstance().play("sfx_ui_click.wav"));
     }
 }
