@@ -8,6 +8,7 @@ import javafx.geometry.VPos;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Label;
+import javafx.scene.image.Image;
 import javafx.scene.layout.Pane;
 import javafx.scene.layout.StackPane;
 import javafx.scene.paint.Color;
@@ -15,10 +16,12 @@ import javafx.scene.text.Font;
 import javafx.scene.text.TextAlignment;
 import javafx.util.Duration;
 
+import typingarena.core.landgrab.LandGrabEffects;
 import typingarena.core.landgrab.LandGrabLogic;
 import typingarena.core.landgrab.LandGrabViewState;
 
 import java.io.InputStream;
+import java.util.List;
 
 public class LandGrabPanel extends StackPane {
 
@@ -43,12 +46,18 @@ public class LandGrabPanel extends StackPane {
     private boolean barrierActiveA = false;
     private boolean barrierActiveB = false;
 
+    private Color flashColor = null;
+    private long flashUntil = 0L;
+    private Color buffFlashColor = null;
+    private long buffFlashUntil = 0L;
+
     private final Canvas canvas = new Canvas();
     private final Pane animationPane = new Pane();
 
     private Font wordFont;
     private Font itemFont;
     private final Font splashAnimationFont;
+    private final Image inkSplatImage = loadImage("images/ink_splat.png");
 
     public LandGrabPanel() {
         setMinSize(0, 0);
@@ -217,8 +226,10 @@ public class LandGrabPanel extends StackPane {
         animationPane.getChildren().add(label); pt.play();
     }
 
-    public void flashHit() { if (!disposed) redraw(); }
-    public void flashMiss() { if (!disposed) redraw(); }
+    public void flashHit() { flash(Color.rgb(100, 255, 180), 120); }
+    public void flashMiss() { flash(Color.rgb(255, 100, 100), 120); }
+    public void flashBuffColor(Color c) { buffFlashColor = c; buffFlashUntil = System.currentTimeMillis() + 200; redraw(); }
+    private void flash(Color c, int ms) { if (disposed) return; flashColor = c; flashUntil = System.currentTimeMillis() + ms; redraw(); }
     public void activate() { disposed = false; redraw(); }
     public void dispose() { disposed = true; animationPane.getChildren().clear(); }
 
@@ -227,5 +238,11 @@ public class LandGrabPanel extends StackPane {
             if (is == null) return Font.font("Malgun Gothic", size);
             return Font.loadFont(is, size);
         } catch (Exception e) { return Font.font("System", size); }
+    }
+    private Image loadImage(String imagePath) {
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream(imagePath)) {
+            if (is == null) return null;
+            return new Image(is);
+        } catch (Exception e) { return null; }
     }
 }
