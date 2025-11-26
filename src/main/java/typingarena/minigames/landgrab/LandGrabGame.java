@@ -180,36 +180,32 @@ public class LandGrabGame extends Stage {
         if (result.resultCode() > 0) {
             int r = result.r(); int c = result.c(); ItemType type = result.itemType();
 
-            // === [Sound Update] 상황별 사운드 분기 적용 ===
+            // === [Sound Update] 상황별 사운드 분기 (아이템과 타격음 완전 분리) ===
             if (isMe) {
                 landGrabPanel.flashHit();
 
-                // [중요] 아이템이 없을 때만 기본 사운드 재생 (아이템 획득 시에는 중복 재생 방지)
-                if (type == ItemType.NONE) {
-                    // 1. 현재 로직 상의 타일 상태와 콤보 확인
-                    TileState currentTile = coreLogic.getTileState(r, c);
-                    int currentCombo = coreLogic.getCombo(TileState.PLAYER_A);
+                // 1. 현재 로직 상의 타일 상태와 콤보 확인
+                TileState currentTile = coreLogic.getTileState(r, c);
+                int currentCombo = coreLogic.getCombo(TileState.PLAYER_A);
 
-                    // 2. 상황별 사운드 재생
-                    // [Case A & B] 각성 상태 (10콤보 이상) -> 무조건 강력한 뺏기 사운드
-                    if (currentCombo == 10) {
-                        sm.play("sfx_fever_start.wav");
-                        sm.play("sfx_steal.wav");
-                    } else if (currentCombo > 10) {
-                        sm.play("sfx_steal.wav");
-                    }
-                    // [Case C] 일반 상태 -> 타일 종류에 따라 구분
-                    else {
+                // 2. [Priority 1] 10콤보 달성 시 피버 진입음은 무조건 재생 (아이템 여부 무관)
+                if (currentCombo == 10) {
+                    sm.play("sfx_fever_start.wav");
+                }
+
+                // 3. [Priority 2] 일반 타격음 및 각성 공격음은 '아이템이 없을 때'만 재생
+                if (type == ItemType.NONE) {
+                    if (currentCombo >= 10) {
+                        sm.play("sfx_steal.wav"); // 각성 공격
+                    } else {
                         if (currentTile == TileState.EMPTY) {
-                            // 빈 땅이 됨 -> 상대 땅 파괴(중립화)
-                            sm.play("sfx_destroy.wav");
+                            sm.play("sfx_destroy.wav"); // 파괴
                         } else {
-                            // 내 땅이 됨 -> 일반 점령
-                            sm.play("sfx_hit.wav");
+                            sm.play("sfx_hit.wav");     // 점령
                         }
                     }
                 }
-                // 아이템이 있는 경우(type != NONE)는 아래 switch문에서 해당 아이템 소리만 재생됨
+                // 아이템이 있으면(type != NONE) 위 로직을 건너뛰고, 아래 switch에서 아이템 소리만 재생
             }
             // ====================================================
 

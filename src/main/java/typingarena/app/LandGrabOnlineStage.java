@@ -186,71 +186,75 @@ public class LandGrabOnlineStage extends Stage {
 
             LandGrabSoundManager sm = LandGrabSoundManager.getInstance();
 
-            // [Sound Update] MISS 메시지 처리 추가
+            // [Sound Update] MISS 메시지 처리
             if (type.contains("MISS")) {
                 landGrabPanel.flashMiss();
                 sm.play("sfx_miss.wav");
             }
+            else {
+                // 정답일 때 (HIT 또는 아이템 발동 등)
+                // 내 행동인지 확인 (상대방 버프/공격은 제외)
+                boolean isMyAction = type.startsWith("ATTACK_") || (type.startsWith("BUFF_") && !type.contains("OPP_")) || type.contains("HIT");
 
-            // [Sound] 서버 트리거에 따라 사운드 재생 (내 행동만)
-            else if (type.contains("ATTACK_INK")) {
-                landGrabPanel.showFloatingText("먹물 발사!", r, c, "#444", "#000");
-                sm.play("sfx_item_ink.wav"); // 내가 공격
-            }
-            else if (type.contains("TRAP_INK")) landGrabPanel.showInkSplashAnimation(r, c);
-            else if (type.contains("BUFF_SPLASH")) {
-                landGrabPanel.showSplashAnimation(r, c);
-                sm.play("sfx_item_splash.wav"); // 내 버프
-            }
-            else if (type.contains("OPP_SPLASH")) landGrabPanel.showFloatingText("상대 스플래시!", r, c, "cyan", "blue");
-            else if (type.contains("BUFF_BARRIER")) {
-                landGrabPanel.showFloatingText("보호막 가동!", r, c, "gold", "orange");
-                sm.play("sfx_item_barrier.wav"); // 내 버프
-            }
-            else if (type.contains("OPP_BARRIER")) landGrabPanel.showFloatingText("상대 보호막!", r, c, "orange", "red");
+                // 1. [Priority 1] 피버 진입 체크 (아이템 여부 무관하게 10콤보 달성 시 무조건 재생)
+                if (isMyAction && comboSelf == 10) {
+                    sm.play("sfx_fever_start.wav");
+                }
 
-                // 콤보 가드는 상태 동기화로 처리되지만, 획득 시 텍스트는 띄워줌
-            else if (type.contains("BUFF_COMBO_GUARD")) {
-                landGrabPanel.showFloatingText("콤보 가드!", r, c, "lime", "green");
-                sm.play("sfx_item_guard.wav"); // 내 버프
-            }
-            else if (type.contains("OPP_COMBO_GUARD")) landGrabPanel.showFloatingText("상대 콤보가드!", r, c, "red", "darkred");
+                // 2. [Specifics] 아이템 사운드 처리 (아이템이 있으면 HIT 처리 블록으로 가지 않음)
+                if (type.contains("ATTACK_INK")) {
+                    landGrabPanel.showFloatingText("먹물 발사!", r, c, "#444", "#000");
+                    sm.play("sfx_item_ink.wav");
+                }
+                else if (type.contains("TRAP_INK")) landGrabPanel.showInkSplashAnimation(r, c);
+                else if (type.contains("BUFF_SPLASH")) {
+                    landGrabPanel.showSplashAnimation(r, c);
+                    sm.play("sfx_item_splash.wav");
+                }
+                else if (type.contains("OPP_SPLASH")) landGrabPanel.showFloatingText("상대 스플래시!", r, c, "cyan", "blue");
+                else if (type.contains("BUFF_BARRIER")) {
+                    landGrabPanel.showFloatingText("보호막 가동!", r, c, "gold", "orange");
+                    sm.play("sfx_item_barrier.wav");
+                }
+                else if (type.contains("OPP_BARRIER")) landGrabPanel.showFloatingText("상대 보호막!", r, c, "orange", "red");
+                else if (type.contains("BUFF_COMBO_GUARD")) {
+                    landGrabPanel.showFloatingText("콤보 가드!", r, c, "lime", "green");
+                    sm.play("sfx_item_guard.wav");
+                }
+                else if (type.contains("OPP_COMBO_GUARD")) landGrabPanel.showFloatingText("상대 콤보가드!", r, c, "red", "darkred");
+                else if (type.contains("ATTACK_CONFUSION")) {
+                    landGrabPanel.showFloatingText("혼란 공격!", r, c, "purple", "violet");
+                    sm.play("sfx_item_confuse.wav");
+                }
+                else if (type.contains("TRAP_CONFUSION")) landGrabPanel.showFloatingText("혼란 걸림!", r, c, "red", "darkred");
+                else if (type.contains("ATTACK_EMP")) {
+                    landGrabPanel.showFloatingText("EMP 발동!", r, c, "blue", "cyan");
+                    sm.play("sfx_item_emp.wav");
+                }
+                else if (type.contains("TRAP_EMP")) landGrabPanel.showFloatingText("상대 EMP!", r, c, "red", "orange");
 
-            else if (type.contains("ATTACK_CONFUSION")) {
-                landGrabPanel.showFloatingText("혼란 공격!", r, c, "purple", "violet");
-                sm.play("sfx_item_confuse.wav"); // 내가 공격
-            }
-            else if (type.contains("TRAP_CONFUSION")) landGrabPanel.showFloatingText("혼란 걸림!", r, c, "red", "darkred");
-            else if (type.contains("ATTACK_EMP")) {
-                landGrabPanel.showFloatingText("EMP 발동!", r, c, "blue", "cyan");
-                sm.play("sfx_item_emp.wav"); // 내가 공격
-            }
-            else if (type.contains("TRAP_EMP")) landGrabPanel.showFloatingText("상대 EMP!", r, c, "red", "orange");
+                    // [Sound Update] 3. HIT 처리 (아이템이 없을 때만 여기로 옴)
+                else if (type.contains("HIT")) {
+                    landGrabPanel.flashHit();
 
-                // [Sound Update] HIT 처리 로직
-            else if (type.contains("HIT")) {
-                landGrabPanel.flashHit();
+                    // [안전 장치] 좌표가 유효한지 확인
+                    if (r >= 0 && r < 10 && c >= 0 && c < 10) {
 
-                // [안전 장치] 좌표가 유효한지 확인
-                if (r >= 0 && r < 10 && c >= 0 && c < 10) {
-
-                    // [중요 수정] 각성(10콤보 이상)이면 타일 종류 불문하고 무조건 각성 사운드 재생
-                    if (comboSelf == 10) {
-                        sm.play("sfx_fever_start.wav");
-                        sm.play("sfx_steal.wav");
-                    } else if (comboSelf > 10) {
-                        sm.play("sfx_steal.wav");
-                    } else {
-                        // 일반 상태일 때는 타일에 따라 구분
-                        var targetTile = state.getTileState(r, c);
-                        if (targetTile == typingarena.core.landgrab.LandGrabLogic.TileState.EMPTY) {
-                            sm.play("sfx_destroy.wav"); // 상대 땅 파괴 (빈 땅 됨)
+                        // 각성 상태(10콤보 이상)면 무조건 Steal 재생
+                        if (comboSelf >= 10) {
+                            sm.play("sfx_steal.wav");
                         } else {
-                            sm.play("sfx_hit.wav");     // 빈 땅 점령 (내 땅 됨)
+                            // 일반 상태면 타일에 따라 구분
+                            var targetTile = state.getTileState(r, c);
+                            if (targetTile == typingarena.core.landgrab.LandGrabLogic.TileState.EMPTY) {
+                                sm.play("sfx_destroy.wav"); // 파괴
+                            } else {
+                                sm.play("sfx_hit.wav");     // 점령
+                            }
                         }
+                    } else {
+                        sm.play("sfx_hit.wav");
                     }
-                } else {
-                    sm.play("sfx_hit.wav");
                 }
             }
         }
