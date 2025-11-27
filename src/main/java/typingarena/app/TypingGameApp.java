@@ -18,11 +18,14 @@ import javafx.stage.Stage;
 import typingarena.minigames.castledefense.CastleDefenseGame;
 import typingarena.minigames.landgrab.LandGrabGame;
 import typingarena.minigames.tugofwar.TugOfWarGame;
+import typingarena.net.NetClient;
 
 public class TypingGameApp extends Application {
 
     private Stage primaryStage;
     private BorderPane root;
+    private NetClient netClient;
+    private String myNickname = "";
 
     @Override
     public void start(Stage primaryStage) {
@@ -34,8 +37,17 @@ public class TypingGameApp extends Application {
         Scene scene = new Scene(root, 760, 560);
         primaryStage.setTitle("Typing Mini Game");
         primaryStage.setScene(scene);
-        showMainMenu();
         primaryStage.show();
+        showLogin();
+    }
+
+    private void showLogin() {
+        LoginScreen login = new LoginScreen(primaryStage, (client, nickname) -> {
+            this.netClient = client;
+            this.myNickname = nickname;
+            showMainMenu();
+        });
+        login.showAndWait();
     }
 
     // === Main Menu (Single / Multi) ===
@@ -96,8 +108,14 @@ public class TypingGameApp extends Application {
 
     // === Multi Lobby ===
     private void openMultiLobby() {
+        if (netClient == null) {
+            Alert alert = new Alert(Alert.AlertType.WARNING, "로그인 후 이용하세요.");
+            alert.initOwner(primaryStage);
+            alert.show();
+            return;
+        }
         try {
-            MultiLobbyStage lobby = new MultiLobbyStage(primaryStage);
+            MultiLobbyStage lobby = new MultiLobbyStage(primaryStage, netClient, myNickname);
             lobby.show();
         } catch (Exception e) {
             Alert alert = new Alert(Alert.AlertType.ERROR, "멀티 로비를 열 수 없습니다.\n" + e.getMessage());
