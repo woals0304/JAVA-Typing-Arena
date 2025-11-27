@@ -36,6 +36,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import typingarena.minigames.tugofwar.TugOfWarSoundManager;
 
 /**
  * 싱글/멀티 모두에서 사용하는 공통 UI.
@@ -623,6 +624,7 @@ public class TugOfWarMatchView {
                     for (Node n : change.getAddedSubList()) {
                         if (n instanceof Button btn) {
                             styleCookieButton(btn, COLOR_P1);
+                            addSoundToButton(btn);
                         }
                     }
                 }
@@ -632,6 +634,8 @@ public class TugOfWarMatchView {
         // 게임오버 버튼 기본 스타일
         styleCookieButton(btnRematch, COLOR_P1);
         styleCookieButton(btnQuit, COLOR_P2);
+        addSoundToButton(btnRematch);
+        addSoundToButton(btnQuit);
     }
 
     private void styleCookieButton(Button btn, Color color) {
@@ -639,6 +643,11 @@ public class TugOfWarMatchView {
         String hex = toHex(color);
         btn.setStyle("-fx-background-color: " + hex + "; -fx-text-fill: white; -fx-background-radius: 20; -fx-border-color: #5D4037; -fx-border-width: 2px; -fx-border-radius: 20; -fx-padding: 8 18; -fx-cursor: hand;");
         btn.setEffect(new DropShadow(3, color.darker()));
+    }
+
+    private void addSoundToButton(Button btn) {
+        btn.setOnMouseEntered(e -> TugOfWarSoundManager.getInstance().play("sfx_hit.wav"));
+        btn.setOnMouseClicked(e -> TugOfWarSoundManager.getInstance().play("sfx_start.wav"));
     }
 
     private String toHex(Color c) {

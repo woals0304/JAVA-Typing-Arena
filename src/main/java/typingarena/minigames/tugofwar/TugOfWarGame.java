@@ -11,6 +11,7 @@ import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 import typingarena.core.tugofwar.GameLogic;
+import typingarena.minigames.tugofwar.TugOfWarSoundManager;
 
 /**
  * 기존 싱글 플레이 줄다리기 Stage.
@@ -31,6 +32,15 @@ public class TugOfWarGame extends Stage {
 
     public TugOfWarGame() {
         setTitle("Typing Arena - 줄다리기");
+
+        // 사운드 리소스 미리 로딩 (LandGrab 사운드를 재사용)
+        TugOfWarSoundManager sm = TugOfWarSoundManager.getInstance();
+        sm.load("sfx_start.wav");
+        sm.load("sfx_hit.wav");
+        sm.load("sfx_miss.wav");
+        sm.load("sfx_win.wav");
+        sm.load("sfx_lose.wav");
+        sm.load("sfx_draw.wav");
 
         inputField.setDisable(true);
         startButton.setOnAction(e -> startGame());
@@ -66,6 +76,7 @@ public class TugOfWarGame extends Stage {
         setOnHidden(e -> {
             gameLoop.stop();
             ropePanel.dispose();
+            TugOfWarSoundManager.getInstance().stopBgm();
         });
 
         updateHUD();
@@ -80,6 +91,9 @@ public class TugOfWarGame extends Stage {
         inputField.clear();
         inputField.requestFocus();
         lastItemNotifiedAt = 0L;
+        TugOfWarSoundManager sm = TugOfWarSoundManager.getInstance();
+        sm.playBgm("bgm_game.wav");
+        sm.play("sfx_start.wav");
 
         updateHUD();
         updateView();
@@ -97,8 +111,10 @@ public class TugOfWarGame extends Stage {
 
         if (correct) {
             view.flashCorrect();
+            TugOfWarSoundManager.getInstance().play("sfx_hit.wav");
         } else {
             view.flashWrong();
+            TugOfWarSoundManager.getInstance().play("sfx_miss.wav");
         }
 
         inputField.clear();
@@ -127,6 +143,11 @@ public class TugOfWarGame extends Stage {
             } else {
                 view.showGameOver("DEFEAT...", result, extra, Color.web("#EF5350"), "다시하기", "닫기");
             }
+            TugOfWarSoundManager sm = TugOfWarSoundManager.getInstance();
+            sm.stopBgm();
+            if (isDraw) sm.play("sfx_draw.wav");
+            else if (isWin) sm.play("sfx_win.wav");
+            else sm.play("sfx_lose.wav");
         }
     }
 

@@ -5,11 +5,12 @@ import javafx.geometry.Rectangle2D;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.paint.Color;
-import javafx.stage.Stage;
 import javafx.stage.Screen;
+import javafx.stage.Stage;
 import typingarena.core.tugofwar.GameLogic;
 import typingarena.minigames.tugofwar.RopePanel;
 import typingarena.minigames.tugofwar.TugOfWarMatchView;
+import typingarena.minigames.tugofwar.TugOfWarSoundManager;
 import typingarena.minigames.tugofwar.TugOfWarViewState;
 import typingarena.net.Message;
 import typingarena.net.NetClient;
@@ -33,10 +34,19 @@ public class TugOfWarOnlineStage extends Stage {
 
     private String sessionId;
     private boolean running = false;
+    private int lastScoreSelf = 0;
 
     public TugOfWarOnlineStage(NetClient client) {
         this.client = client;
         setTitle("온라인 줄다리기");
+
+        // 사운드 리소스 미리 로딩 (LandGrab 사운드 재사용)
+        TugOfWarSoundManager sm = TugOfWarSoundManager.getInstance();
+        sm.load("sfx_start.wav");
+        sm.load("sfx_hit.wav");
+        sm.load("sfx_win.wav");
+        sm.load("sfx_lose.wav");
+        sm.load("sfx_draw.wav");
 
         view.getControlBox().getChildren().add(surrenderBtn);
         view.getControlBox().getChildren().add(rematchBtn);
@@ -90,6 +100,7 @@ public class TugOfWarOnlineStage extends Stage {
     private void handleStart(Message msg) {
         this.sessionId = msg.sessionId;
         running = true;
+        lastScoreSelf = 0;
         view.getInputField().setDisable(false);
         surrenderBtn.setDisable(false);
         rematchBtn.setDisable(true);
@@ -101,6 +112,10 @@ public class TugOfWarOnlineStage extends Stage {
         overlaySecondary.setText("닫기");
         view.getInputField().clear();
         view.getInputField().requestFocus();
+
+        TugOfWarSoundManager sm = TugOfWarSoundManager.getInstance();
+        sm.playBgm("bgm_game.wav");
+        sm.play("sfx_start.wav");
 
         Map<String, Object> data = msg.data;
         if (data != null) {
@@ -129,10 +144,16 @@ public class TugOfWarOnlineStage extends Stage {
 
         view.setTimeText(formatTime(toDouble(data.get("timeMs"))));
         view.setTimeMs(toDouble(data.get("timeMs")));
+        int scoreSelf = toInt(data.get("scoreSelf"));
         view.setScoreText(String.format("점수 (나/상대): %d / %d",
-                toInt(data.get("scoreSelf")),
+                scoreSelf,
                 toInt(data.get("scoreOpponent"))));
         view.setComboText("콤보: " + toInt(data.get("comboSelf")));
+        if (scoreSelf > lastScoreSelf) {
+            TugOfWarSoundManager.getInstance().play("sfx_hit.wav");
+        }
+        lastScoreSelf = scoreSelf;
+
         double pos = toDouble(data.get("pos"));
         view.setPosText(String.format("위치: %.1f", pos));
         view.setEffectsText(valueOf(data.getOrDefault("effectsSelf", "효과: 없음")));
@@ -166,6 +187,12 @@ public class TugOfWarOnlineStage extends Stage {
         if (result.contains("승")) accent = Color.web("#FFD54F");
         else if (result.contains("패")) accent = Color.web("#EF5350");
         view.showGameOver("MATCH END", result, message, accent, "재경기", "닫기");
+
+        TugOfWarSoundManager sm = TugOfWarSoundManager.getInstance();
+        sm.stopBgm();
+        if (result.contains("무") || result.contains("draw")) sm.play("sfx_draw.wav");
+        else if (result.contains("승")) sm.play("sfx_win.wav");
+        else sm.play("sfx_lose.wav");
     }
 
     private void handleRematchNotice() {
@@ -194,6 +221,7 @@ public class TugOfWarOnlineStage extends Stage {
         view.getInputField().setDisable(true);
         surrenderBtn.setDisable(true);
         rematchBtn.setDisable(true);
+        TugOfWarSoundManager.getInstance().stopBgm();
     }
 
     private void sendRematchRequest() {
