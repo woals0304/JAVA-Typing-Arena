@@ -20,6 +20,7 @@ Typing Arena의 1:1 타자 대결 모드입니다. 60초 안에 밧줄을 상대
 - `GameLogic`이 타이머, 점수, 콤보, AI 견인력을 관리합니다.
 - `TugOfWarMatchView` + `RopePanel`로 멀티와 동일한 UI를 재사용합니다.
 - 게임 오버 시 오버레이에서 다시하기/닫기 선택 가능, 자동 닫힘 타이머가 30초 카운트됩니다.
+- 사운드: `TugOfWarSoundManager`가 LandGrab 사운드 리소스(`sounds/landgrab/*`)를 캐싱해 효과음/게임 BGM을 재생합니다. 필요하면 동일 경로에 전용 WAV를 추가하면 됩니다.
 
 ## 온라인 플레이(Stage: `TugOfWarOnlineStage`)
 - 서버 매칭 후 `GAME_START_BROADCAST` → `GAME_UPDATE_BROADCAST`로 밧줄 위치/단어/아이템 상태를 수신합니다.
