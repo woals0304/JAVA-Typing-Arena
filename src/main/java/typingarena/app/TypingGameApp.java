@@ -18,11 +18,14 @@ import javafx.stage.Stage;
 import typingarena.minigames.castledefense.CastleDefenseGame;
 import typingarena.minigames.landgrab.LandGrabGame;
 import typingarena.minigames.tugofwar.TugOfWarGame;
+import typingarena.net.NetClient;
 
 public class TypingGameApp extends Application {
 
     private Stage primaryStage;
     private BorderPane root;
+    private NetClient netClient;
+    private String myNickname = "";
 
     @Override
     public void start(Stage primaryStage) {
@@ -34,8 +37,17 @@ public class TypingGameApp extends Application {
         Scene scene = new Scene(root, 760, 560);
         primaryStage.setTitle("Typing Mini Game");
         primaryStage.setScene(scene);
-        showMainMenu();
         primaryStage.show();
+        showLogin();
+    }
+
+    private void showLogin() {
+        LoginScreen login = new LoginScreen(primaryStage, (client, nickname) -> {
+            this.netClient = client;
+            this.myNickname = nickname;
+            showMainMenu();
+        });
+        login.showAndWait();
     }
 
     // === Main Menu (Single / Multi) ===
@@ -49,12 +61,39 @@ public class TypingGameApp extends Application {
         subtitle.setTextFill(Color.web("#6D4C41"));
 
         Button singleBtn = createPrimaryButton("싱글 플레이", this::showSingleMenu);
-        Button multiBtn = createPrimaryButton("멀티 플레이", this::openMultiLobby);
+        Button multiBtn = createPrimaryButton("멀티 플레이", this::showMultiMenu);
 
         HBox buttons = new HBox(20, singleBtn, multiBtn);
         buttons.setAlignment(Pos.CENTER);
 
         VBox center = new VBox(25, title, subtitle, buttons);
+        center.setAlignment(Pos.CENTER);
+        setCenterContent(center);
+    }
+
+    // === Multi Player Menu ===
+    private void showMultiMenu() {
+        Label title = new Label("멀티 플레이");
+        title.setFont(Font.font("Malgun Gothic", FontWeight.EXTRA_BOLD, 28));
+        title.setTextFill(Color.web("#4E342E"));
+
+        Label description = new Label(
+                "온라인으로 친구나 다른 플레이어와 대결하세요.\n" +
+                        "줄다리기 / 땅따먹기 매칭을 선택하면\n" +
+                        "멀티 로비에서 자동 매칭을 시작합니다."
+        );
+        description.setFont(Font.font("Malgun Gothic", 16));
+        description.setTextFill(Color.web("#6D4C41"));
+        description.setLineSpacing(4);
+        description.setAlignment(Pos.CENTER);
+
+        Button openLobbyBtn = createMenuButton("멀티 로비 열기", this::openMultiLobby);
+        Button backBtn = createSecondaryButton("◀ 메인으로", this::showMainMenu);
+
+        VBox buttons = new VBox(12, openLobbyBtn, backBtn);
+        buttons.setAlignment(Pos.CENTER);
+
+        VBox center = new VBox(25, title, description, buttons);
         center.setAlignment(Pos.CENTER);
         setCenterContent(center);
     }
@@ -96,14 +135,14 @@ public class TypingGameApp extends Application {
 
     // === Multi Lobby ===
     private void openMultiLobby() {
-        try {
-            MultiLobbyStage lobby = new MultiLobbyStage(primaryStage);
-            lobby.show();
-        } catch (Exception e) {
-            Alert alert = new Alert(Alert.AlertType.ERROR, "멀티 로비를 열 수 없습니다.\n" + e.getMessage());
+        if (netClient == null) {
+            Alert alert = new Alert(Alert.AlertType.WARNING, "로그인 후 이용하세요.");
             alert.initOwner(primaryStage);
             alert.show();
+            return;
         }
+        MultiLobbyPane pane = new MultiLobbyPane(netClient, myNickname, this::showMainMenu);
+        setCenterContent(pane);
     }
 
     // === Helpers ===
