@@ -1,58 +1,63 @@
 package typingarena.minigames.castledefense;
 
 import javafx.animation.AnimationTimer;
-import javafx.animation.TranslateTransition;
+import javafx.animation.ScaleTransition;
+import javafx.beans.property.SimpleIntegerProperty;
+import javafx.geometry.HPos;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
-import javafx.scene.control.Alert;
-import javafx.scene.control.Button;
-import javafx.scene.control.Label;
-import javafx.scene.control.ProgressBar;
-import javafx.scene.control.TextField;
-import javafx.scene.image.Image;
+import javafx.scene.control.*;
+import javafx.scene.effect.DropShadow;
+import javafx.scene.effect.Glow;
 import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
-import javafx.scene.paint.Color;
-import javafx.scene.shape.Circle;
+import javafx.scene.paint.*;
+import javafx.scene.shape.Polygon;
 import javafx.scene.shape.Rectangle;
+import javafx.scene.shape.StrokeType;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
+import javafx.scene.text.Text;
 import javafx.stage.Stage;
 import javafx.util.Duration;
-
 import com.google.gson.Gson;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Random;
+import java.nio.file.*;
+import java.util.*;
+
+import static typingarena.minigames.castledefense.TileManager.*;
 
 public class CastleDefenseGame extends Stage {
 
     // --- [1] 설정 값 ---
-    private static final int TILE_SIZE = 64; 
+    private static final int TILE_SIZE = 56; 
     private static final int MAP_COLS = 16; 
-    private static final int MAP_ROWS = 10; 
-    private final double GAME_WIDTH = MAP_COLS * TILE_SIZE;
-    private final double GAME_HEIGHT = MAP_ROWS * TILE_SIZE;
+    private static final int MAP_ROWS = 9;  
+    private final double GAME_WIDTH = MAP_COLS * TILE_SIZE;   // 896px
+    private final double GAME_HEIGHT = MAP_ROWS * TILE_SIZE;  // 504px
+    private final long GAME_DURATION_SECONDS = 60;
 
-    // --- [2] 타일 타입 정의 ---
-    private static final int G=0, G1=1, G2=7, P=2, PD=3, P1=4, PU=5, F=8, F1=9, F2=10, F3=11, F4=12, F1U=13, F4U=14, F1D=15, F4D=16, S=17, S1=18;
+    // --- [2] UI 스타일 상수 ---
+    private static final Color COLOR_P1 = Color.web("#29B6F6");
+    private static final Color COLOR_P2 = Color.web("#EF5350");
+    private static final Color THEME_STROKE = Color.web("#5D4037");
+    private static final Color THEME_UI_BG = Color.web("#FFF8E1");
+    private static final Color THEME_BOTTOM_BG = Color.web("#FFECB3");
+    private static final Color COLOR_TIMER_BG = Color.web("#D7CCC8");
+    private static final Color COLOR_GOLD_START = Color.web("#FFD54F");
+    private static final Color COLOR_GOLD_END = Color.web("#FF6F00");
+    private static final Color COMBO_BG_PURPLE_START = Color.web("#BA68C8");
+    private static final Color COMBO_BG_PURPLE_END = Color.web("#7B1FA2");
 
-    // --- [3] 맵 데이터 ---
+    // --- [3] 매니저들 ---
+    private final TileManager tileManager = new TileManager(); 
+    private final ComboManager comboManager = new ComboManager(); 
+    private HeartManager heartManager; 
+
+    // --- [4] 맵 데이터 ---
     private final int[][] mapData = {
-        {G, G, G, G, G, G, G, G, G, G, G, G, G, G, G, G},
         {G1, G1, G1, G1, G1, G1, G1, G1, G1, G1, G1, G1, G1, G1, G1, G1},
         {G2, G2, G2, G2, G2, G2, G2, G2, G2, G2, G2, G2, G2, G2, G2, G2},
         {F1U, F4U, F2, PU, PU, PU, PU, PU, PU, PU, PU, PU, PU, PU, PU, PU}, 
@@ -64,123 +69,330 @@ public class CastleDefenseGame extends Stage {
         {S, S, S1, S, S, S1, S, S1, S1, S, S, S1, S, S, S1, S}
     };
 
-    // --- [4] 리소스 변수 ---
-    private Image groundImage, groundImage1, groundImage2, pathImage, pathImage1, pathImageU, pathImageD;
-    private Image fenceImage, fenceImage1, fenceImage2, fenceImage3, fenceImage4;
-    private Image castleImage, castleImage1;
-    private Image playerImage, monsterImage; // 캐릭터 이미지
-
-    // [경로 설정]
-    private final String BASE_PATH = "/images/castledefense/Tiles/";
-    private final String PLAYER_PATH = "/images/castledefense/Players/1P.png";   
-    private final String MONSTER_PATH = "/images/castledefense/Monsters/M1.png"; 
-
-    // --- [5] 게임 로직 변수 ---
-    private static final String WORD_RESOURCE = "words/ko.json";
-    private static final String[] DEFAULT_WORDS = { "성", "몬스터", "방어", "실패" };
-    private static final List<String> WORD_POOL = loadWordPool();
-    
-    private Castle castle = new Castle();
+    // --- [5] 게임 객체 ---
+    private SimpleIntegerProperty castleHp = new SimpleIntegerProperty(3);
+    private Player player;
     private List<Monster> activeMonsters = new ArrayList<>();
-    private List<HeartItem> activeHearts = new ArrayList<>();
     
-    private Player player; 
-    
+    // --- [6] UI 컴포넌트 ---
     private Pane entityLayer;
     private TextField inputField;
-    private Button startButton; // 여기서 선언만 하고 초기화는 생성자나 메서드에서
-    private Label scoreLabel;
-    private Label timerLabel; 
-    private ProgressBar hpBar;
-    private HBox heartsBox;   
+    private Button startButton;
     private Rectangle flashOverlay;
+    
+    private Rectangle timerFill;
+    private Label lblTimeText;
+    private Text txtScore;
+    private Text txtHp;
+    private Polygon comboHexagon;
+    private Label lblComboValue;
+    private Label lblComboText;
+    private StackPane comboBadgePane;
+
+    private String gameFontFamily = "System";
 
     private boolean isRunning = false;
     private AnimationTimer gameLoop;
-    private long lastMonsterSpawnTime = 0;
-    private long lastHeartSpawnTime = 0;
-    private long gameStartTime = 0;
-    private final long GAME_DURATION_SECONDS = 60;
-    private long damageFlashUntil = 0;
+    private long lastMonsterSpawnTime = 0, lastHeartSpawnTime = 0, gameStartTime = 0, damageFlashUntil = 0;
     private int score = 0;
+    
+    private static final List<String> WORD_POOL = loadWordPool();
 
-    // --- 생성자 ---
     public CastleDefenseGame() {
-        loadResources();
+        loadGameFont();
 
-        // [수정] startButton 초기화 (여기서 먼저 생성해야 함)
         startButton = new Button("게임 시작");
-        startButton.setFont(Font.font("System", FontWeight.BOLD, 18));
-        // startButton.setOnAction(e -> startGame()); // createBottomBar에서 설정하므로 여기선 생략 가능
+        startButton.setOnAction(e -> startGame());
 
         BorderPane root = new BorderPane();
-        root.setTop(createTopBar());
+        root.setTop(buildUnifiedHeader());
 
         StackPane gameCenter = new StackPane();
         gameCenter.setStyle("-fx-background-color: #222;");
-        
-        // 1. 맵
-        GridPane mapLayer = createGameMap();
-        
-        // 2. 유닛 레이어
-        entityLayer = new Pane();
-        entityLayer.setPrefSize(GAME_WIDTH, GAME_HEIGHT);
-        
-        // 피격 효과
-        flashOverlay = new Rectangle(GAME_WIDTH, GAME_HEIGHT, Color.rgb(255, 0, 0, 0.3));
-        flashOverlay.setVisible(false);
-        flashOverlay.setMouseTransparent(true);
-
-        // 플레이어 생성 (Player 클래스 사용)
-        double playerX = 150; // 성 근처
-        double playerY = GAME_HEIGHT / 2;
-        player = new Player(playerImage, playerX, playerY);
-        
-        entityLayer.getChildren().addAll(player, flashOverlay);
-        gameCenter.getChildren().addAll(mapLayer, entityLayer);
+        gameCenter.getChildren().addAll(createGameMap(), createEntityLayer());
         root.setCenter(gameCenter);
-
-        // 하단 입력창
         root.setBottom(createBottomBar());
 
-        // 이벤트 리스너
-        castle.hpProperty().addListener((obs, o, n) -> {
-            hpBar.setProgress(n.doubleValue() / 3.0); // HP바 업데이트
-            updateHeartsUI(); // 하트 아이콘 업데이트
-        });
+        heartManager = new HeartManager(entityLayer, GAME_WIDTH + 50, GAME_HEIGHT * 0.15);
 
-        Scene scene = new Scene(root, GAME_WIDTH, GAME_HEIGHT + 100);
+        castleHp.addListener((obs, o, n) -> txtHp.setText(String.valueOf(n)));
+
+        Scene scene = new Scene(root, GAME_WIDTH, GAME_HEIGHT + 180); 
         this.setTitle("Castle Defense");
         this.setScene(scene);
         this.setOnCloseRequest(e -> stopGame());
     }
 
-    // --- 게임 루프 ---
+    private void loadGameFont() {
+        try {
+            InputStream is = getClass().getResourceAsStream("/fonts/CookieRun Regular.otf");
+            if (is != null) {
+                Font font = Font.loadFont(is, 20); 
+                gameFontFamily = font.getFamily();
+            }
+        } catch (Exception e) {
+            System.err.println("폰트 로드 실패: " + e.getMessage());
+        }
+    }
+
+    private Font getGameFont(double size) {
+        return Font.font(gameFontFamily, FontWeight.BOLD, size);
+    }
+
+    private StackPane buildUnifiedHeader() {
+        StackPane headerContainer = new StackPane(); 
+        headerContainer.setPadding(new Insets(8, 0, 10, 0)); 
+        headerContainer.setAlignment(Pos.CENTER);
+        headerContainer.setStyle("-fx-background-color: " + toHex(THEME_UI_BG) + ";");
+
+        Rectangle bg = new Rectangle(GAME_WIDTH - 20, 85); 
+        bg.setArcWidth(30); bg.setArcHeight(30); 
+        bg.setFill(Color.rgb(255, 248, 225, 0.7)); 
+        bg.setStroke(Color.rgb(93, 64, 55, 0.2)); 
+        bg.setStrokeWidth(2);
+
+        GridPane grid = new GridPane(); 
+        grid.setAlignment(Pos.CENTER); 
+        grid.setMaxWidth(GAME_WIDTH - 40); 
+        grid.setHgap(15); 
+
+        ColumnConstraints col1 = new ColumnConstraints(); col1.setPercentWidth(33); col1.setHalignment(HPos.CENTER);
+        ColumnConstraints col2 = new ColumnConstraints(); col2.setPercentWidth(34); col2.setHalignment(HPos.CENTER);
+        ColumnConstraints col3 = new ColumnConstraints(); col3.setPercentWidth(33); col3.setHalignment(HPos.CENTER);
+        grid.getColumnConstraints().addAll(col1, col2, col3);
+
+        VBox timeBox = new VBox(5); 
+        timeBox.setAlignment(Pos.CENTER);
+        Label lblTimeTitle = new Label("남은 시간"); 
+        lblTimeTitle.setFont(getGameFont(14)); 
+        lblTimeTitle.setTextFill(Color.GRAY);
+        timeBox.getChildren().addAll(lblTimeTitle, createTimerBar());
+
+        HBox scoreBox = new HBox(10); 
+        scoreBox.setAlignment(Pos.CENTER);
+        txtScore = new Text("0");
+        StackPane p1 = createScoreBadge(new Text("SCORE"), txtScore, COLOR_P1);
+        txtHp = new Text("3");
+        StackPane p2 = createScoreBadge(new Text("HP"), txtHp, COLOR_P2);
+        Text txtVs = new Text("VS"); 
+        txtVs.setFont(Font.font("Impact", 30)); 
+        txtVs.setFill(Color.LIGHTGRAY); 
+        txtVs.setEffect(new DropShadow(2, Color.WHITE));
+        scoreBox.getChildren().addAll(p1, txtVs, p2);
+
+        VBox comBox = new VBox(5);
+        comBox.setAlignment(Pos.CENTER);
+        createComboHexagon();
+        comBox.getChildren().add(comboBadgePane);
+
+        grid.add(timeBox, 0, 0); 
+        grid.add(scoreBox, 1, 0); 
+        grid.add(comBox, 2, 0);
+
+        headerContainer.getChildren().addAll(bg, grid); 
+        return headerContainer;
+    }
+
+    private HBox createBottomBar() {
+        HBox box = new HBox(15);
+        box.setAlignment(Pos.CENTER);
+        box.setPadding(new Insets(15, 20, 15, 20));
+        box.setStyle(
+            "-fx-background-color: " + toHex(THEME_BOTTOM_BG) + ";" +
+            "-fx-background-radius: 40 40 0 0;" +
+            "-fx-border-color: " + toHex(THEME_STROKE) + ";" +
+            "-fx-border-width: 4px 4px 0 4px;" +
+            "-fx-border-radius: 40 40 0 0;"
+        );
+        
+        inputField = new TextField();
+        inputField.setPromptText("단어 입력...");
+        inputField.setFont(getGameFont(20));
+        inputField.setAlignment(Pos.CENTER);
+        inputField.setPrefWidth(400); 
+        HBox.setHgrow(inputField, Priority.ALWAYS); 
+
+        inputField.setStyle(
+            "-fx-background-radius: 30;" +
+            "-fx-background-color: white;" +
+            "-fx-border-color: " + toHex(THEME_STROKE) + ";" +
+            "-fx-border-width: 3px;" +
+            "-fx-border-radius: 30;" +
+            "-fx-text-fill: #3E2723;" +
+            "-fx-prompt-text-fill: gray;"
+        );
+        inputField.setOnAction(e -> handleInput());
+
+        startButton.setFont(getGameFont(18));
+        startButton.setStyle(
+            "-fx-background-color: " + toHex(COLOR_P1) + ";" +
+            "-fx-text-fill: white;" +
+            "-fx-background-radius: 25;" +
+            "-fx-border-color: " + toHex(THEME_STROKE) + ";" +
+            "-fx-border-width: 2px;" +
+            "-fx-border-radius: 25;" +
+            "-fx-padding: 8 25;" +
+            "-fx-cursor: hand;" +
+            "-fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.2), 3, 0, 0, 2);"
+        );
+        
+        box.getChildren().addAll(inputField, startButton);
+        return box;
+    }
+
+    private String toHex(Color c) {
+        return String.format("#%02X%02X%02X", 
+            (int)(c.getRed()*255), (int)(c.getGreen()*255), (int)(c.getBlue()*255));
+    }
+
+    private StackPane createTimerBar() {
+        StackPane container = new StackPane();
+        double w = 200, h = 26, stroke = 2;
+
+        Rectangle bg = new Rectangle(w, h);
+        bg.setArcWidth(h); bg.setArcHeight(h);
+        bg.setFill(COLOR_TIMER_BG);
+
+        timerFill = new Rectangle(w - stroke*2, h - stroke*2);
+        timerFill.setArcWidth(0); timerFill.setArcHeight(0);
+        timerFill.setFill(COLOR_P1);
+
+        Rectangle clip = new Rectangle(w, h);
+        clip.setArcWidth(h); clip.setArcHeight(h);
+
+        StackPane fillWrapper = new StackPane(timerFill);
+        fillWrapper.setMaxSize(w, h);
+        fillWrapper.setAlignment(Pos.CENTER_LEFT);
+        fillWrapper.setClip(clip);
+        StackPane.setMargin(timerFill, new Insets(0, 0, 0, stroke));
+
+        Rectangle border = new Rectangle(w, h);
+        border.setArcWidth(h); border.setArcHeight(h);
+        border.setFill(Color.TRANSPARENT);
+        border.setStroke(THEME_STROKE);
+        border.setStrokeWidth(stroke);
+        border.setStrokeType(StrokeType.INSIDE);
+
+        lblTimeText = new Label("60");
+        lblTimeText.setFont(getGameFont(16));
+        lblTimeText.setTextFill(THEME_STROKE);
+
+        container.getChildren().addAll(bg, fillWrapper, border, lblTimeText);
+        return container;
+    }
+
+    private StackPane createScoreBadge(Text title, Text value, Color color) {
+        StackPane p = new StackPane(); 
+        p.setPrefSize(110, 55); 
+        
+        Rectangle bg = new Rectangle(110, 55); 
+        bg.setArcWidth(15); bg.setArcHeight(15); 
+        bg.setFill(Color.WHITE); 
+        bg.setStroke(color); 
+        bg.setStrokeWidth(3); 
+        bg.setEffect(new DropShadow(2, Color.rgb(0,0,0,0.1)));
+        
+        Rectangle tag = new Rectangle(75, 18); 
+        tag.setArcWidth(9); tag.setArcHeight(9); 
+        tag.setFill(color);
+        
+        StackPane namePane = new StackPane(tag, title); 
+        namePane.setTranslateY(-30); 
+        
+        title.setFont(getGameFont(12)); 
+        title.setFill(Color.WHITE);
+        
+        value.setFont(getGameFont(32)); 
+        value.setFill(color); 
+        value.setTranslateY(4);
+        
+        p.getChildren().addAll(bg, value, namePane); 
+        return p;
+    }
+
+    private void createComboHexagon() {
+        comboBadgePane = new StackPane();
+        comboHexagon = new Polygon();
+        double size = 38.0; 
+        comboHexagon.getPoints().addAll(
+            0.0, size/2,
+            size*0.866, 0.0,
+            size*1.732, size/2,
+            size*1.732, size*1.5,
+            size*0.866, size*2.0,
+            0.0, size*1.5
+        );
+        
+        lblComboValue = new Label("0");
+        lblComboValue.setFont(getGameFont(28)); 
+        lblComboValue.setTextFill(Color.WHITE);
+        
+        lblComboText = new Label("COMBO");
+        lblComboText.setFont(getGameFont(10)); 
+        lblComboText.setTextFill(Color.web("#E1BEE7"));
+        
+        VBox box = new VBox(-1, lblComboValue, lblComboText);
+        box.setAlignment(Pos.CENTER);
+        
+        comboBadgePane.getChildren().addAll(comboHexagon, box);
+        updateComboVisuals(0);
+    }
+
+    private void updateComboVisuals(int combo) {
+        boolean isFever = (combo >= 10);
+        lblComboValue.setText(String.valueOf(combo));
+        
+        if (isFever) {
+            comboHexagon.setFill(new LinearGradient(0, 0, 1, 1, true, CycleMethod.NO_CYCLE, new Stop(0, COLOR_GOLD_START), new Stop(1, COLOR_GOLD_END)));
+            lblComboText.setText("FEVER!");
+            lblComboText.setTextFill(Color.WHITE);
+            comboHexagon.setEffect(new Glow(0.7));
+        } else {
+            comboHexagon.setFill(new LinearGradient(0, 0, 1, 1, true, CycleMethod.NO_CYCLE, new Stop(0, COMBO_BG_PURPLE_START), new Stop(1, COMBO_BG_PURPLE_END)));
+            lblComboText.setText("COMBO");
+            lblComboText.setTextFill(Color.web("#E1BEE7"));
+            comboHexagon.setEffect(new DropShadow(5, Color.rgb(0,0,0,0.2)));
+        }
+        
+        if (combo > 0) {
+            ScaleTransition st = new ScaleTransition(Duration.millis(100), comboBadgePane);
+            st.setFromX(1.0); st.setFromY(1.0); 
+            st.setToX(1.1); st.setToY(1.1); 
+            st.setAutoReverse(true); st.setCycleCount(2); 
+            st.play();
+        }
+    }
+
+    private Pane createEntityLayer() {
+        entityLayer = new Pane();
+        entityLayer.setPrefSize(GAME_WIDTH, GAME_HEIGHT);
+        flashOverlay = new Rectangle(GAME_WIDTH, GAME_HEIGHT, Color.rgb(255, 0, 0, 0.3));
+        flashOverlay.setVisible(false);
+        flashOverlay.setMouseTransparent(true);
+        
+        // [수정] 플레이어 위치를 120 -> 60으로 (울타리 안쪽)
+        player = new Player(60, GAME_HEIGHT / 2); 
+        entityLayer.getChildren().addAll(player, flashOverlay);
+        return entityLayer;
+    }
+
     private void startGame() {
         isRunning = true;
         score = 0;
-        castle.hpProperty().set(3);
-        scoreLabel.setText("Score: 0");
-        timerLabel.setText("00:00");
-        
-        // 몬스터/아이템 초기화 (플레이어와 flashOverlay 제외하고 다 삭제)
-        entityLayer.getChildren().removeIf(n -> 
-            !"PLAYER".equals(n.getId()) && n != flashOverlay
-        );
+        comboManager.reset();
+        heartManager.clear(); 
+        castleHp.set(3);
+        txtScore.setText("0");
+        lblTimeText.setText("60");
+        updateComboVisuals(0);
+        entityLayer.getChildren().removeIf(n -> !"PLAYER".equals(n.getId()) && n != flashOverlay);
         activeMonsters.clear();
-        activeHearts.clear();
-
         startButton.setDisable(true);
         inputField.setDisable(false);
-        inputField.requestFocus(); // [중요] 입력창 포커스
-
+        inputField.requestFocus();
         gameStartTime = System.nanoTime();
-        
         gameLoop = new AnimationTimer() {
-            @Override
-            public void handle(long now) {
-                update(now);
-            }
+            @Override public void handle(long now) { update(now); }
         };
         gameLoop.start();
     }
@@ -195,202 +407,97 @@ public class CastleDefenseGame extends Stage {
     private void update(long now) {
         if (!isRunning) return;
 
-        // 타이머 업데이트
-        long elapsedSeconds = (now - gameStartTime) / 1_000_000_000;
-        if (elapsedSeconds >= GAME_DURATION_SECONDS) {
-            stopGame();
-            showGameOver(true);
-            return;
-        }
-        long minutes = elapsedSeconds / 60;
-        long seconds = elapsedSeconds % 60;
-        timerLabel.setText(String.format("%02d:%02d", minutes, seconds));
-
-        // 피격 효과 처리
-        if (damageFlashUntil > 0) {
-            if (now < damageFlashUntil) flashOverlay.setVisible(true);
-            else {
-                flashOverlay.setVisible(false);
-                damageFlashUntil = 0;
-            }
-        }
-
-        // 1. 몬스터 스폰 (2초)
-        if (now - lastMonsterSpawnTime > 2_000_000_000L) {
-            spawnMonster();
-            lastMonsterSpawnTime = now;
-        }
-        // 2. 하트 스폰 (15초)
-        if (now - lastHeartSpawnTime > 15_000_000_000L) {
-            spawnHeartItem();
-            lastHeartSpawnTime = now;
-        }
-
-        // 3. 이동 및 충돌 체크
-        moveEntities();
+        long elapsed = (now - gameStartTime) / 1_000_000_000;
+        long remaining = GAME_DURATION_SECONDS - elapsed;
         
-        // 4. 게임 오버 체크
-        if (castle.isDestroyed()) {
-            stopGame();
-            showGameOver(false);
+        if (remaining <= 0) { stopGame(); showGameOver(true); return; }
+        
+        double ratio = (double) remaining / GAME_DURATION_SECONDS;
+        double maxW = 200 - 4; 
+        timerFill.setWidth(maxW * ratio);
+        lblTimeText.setText(String.valueOf(remaining));
+        
+        if (remaining <= 10) {
+            timerFill.setFill(COLOR_P2);
+            lblTimeText.setTextFill(Color.RED);
+        } else {
+            timerFill.setFill(COLOR_P1);
+            lblTimeText.setTextFill(THEME_STROKE);
         }
+
+        if (damageFlashUntil > 0) {
+            flashOverlay.setVisible(now < damageFlashUntil);
+            if (now >= damageFlashUntil) damageFlashUntil = 0;
+        }
+
+        if (now - lastMonsterSpawnTime > 2_000_000_000L) { spawnMonster(); lastMonsterSpawnTime = now; }
+        if (now - lastHeartSpawnTime > 15_000_000_000L) { 
+            heartManager.spawn(); 
+            lastHeartSpawnTime = now; 
+        }
+
+        moveEntities();
+
+        if (castleHp.get() <= 0) { stopGame(); showGameOver(false); }
     }
 
     private void spawnMonster() {
         if (WORD_POOL.isEmpty()) return;
         String word = WORD_POOL.get(new Random().nextInt(WORD_POOL.size()));
-        
-        double y = GAME_HEIGHT * 0.25 + new Random().nextDouble() * (GAME_HEIGHT * 0.5);
-        // 분리된 Monster 클래스 사용
-        Monster m = new Monster(word, monsterImage, GAME_WIDTH + 50, y);
-        
+        double y = GAME_HEIGHT * 0.2 + new Random().nextDouble() * (GAME_HEIGHT * 0.6); 
+        Monster m = new Monster(word, Monster.loadAssets(), GAME_WIDTH + 50, y);
         activeMonsters.add(m);
         entityLayer.getChildren().add(m);
-        m.toBack(); 
-    }
-
-    private void spawnHeartItem() {
-        HeartItem h = new HeartItem(GAME_WIDTH + 50, GAME_HEIGHT * 0.1);
-        activeHearts.add(h);
-        entityLayer.getChildren().add(h);
+        m.toBack();
     }
 
     private void moveEntities() {
-        // 몬스터 이동
         Iterator<Monster> it = activeMonsters.iterator();
         while (it.hasNext()) {
             Monster m = it.next();
-            m.move(2.0); // 속도
-
-            if (m.getLayoutX() < 100) { // 성벽 도달
-                castle.takeDamage();
-                damageFlashUntil = System.nanoTime() + 150_000_000L; // 0.15초간 번쩍
+            m.move(2.0); 
+            if (m.hasReachedCastle()) {
+                if (castleHp.get() > 0) castleHp.set(castleHp.get() - 1);
+                damageFlashUntil = System.nanoTime() + 150_000_000L;
+                comboManager.reset();
+                updateComboVisuals(0);
                 entityLayer.getChildren().remove(m);
                 it.remove();
             }
         }
-        
-        // 하트 이동
-        Iterator<HeartItem> hit = activeHearts.iterator();
-        while (hit.hasNext()) {
-            HeartItem h = hit.next();
-            h.move();
-            if (h.getTranslateX() < -50) {
-                entityLayer.getChildren().remove(h);
-                hit.remove();
-            }
-        }
+        heartManager.update();
     }
 
-    // --- [입력 처리] ---
     private void handleInput() {
         if (!isRunning) return;
-        
         String text = inputField.getText().trim();
-        inputField.clear(); // 입력창 비우기
-        
+        inputField.clear();
+        inputField.requestFocus();
         if (text.isEmpty()) return;
 
-        // 1. 하트 체크
-        for (HeartItem h : activeHearts) {
-            if (text.equals("하트")) {
-                castle.addHp();
-                entityLayer.getChildren().remove(h);
-                activeHearts.remove(h);
+        if (heartManager.checkInput(text, castleHp)) return;
+
+        for (Monster m : activeMonsters) {
+            if (m.getWord().equalsIgnoreCase(text)) {
+                comboManager.increase();
+                int currentCombo = 0;
+                try { currentCombo = Integer.parseInt(lblComboValue.getText()) + 1; } catch(Exception e) { currentCombo = 1; }
+                updateComboVisuals(currentCombo);
+                player.attack(m, entityLayer, comboManager.isMaxEffect(), () -> killMonster(m));
+                m.setTargeted(true);
                 return;
             }
         }
-
-        // 2. 몬스터 체크
-        for (Monster m : activeMonsters) {
-            if (m.getWord().equalsIgnoreCase(text)) {
-                launchProjectile(m);
-                m.setTargeted(true); 
-                return; 
-            }
-        }
+        comboManager.reset();
+        updateComboVisuals(0);
     }
 
-    private void launchProjectile(Monster target) {
-        Circle projectile = new Circle(8, Color.CYAN);
-        projectile.setLayoutX(player.getLayoutX() + 32);
-        projectile.setLayoutY(player.getLayoutY() + 32);
-        entityLayer.getChildren().add(projectile);
-
-        TranslateTransition tt = new TranslateTransition(Duration.millis(300), projectile);
-        // Monster 클래스에 getCenterX(), getCenterY() 메서드가 있다고 가정
-        tt.setToX(target.getCenterX() - projectile.getLayoutX());
-        tt.setToY(target.getCenterY() - projectile.getLayoutY());
-        
-        tt.setOnFinished(e -> {
-            entityLayer.getChildren().remove(projectile);
-            if (activeMonsters.contains(target)) {
-                entityLayer.getChildren().remove(target);
-                activeMonsters.remove(target);
-                score += 10;
-                scoreLabel.setText("Score: " + score);
-            }
-        });
-        tt.play();
-    }
-
-    // --- UI 생성 ---
-    private HBox createBottomBar() {
-        HBox box = new HBox(15);
-        box.setPadding(new Insets(15));
-        box.setAlignment(Pos.CENTER);
-        box.setStyle("-fx-background-color: #333;");
-
-        inputField = new TextField();
-        inputField.setPromptText("단어 입력...");
-        inputField.setPrefWidth(400);
-        inputField.setFont(Font.font(18));
-        inputField.setOnAction(e -> handleInput()); // 엔터키 처리
-
-        Button atkBtn = new Button("공격");
-        atkBtn.setOnAction(e -> {
-            handleInput();
-            inputField.requestFocus();
-        });
-
-        // [수정] startButton은 생성자에서 이미 초기화됨. 여기선 이벤트만 연결.
-        startButton.setOnAction(e -> startGame());
-
-        box.getChildren().addAll(inputField, atkBtn, startButton);
-        return box;
-    }
-
-    private HBox createTopBar() {
-        HBox box = new HBox(20);
-        box.setPadding(new Insets(10));
-        box.setAlignment(Pos.CENTER);
-        box.setStyle("-fx-background-color: #333;");
-
-        hpBar = new ProgressBar(1.0);
-        hpBar.setStyle("-fx-accent: #FF5555;");
-        
-        scoreLabel = new Label("Score: 0");
-        scoreLabel.setTextFill(Color.WHITE);
-        scoreLabel.setFont(Font.font(20));
-        
-        timerLabel = new Label("00:00");
-        timerLabel.setTextFill(Color.WHITE);
-        timerLabel.setFont(Font.font(20));
-        
-        heartsBox = new HBox(5);
-        updateHeartsUI();
-
-        box.getChildren().addAll(new Label("HP:"), hpBar, heartsBox, timerLabel, scoreLabel);
-        return box;
-    }
-    
-    private void updateHeartsUI() {
-        if (heartsBox == null) return;
-        heartsBox.getChildren().clear();
-        for (int i = 0; i < castle.getHp(); i++) {
-            Label heart = new Label("❤️");
-            heart.setStyle("-fx-font-size: 20px;");
-            heartsBox.getChildren().add(heart);
+    private void killMonster(Monster m) {
+        if (activeMonsters.contains(m)) {
+            entityLayer.getChildren().remove(m);
+            activeMonsters.remove(m);
+            score += 10 * comboManager.getScoreMultiplier();
+            txtScore.setText(String.valueOf(score));
         }
     }
 
@@ -401,78 +508,21 @@ public class CastleDefenseGame extends Stage {
             for (int c = 0; c < MAP_COLS; c++) {
                 int type = mapData[r][c];
                 StackPane s = new StackPane();
-                
-                ImageView base = new ImageView();
-                setupImageView(base);
-                
-                // 바닥 로직
-                Image img = groundImage;
-                if (type == P || type == F) img = pathImage;
-                else if (type == PU || type == F1U) img = pathImageU;
-                else if (type == PD || type == F1D) img = pathImageD;
-                else if (type == G1) img = groundImage1;
-                else if (type == G2) img = groundImage2;
-                else if (type == P1) img = pathImage1;
-                // ... (필요한 매핑 추가)
-                base.setImage(img);
+                ImageView base = new ImageView(tileManager.getBaseImage(type));
+                base.setFitWidth(TILE_SIZE); base.setFitHeight(TILE_SIZE);
                 s.getChildren().add(base);
-                
-                // 상단 로직
-                if (type >= F && type <= S1) { 
-                    ImageView top = new ImageView();
-                    setupImageView(top);
-                    if (type == F) top.setImage(fenceImage);
-                    else if (type == F1) top.setImage(fenceImage1);
-                    else if (type == F2) top.setImage(fenceImage2);
-                    else if (type == F3) top.setImage(fenceImage3);
-                    else if (type == F4) top.setImage(fenceImage4);
-                    else if (type == F1U) top.setImage(fenceImage1);
-                    else if (type == F4U) top.setImage(fenceImage4);
-                    else if (type == F1D) top.setImage(fenceImage1);
-                    else if (type == F4D) top.setImage(fenceImage4);
-                    else if (type == S) top.setImage(castleImage);
-                    else if (type == S1) top.setImage(castleImage1);
-                    
-                    if (top.getImage() != null) s.getChildren().add(top);
+                javafx.scene.image.Image topImg = tileManager.getTopImage(type);
+                if (topImg != null) {
+                    ImageView top = new ImageView(topImg);
+                    top.setFitWidth(TILE_SIZE); top.setFitHeight(TILE_SIZE);
+                    s.getChildren().add(top);
                 }
                 grid.add(s, c, r);
             }
         }
         return grid;
     }
-    
-    private void setupImageView(ImageView v) {
-        v.setFitWidth(TILE_SIZE); v.setFitHeight(TILE_SIZE);
-        v.setPreserveRatio(true); v.setSmooth(false);
-    }
 
-    private void loadResources() {
-        groundImage = loadImage(BASE_PATH + "G.png");
-        groundImage1 = loadImage(BASE_PATH + "G1.png");
-        groundImage2 = loadImage(BASE_PATH + "G2.png");
-        pathImage = loadImage(BASE_PATH + "P.png");
-        pathImage1 = loadImage(BASE_PATH + "P1.png");
-        pathImageU = loadImage(BASE_PATH + "PU.png");
-        pathImageD = loadImage(BASE_PATH + "PD.png");
-        fenceImage = loadImage(BASE_PATH + "F.png");
-        fenceImage1 = loadImage(BASE_PATH + "F1.png");
-        fenceImage2 = loadImage(BASE_PATH + "F2.png");
-        fenceImage3 = loadImage(BASE_PATH + "F3.png");
-        fenceImage4 = loadImage(BASE_PATH + "F4.png");
-        castleImage = loadImage(BASE_PATH + "S.png");
-        castleImage1 = loadImage(BASE_PATH + "S1.png");
-        playerImage = loadImage(PLAYER_PATH);
-        monsterImage = loadImage(MONSTER_PATH);
-    }
-
-    private Image loadImage(String path) {
-        try {
-            InputStream is = getClass().getResourceAsStream(path);
-            if (is == null) return null;
-            return new Image(is);
-        } catch (Exception e) { return null; }
-    }
-    
     private void showGameOver(boolean isVictory) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle("Game Over");
@@ -481,43 +531,15 @@ public class CastleDefenseGame extends Stage {
         alert.show();
     }
 
-    // --- 단어 로딩 (기존) ---
     private static List<String> loadWordPool() {
-        List<String> words = loadWordsFromClasspath();
-        if (words.isEmpty()) words = loadWordsFromFilesystem();
-        if (words.isEmpty()) words = new ArrayList<>(Arrays.asList(DEFAULT_WORDS));
-        return Collections.unmodifiableList(words);
-    }
-
-    private static List<String> loadWordsFromClasspath() {
-        try (InputStream in = CastleDefenseGame.class.getClassLoader().getResourceAsStream(WORD_RESOURCE)) {
-            if (in == null) return Collections.emptyList();
+        try (InputStream in = CastleDefenseGame.class.getClassLoader().getResourceAsStream("words/ko.json")) {
+            if (in == null) return Arrays.asList("성", "방어", "자바", "게임");
             try (Reader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
-                return parseWordList(reader);
+                Gson gson = new Gson();
+                WordList data = gson.fromJson(reader, WordList.class);
+                return (data != null && data.words != null) ? data.words : Arrays.asList("오류");
             }
-        } catch (Exception e) { return Collections.emptyList(); }
+        } catch (Exception e) { return Arrays.asList("성", "방어", "자바", "게임"); }
     }
-
-    private static List<String> loadWordsFromFilesystem() {
-        Path path = Paths.get("src", "main", "resources").resolve(WORD_RESOURCE);
-        if (!Files.exists(path)) return Collections.emptyList();
-        try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-            return parseWordList(reader);
-        } catch (IOException e) { return Collections.emptyList(); }
-    }
-
-    private static List<String> parseWordList(Reader reader) {
-        Gson gson = new Gson();
-        WordList data = gson.fromJson(reader, WordList.class);
-        if (data == null || data.words == null) return Collections.emptyList();
-        List<String> words = new ArrayList<>();
-        for (String word : data.words) {
-            if (word != null && !word.trim().isEmpty()) words.add(word.trim());
-        }
-        return words;
-    }
-
-    private static final class WordList {
-        List<String> words;
-    }
+    private static final class WordList { List<String> words; }
 }
