@@ -12,6 +12,8 @@ import javafx.scene.control.TextField;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import typingarena.net.Message;
@@ -32,6 +34,11 @@ public class LoginScreen extends Stage {
     private static final String CARD_BORDER = "#D7CCC8";
     private static final String TEXT_MAIN = "#4E342E";
     private static final String ACCENT = "#29B6F6";
+
+    private final Font titleFont = Font.font("Malgun Gothic", FontWeight.EXTRA_BOLD, 20);
+    private final Font subtitleFont = Font.font("Malgun Gothic", FontWeight.NORMAL, 13);
+    private final Font labelFont = Font.font("Malgun Gothic", FontWeight.BOLD, 13);
+    private final Font buttonFont = Font.font("Malgun Gothic", FontWeight.BOLD, 14);
 
     private final TextField hostField = new TextField("127.0.0.1");
     private final TextField portField = new TextField("7777");
@@ -63,6 +70,7 @@ public class LoginScreen extends Stage {
         root.setStyle("-fx-background-color: " + BG_COLOR + ";");
 
         statusLabel.setStyle("-fx-text-fill: #6D4C41;");
+        statusLabel.setFont(subtitleFont);
 
         Scene scene = new Scene(root, 480, 360);
         setScene(scene);
@@ -80,8 +88,10 @@ public class LoginScreen extends Stage {
 
     private VBox buildHeader() {
         Label title = new Label("Typing Arena 로그인");
-        title.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: " + TEXT_MAIN + ";");
+        title.setFont(titleFont);
+        title.setStyle("-fx-text-fill: " + TEXT_MAIN + ";");
         Label subtitle = new Label("서버 접속 후 로그인하거나 회원가입하세요.");
+        subtitle.setFont(subtitleFont);
         subtitle.setStyle("-fx-text-fill: #6D4C41;");
         VBox box = new VBox(6, title, subtitle);
         box.setAlignment(Pos.CENTER_LEFT);
@@ -109,10 +119,22 @@ public class LoginScreen extends Stage {
         idField.setPrefWidth(180);
         pwField.setPrefWidth(180);
         nicknameField.setPrefWidth(180);
+        grid.getChildren().stream()
+                .filter(n -> n instanceof Label)
+                .map(n -> (Label) n)
+                .forEach(l -> l.setFont(labelFont));
+        hostField.setFont(subtitleFont);
+        portField.setFont(subtitleFont);
+        idField.setFont(subtitleFont);
+        pwField.setFont(subtitleFont);
+        nicknameField.setFont(subtitleFont);
 
         stylePrimary(connectBtn);
         styleAccent(loginBtn);
         styleSecondary(registerBtn);
+        connectBtn.setFont(buttonFont);
+        loginBtn.setFont(buttonFont);
+        registerBtn.setFont(buttonFont);
 
         HBox btnRow = new HBox(10, connectBtn, loginBtn, registerBtn);
         btnRow.setAlignment(Pos.CENTER_LEFT);
