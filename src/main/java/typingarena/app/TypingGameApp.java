@@ -82,6 +82,8 @@ public class TypingGameApp extends Application {
 
     // === Main Menu (Single / Multi) ===
     private void showMainMenu() {
+        root.setTop(null);
+
         Label overline = new Label("ARENA SELECT");
         overline.setFont(overlineFont);
         overline.setStyle("-fx-text-fill: #E7B53B;");
@@ -89,6 +91,13 @@ public class TypingGameApp extends Application {
         Label title = new Label("Typing Arena");
         title.setFont(titleFont);
         title.setStyle("-fx-text-fill: linear-gradient(#FFE082, #FFB300); -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.35), 0, 0, 0, 2);");
+
+        VBox header = new VBox(6, overline, title);
+        header.setAlignment(Pos.TOP_CENTER);
+        header.setPadding(new Insets(48, 0, 12, 0));
+        BorderPane.setMargin(header, new Insets(24, 0, 0, 0));
+        BorderPane.setAlignment(header, Pos.TOP_CENTER);
+        root.setTop(header);
 
         Label subtitle = new Label("싱글/멀티 대전을 선택해 빠른 타이핑을 겨뤄보세요.");
         subtitle.setFont(subtitleFont);
@@ -109,9 +118,9 @@ public class TypingGameApp extends Application {
         tagline.setTextFill(Color.web("#5F4A3A"));
         tagline.setAlignment(Pos.CENTER);
 
-        VBox center = new VBox(14, overline, title, subtitle, buttons, logoutBtn, tagline);
+        VBox center = new VBox(14, subtitle, buttons, logoutBtn, tagline);
         center.setAlignment(Pos.CENTER);
-        center.setPadding(new Insets(10));
+        center.setPadding(new Insets(20, 10, 10, 10));
         center.setMaxWidth(600);
         setCenterContent(wrapWithIllustration(center));
         BorderPane.setAlignment(center, Pos.CENTER);
@@ -119,6 +128,8 @@ public class TypingGameApp extends Application {
 
     // === Multi Player Menu ===
     private void showMultiMenu() {
+        root.setTop(null);
+
         Label overline = new Label("ONLINE MATCH");
         overline.setFont(overlineFont);
         overline.setStyle("-fx-text-fill: #FFE082;");
@@ -151,6 +162,8 @@ public class TypingGameApp extends Application {
 
     // === Single Player Menu ===
     private void showSingleMenu() {
+        root.setTop(null);
+
         Label overline = new Label("SOLO MODE");
         overline.setFont(overlineFont);
         overline.setStyle("-fx-text-fill: #FFD54F;");
@@ -198,6 +211,7 @@ public class TypingGameApp extends Application {
             return;
         }
         MultiLobbyPane pane = new MultiLobbyPane(netClient, myNickname, this::showMainMenu);
+        root.setTop(null);
         setCenterContent(pane);
     }
 
@@ -313,11 +327,12 @@ public class TypingGameApp extends Application {
         iv.setOpacity(0.94);
         iv.setBlendMode(BlendMode.MULTIPLY); // 흰 배경을 카드 배경색과 자연스럽게 섞어 보이게
         iv.setMouseTransparent(true);
+        iv.setTranslateY(-100);
 
         StackPane layer = new StackPane(iv, content);
-        StackPane.setAlignment(iv, Pos.TOP_CENTER);
+        StackPane.setAlignment(iv, Pos.CENTER);
         StackPane.setAlignment(content, Pos.CENTER);
-        StackPane.setMargin(content, new Insets(50, 0, 0, 0));
+        content.setTranslateY(80);
         return layer;
     }
 
@@ -354,7 +369,7 @@ public class TypingGameApp extends Application {
                 gameFontFamily = loaded.getFamily();
             }
         } catch (Exception ignored) {}
-        titleFont = Font.font(gameFontFamily, FontWeight.EXTRA_BOLD, 30);
+        titleFont = Font.font(gameFontFamily, FontWeight.EXTRA_BOLD, 50);
         subtitleFont = Font.font(gameFontFamily, FontWeight.NORMAL, 15);
         buttonFont = Font.font(gameFontFamily, FontWeight.BOLD, 16);
         overlineFont = Font.font(gameFontFamily, FontWeight.EXTRA_BOLD, 12);
