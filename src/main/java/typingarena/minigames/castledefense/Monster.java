@@ -15,6 +15,9 @@ public class Monster extends StackPane {
     private static final String FOLDER_PATH = "/images/castledefense/Mosters/";
     private static Font cookieFont;
 
+    private int hp;       // 체력 (생성 시 결정)
+    private double speed; // 이동 속도 (생성 시 결정)
+
     static {
         loadFont();
     }
@@ -23,7 +26,6 @@ public class Monster extends StackPane {
         try {
             InputStream is = Monster.class.getResourceAsStream("/fonts/CookieRun Regular.otf");
             if (is != null) {
-                // [수정] 폰트 크기 13 -> 20으로 확대
                 cookieFont = Font.loadFont(is, 20);
             }
         } catch (Exception e) {
@@ -31,10 +33,11 @@ public class Monster extends StackPane {
         }
     }
 
-    public static Image[] loadAssets() {
+    // [수정] 파일명 접두사(prefix)를 받아서 해당 이미지 배열 로드 (예: "M" -> M1~M3, "F" -> F1~F3)
+    public static Image[] loadAssets(String prefix) {
         Image[] sprites = new Image[3];
         for (int i = 0; i < 3; i++) {
-            String path = String.format("%sM%d.png", FOLDER_PATH, (i + 1));
+            String path = String.format("%s%s%d.png", FOLDER_PATH, prefix, (i + 1));
             try (InputStream is = Monster.class.getResourceAsStream(path)) {
                 if (is != null) sprites[i] = new Image(is);
             } catch (Exception e) { e.printStackTrace(); }
@@ -49,9 +52,13 @@ public class Monster extends StackPane {
     private int currentFrame = 0;
     private int frameDelay = 0;
 
-    public Monster(String word, Image[] sprites, double x, double y) {
+    // [수정] 생성자에서 hp와 speed를 받음
+    public Monster(String word, Image[] sprites, double x, double y, int hp, double speed) {
         this.word = word;
         this.sprites = sprites;
+        this.hp = hp;
+        this.speed = speed;
+        
         this.setLayoutX(x);
         this.setLayoutY(y);
 
@@ -70,27 +77,47 @@ public class Monster extends StackPane {
         if (cookieFont != null) {
             wordLabel.setFont(cookieFont);
         } else {
-            // [수정] 폰트 로드 실패 시 기본 폰트도 20으로
             wordLabel.setFont(Font.font("Arial", FontWeight.BOLD, 20));
         }
 
         wordLabel.setStyle("-fx-background-color: rgba(0,0,0,0.6); -fx-padding: 2px 6px; -fx-background-radius: 6;");
-        
-        // [수정] 글자 위치를 더 위로 올림 (-35 -> -45)
         wordLabel.setTranslateY(-45); 
-        
         this.getChildren().add(wordLabel);
     }
 
-    public void move(double speed) {
-        this.setLayoutX(this.getLayoutX() - speed);
+    public void setWord(String newWord) {
+        this.word = newWord;
+        this.wordLabel.setText(newWord);
+    }
+
+    public boolean takeDamage(int damage) {
+        hp -= damage;
+        if (hp > 0) {
+            this.setOpacity(0.5);
+            imageView.setEffect(new javafx.scene.effect.ColorAdjust(0, 0.5, 0, 0.5)); 
+            
+            javafx.animation.PauseTransition pause = new javafx.animation.PauseTransition(javafx.util.Duration.millis(100));
+            pause.setOnFinished(e -> {
+                this.setOpacity(1.0);
+                imageView.setEffect(null);
+            });
+            pause.play();
+            
+            return false;
+        }
+        return true;
+    }
+
+    // [수정] 자신의 speed 속성을 사용하여 이동 (매개변수 제거)
+    public void move() {
+        this.setLayoutX(this.getLayoutX() - this.speed);
         animate();
     }
 
     private void animate() {
         if (sprites == null) return;
         frameDelay++;
-        if (frameDelay >= 10) {
+        if (frameDelay >= 10) { // 속도가 빠르면 애니메이션도 빨라야 자연스럽지만 일단 유지
             frameDelay = 0;
             currentFrame = (currentFrame + 1) % sprites.length;
             if (imageView != null) imageView.setImage(sprites[currentFrame]);
@@ -109,7 +136,6 @@ public class Monster extends StackPane {
     }
 
     public String getWord() { return word; }
-    
     public double getCenterX() { return this.getLayoutX() + 28; }
     public double getCenterY() { return this.getLayoutY() + 28; }
 }

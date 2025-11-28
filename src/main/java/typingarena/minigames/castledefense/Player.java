@@ -12,29 +12,36 @@ import java.io.InputStream;
 
 public class Player extends ImageView {
 
-    private static final String IMAGE_PATH = "/images/castledefense/Players/1P.png";
+    private final String imagePath; // [수정] 이미지 경로를 저장할 변수
 
-    public Player(double x, double y) {
+    // [수정] 생성자에서 이미지 경로(imagePath)를 받음
+    public Player(double x, double y, String imagePath) {
         super();
+        this.imagePath = imagePath;
         loadPlayerImage();
         
-        // [수정] 72px로 확대
+        // 크기 72px
         this.setFitWidth(72);
         this.setFitHeight(72);
         this.setPreserveRatio(true);
         this.setSmooth(false);
         
-        // [수정] 중심 좌표 (36)
+        // 중심 좌표 보정 (36)
         this.setLayoutX(x - 36); 
         this.setLayoutY(y - 36);
-        this.setId("PLAYER");
+        
+        // ID는 필요하다면 외부에서 setID로 설정 (여기선 기본값 제거 또는 유지)
     }
 
     private void loadPlayerImage() {
-        try (InputStream is = getClass().getResourceAsStream(IMAGE_PATH)) {
-            if (is != null) this.setImage(new Image(is));
+        try (InputStream is = getClass().getResourceAsStream(imagePath)) {
+            if (is != null) {
+                this.setImage(new Image(is));
+            } else {
+                System.err.println("플레이어 이미지 로드 실패: " + imagePath);
+            }
         } catch (Exception e) { 
-            System.err.println("플레이어 이미지 로드 실패: " + IMAGE_PATH);
+            System.err.println("플레이어 이미지 오류: " + e.getMessage());
         }
     }
 
