@@ -10,6 +10,8 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
+import javafx.scene.effect.BlendMode;
 import javafx.scene.layout.Background;
 import javafx.scene.layout.BackgroundFill;
 import javafx.scene.layout.BackgroundImage;
@@ -44,6 +46,7 @@ public class TypingGameApp extends Application {
     private static final String ACCENT = "#29B6F6";
     private static final String FRAME_DARK = "#3E2723";
     private static final String MAIN_BG = "/images/main_menu_background.png";
+    private static final String MAIN_ILLUST = "/images/main_menu_illustration.png";
 
     private String gameFontFamily = "Malgun Gothic";
     private Font titleFont;
@@ -110,7 +113,7 @@ public class TypingGameApp extends Application {
         center.setAlignment(Pos.CENTER);
         center.setPadding(new Insets(10));
         center.setMaxWidth(600);
-        setCenterContent(center);
+        setCenterContent(wrapWithIllustration(center));
         BorderPane.setAlignment(center, Pos.CENTER);
     }
 
@@ -281,12 +284,7 @@ public class TypingGameApp extends Application {
     private void applyMainBackground(StackPane target) {
         BackgroundFill fallbackFill = new BackgroundFill(Color.web("#F9E6C8"), CornerRadii.EMPTY, Insets.EMPTY);
 
-        Image bgImage = null;
-        try (InputStream is = getClass().getResourceAsStream(MAIN_BG)) {
-            if (is != null) {
-                bgImage = new Image(is);
-            }
-        } catch (Exception ignored) {}
+        Image bgImage = loadImage(MAIN_BG);
 
         if (bgImage != null && !bgImage.isError()) {
             BackgroundSize size = new BackgroundSize(100, 100, true, true, false, true);
@@ -300,6 +298,34 @@ public class TypingGameApp extends Application {
             target.setBackground(new Background(new BackgroundFill[]{fallbackFill}, new BackgroundImage[]{backgroundImage}));
         } else {
             target.setBackground(new Background(fallbackFill));
+        }
+    }
+
+    private StackPane wrapWithIllustration(Node content) {
+        Image illustration = loadImage(MAIN_ILLUST);
+        if (illustration == null || illustration.isError()) {
+            return new StackPane(content);
+        }
+
+        ImageView iv = new ImageView(illustration);
+        iv.setPreserveRatio(true);
+        iv.setFitWidth(540);
+        iv.setOpacity(0.94);
+        iv.setBlendMode(BlendMode.MULTIPLY); // 흰 배경을 카드 배경색과 자연스럽게 섞어 보이게
+        iv.setMouseTransparent(true);
+
+        StackPane layer = new StackPane(iv, content);
+        StackPane.setAlignment(iv, Pos.TOP_CENTER);
+        StackPane.setAlignment(content, Pos.CENTER);
+        StackPane.setMargin(content, new Insets(50, 0, 0, 0));
+        return layer;
+    }
+
+    private Image loadImage(String resourcePath) {
+        try (InputStream is = getClass().getResourceAsStream(resourcePath)) {
+            return is != null ? new Image(is) : null;
+        } catch (Exception ignored) {
+            return null;
         }
     }
 
