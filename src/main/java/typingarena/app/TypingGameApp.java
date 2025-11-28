@@ -27,11 +27,13 @@ public class TypingGameApp extends Application {
     private NetClient netClient;
     private String myNickname = "";
 
+    private static final String BG_BEIGE = "#FDF5E6";
+
     @Override
     public void start(Stage primaryStage) {
         this.primaryStage = primaryStage;
         this.root = new BorderPane();
-        root.setStyle("-fx-background-color: #FDF5E6;");
+        root.setStyle("-fx-background-color: " + BG_BEIGE + ";");
         root.setPadding(new Insets(36));
 
         Scene scene = new Scene(root, 760, 560);
@@ -52,29 +54,43 @@ public class TypingGameApp extends Application {
 
     // === Main Menu (Single / Multi) ===
     private void showMainMenu() {
-        Label title = new Label("멀티플레이 타자 미니게임 로비");
-        title.setFont(Font.font("Malgun Gothic", FontWeight.EXTRA_BOLD, 30));
-        title.setTextFill(Color.web("#4E342E"));
+        applyPlainBackground();
+        Label title = new Label("Typing Arena");
+        title.setFont(Font.font("Malgun Gothic", FontWeight.EXTRA_BOLD, 34));
+        title.setTextFill(Color.web("#2D2A32"));
 
-        Label subtitle = new Label("싱글 플레이 또는 멀티 플레이를 선택하세요.");
-        subtitle.setFont(Font.font("Malgun Gothic", FontWeight.NORMAL, 16));
-        subtitle.setTextFill(Color.web("#6D4C41"));
+        Label subtitle = new Label("싱글/멀티 대전을 선택해 빠른 타이핑을 겨뤄보세요.");
+        subtitle.setFont(Font.font("Malgun Gothic", FontWeight.NORMAL, 15));
+        subtitle.setTextFill(Color.web("#4E342E"));
+        subtitle.setWrapText(true);
+        subtitle.setAlignment(Pos.CENTER);
 
         Button singleBtn = createPrimaryButton("싱글 플레이", this::showSingleMenu);
         Button multiBtn = createPrimaryButton("멀티 플레이", this::showMultiMenu);
 
         Button logoutBtn = createSecondaryButton("로그아웃", this::logout);
 
-        HBox buttons = new HBox(20, singleBtn, multiBtn);
+        HBox buttons = new HBox(16, singleBtn, multiBtn);
         buttons.setAlignment(Pos.CENTER);
 
-        VBox center = new VBox(20, title, subtitle, buttons, logoutBtn);
+        Label tagline = new Label("타이핑으로 실력을 쌓고 친구들과 겨루세요 🏆");
+        tagline.setFont(Font.font("Malgun Gothic", FontWeight.BOLD, 13));
+        tagline.setTextFill(Color.web("#3E2723"));
+        tagline.setAlignment(Pos.CENTER);
+
+        VBox center = new VBox(18, title, subtitle, buttons, logoutBtn, tagline);
         center.setAlignment(Pos.CENTER);
-        setCenterContent(center);
+        center.setPadding(new Insets(10));
+        VBox card = new VBox(center);
+        card.setAlignment(Pos.CENTER);
+        card.setStyle("-fx-background-color: rgba(255,255,255,0.9); -fx-background-radius: 18; -fx-border-color: rgba(0,0,0,0.08); -fx-border-radius: 18; -fx-border-width: 2; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.18), 20, 0.2, 0, 8);");
+        card.setPadding(new Insets(24));
+        setCenterContent(card);
     }
 
     // === Multi Player Menu ===
     private void showMultiMenu() {
+        applyPlainBackground();
         Label title = new Label("멀티 플레이");
         title.setFont(Font.font("Malgun Gothic", FontWeight.EXTRA_BOLD, 28));
         title.setTextFill(Color.web("#4E342E"));
@@ -102,6 +118,7 @@ public class TypingGameApp extends Application {
 
     // === Single Player Menu ===
     private void showSingleMenu() {
+        applyPlainBackground();
         Label title = new Label("싱글 플레이 미니게임");
         title.setFont(Font.font("Malgun Gothic", FontWeight.EXTRA_BOLD, 28));
         title.setTextFill(Color.web("#4E342E"));
@@ -193,6 +210,14 @@ public class TypingGameApp extends Application {
 
     private void setCenterContent(Node node) {
         root.setCenter(node);
+    }
+
+    private void applyGradientBackground() {
+        root.setStyle("-fx-background-color: " + BG_BEIGE + ";");
+    }
+
+    private void applyPlainBackground() {
+        root.setStyle("-fx-background-color: " + BG_BEIGE + ";");
     }
 
     public static void main(String[] args) {
