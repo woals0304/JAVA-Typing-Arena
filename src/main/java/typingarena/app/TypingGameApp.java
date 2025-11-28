@@ -9,7 +9,15 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.effect.DropShadow;
+import javafx.scene.image.Image;
+import javafx.scene.layout.Background;
+import javafx.scene.layout.BackgroundFill;
+import javafx.scene.layout.BackgroundImage;
+import javafx.scene.layout.BackgroundPosition;
+import javafx.scene.layout.BackgroundRepeat;
+import javafx.scene.layout.BackgroundSize;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.CornerRadii;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
@@ -27,6 +35,7 @@ import java.io.InputStream;
 public class TypingGameApp extends Application {
 
     private Stage primaryStage;
+    private StackPane sceneRoot;
     private BorderPane root;
     private NetClient netClient;
     private String myNickname = "";
@@ -34,6 +43,7 @@ public class TypingGameApp extends Application {
     private static final String TEXT_MAIN = "#4E342E";
     private static final String ACCENT = "#29B6F6";
     private static final String FRAME_DARK = "#3E2723";
+    private static final String MAIN_BG = "/images/main_menu_background.png";
 
     private String gameFontFamily = "Malgun Gothic";
     private Font titleFont;
@@ -45,11 +55,13 @@ public class TypingGameApp extends Application {
     public void start(Stage primaryStage) {
         this.primaryStage = primaryStage;
         this.root = new BorderPane();
+        this.sceneRoot = new StackPane(root);
         initFonts();
-        root.setStyle("-fx-background-color: radial-gradient(center 50% 50%, radius 80%, #4A2F23, #1D120D 90%);");
-        root.setPadding(new Insets(28));
+        root.setPadding(new Insets(16));
+        StackPane.setAlignment(root, Pos.CENTER);
+        applyMainBackground(sceneRoot);
 
-        Scene scene = new Scene(root, 900, 640);
+        Scene scene = new Scene(sceneRoot, 1024, 747);
         primaryStage.setTitle("Typing Mini Game");
         primaryStage.setScene(scene);
         primaryStage.show();
@@ -69,11 +81,11 @@ public class TypingGameApp extends Application {
     private void showMainMenu() {
         Label overline = new Label("ARENA SELECT");
         overline.setFont(overlineFont);
-        overline.setStyle("-fx-text-fill: #FFD54F;");
+        overline.setStyle("-fx-text-fill: #E7B53B;");
 
         Label title = new Label("Typing Arena");
         title.setFont(titleFont);
-        title.setStyle("-fx-text-fill: linear-gradient(#FFE082, #FFB300); -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.45), 0, 0, 0, 3);");
+        title.setStyle("-fx-text-fill: linear-gradient(#FFE082, #FFB300); -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.35), 0, 0, 0, 2);");
 
         Label subtitle = new Label("싱글/멀티 대전을 선택해 빠른 타이핑을 겨뤄보세요.");
         subtitle.setFont(subtitleFont);
@@ -91,14 +103,15 @@ public class TypingGameApp extends Application {
 
         Label tagline = new Label("타이핑으로 실력을 쌓고 친구들과 겨루세요 🏆");
         tagline.setFont(subtitleFont);
-        tagline.setTextFill(Color.web("#3E2723"));
+        tagline.setTextFill(Color.web("#5F4A3A"));
         tagline.setAlignment(Pos.CENTER);
 
         VBox center = new VBox(14, overline, title, subtitle, buttons, logoutBtn, tagline);
         center.setAlignment(Pos.CENTER);
         center.setPadding(new Insets(10));
-
-        setCenterContent(buildFramedCard(center, true));
+        center.setMaxWidth(600);
+        setCenterContent(center);
+        BorderPane.setAlignment(center, Pos.CENTER);
     }
 
     // === Multi Player Menu ===
@@ -199,12 +212,12 @@ public class TypingGameApp extends Application {
     // === Helpers ===
     private Button createPrimaryButton(String text, Runnable action) {
         Button btn = new Button(text);
-        btn.setMinWidth(220);
+        btn.setMinWidth(240);
         btn.setFont(buttonFont);
         String fam = buttonFont.getFamily();
         int sz = (int) buttonFont.getSize();
-        String normal = "-fx-background-color: linear-gradient(#FFEE58, #FBC02D), linear-gradient(#FBC02D, #F57F17); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-font-family: '" + fam + "'; -fx-font-size: " + sz + "px; -fx-padding: 12 18; -fx-background-radius: 14; -fx-border-color: #8D6E63; -fx-border-radius: 14; -fx-border-width: 1.5;";
-        String hover = "-fx-background-color: linear-gradient(#FFF59D, #FBC02D), linear-gradient(#FFECB3, #FFC107); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-font-family: '" + fam + "'; -fx-font-size: " + sz + "px; -fx-padding: 12 18; -fx-background-radius: 14; -fx-border-color: #8D6E63; -fx-border-radius: 14; -fx-border-width: 1.5;";
+        String normal = "-fx-background-color: linear-gradient(#FFCC80, #F59F42); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-font-family: '" + fam + "'; -fx-font-size: " + sz + "px; -fx-padding: 12 22; -fx-background-radius: 14; -fx-border-color: rgba(0,0,0,0.15); -fx-border-radius: 14; -fx-border-width: 1;";
+        String hover = "-fx-background-color: linear-gradient(#FFD59C, #F5A74F); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-font-family: '" + fam + "'; -fx-font-size: " + sz + "px; -fx-padding: 12 22; -fx-background-radius: 14; -fx-border-color: rgba(0,0,0,0.2); -fx-border-radius: 14; -fx-border-width: 1;";
         btn.setStyle(normal);
         btn.setEffect(new DropShadow(12, Color.web("#00000033")));
         btn.setOnAction(e -> action.run());
@@ -265,15 +278,45 @@ public class TypingGameApp extends Application {
         root.setCenter(node);
     }
 
+    private void applyMainBackground(StackPane target) {
+        BackgroundFill fallbackFill = new BackgroundFill(Color.web("#F9E6C8"), CornerRadii.EMPTY, Insets.EMPTY);
+
+        Image bgImage = null;
+        try (InputStream is = getClass().getResourceAsStream(MAIN_BG)) {
+            if (is != null) {
+                bgImage = new Image(is);
+            }
+        } catch (Exception ignored) {}
+
+        if (bgImage != null && !bgImage.isError()) {
+            BackgroundSize size = new BackgroundSize(100, 100, true, true, false, true);
+            BackgroundImage backgroundImage = new BackgroundImage(
+                    bgImage,
+                    BackgroundRepeat.NO_REPEAT,
+                    BackgroundRepeat.NO_REPEAT,
+                    BackgroundPosition.CENTER,
+                    size
+            );
+            target.setBackground(new Background(new BackgroundFill[]{fallbackFill}, new BackgroundImage[]{backgroundImage}));
+        } else {
+            target.setBackground(new Background(fallbackFill));
+        }
+    }
+
     private StackPane buildFramedCard(Node content, boolean withDecorations) {
         StackPane card = new StackPane(content);
         card.setPadding(new Insets(22, 26, 22, 26));
+        card.setMaxWidth(760);
+        card.setMaxHeight(520);
         card.setStyle("-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, rgba(255,243,224,0.96), rgba(250,220,180,0.96)); -fx-background-radius: 22; -fx-border-color: #5D4037; -fx-border-radius: 22; -fx-border-width: 3; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.18), 18, 0.24, 0, 8);");
 
         StackPane frame = new StackPane();
+        frame.setMaxWidth(820);
+        frame.setMaxHeight(580);
         frame.setPadding(new Insets(16));
         frame.setStyle("-fx-background-color: linear-gradient(" + FRAME_DARK + " 0%, #2A1B14 100%); -fx-background-radius: 26; -fx-border-color: #5D4037; -fx-border-width: 2; -fx-border-radius: 26; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.45), 28, 0.35, 0, 14);");
         frame.getChildren().add(card);
+        BorderPane.setAlignment(frame, Pos.CENTER);
 
         return frame;
     }
