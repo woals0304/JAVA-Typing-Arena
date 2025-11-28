@@ -201,8 +201,10 @@ public class TypingGameApp extends Application {
         Button btn = new Button(text);
         btn.setMinWidth(220);
         btn.setFont(buttonFont);
-        String normal = "-fx-background-color: linear-gradient(#FFEE58, #FBC02D), linear-gradient(#FBC02D, #F57F17); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-padding: 12 18; -fx-background-radius: 14; -fx-border-color: #8D6E63; -fx-border-radius: 14; -fx-border-width: 1.5;";
-        String hover = "-fx-background-color: linear-gradient(#FFF59D, #FBC02D), linear-gradient(#FFECB3, #FFC107); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-padding: 12 18; -fx-background-radius: 14; -fx-border-color: #8D6E63; -fx-border-radius: 14; -fx-border-width: 1.5;";
+        String fam = buttonFont.getFamily();
+        int sz = (int) buttonFont.getSize();
+        String normal = "-fx-background-color: linear-gradient(#FFEE58, #FBC02D), linear-gradient(#FBC02D, #F57F17); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-font-family: '" + fam + "'; -fx-font-size: " + sz + "px; -fx-padding: 12 18; -fx-background-radius: 14; -fx-border-color: #8D6E63; -fx-border-radius: 14; -fx-border-width: 1.5;";
+        String hover = "-fx-background-color: linear-gradient(#FFF59D, #FBC02D), linear-gradient(#FFECB3, #FFC107); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-font-family: '" + fam + "'; -fx-font-size: " + sz + "px; -fx-padding: 12 18; -fx-background-radius: 14; -fx-border-color: #8D6E63; -fx-border-radius: 14; -fx-border-width: 1.5;";
         btn.setStyle(normal);
         btn.setEffect(new DropShadow(12, Color.web("#00000033")));
         btn.setOnAction(e -> action.run());
@@ -220,8 +222,10 @@ public class TypingGameApp extends Application {
     private Button createSecondaryButton(String text, Runnable action) {
         Button btn = new Button(text);
         btn.setFont(buttonFont);
-        String base = "-fx-background-color: linear-gradient(#F5F0E6, #E8DCC8); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 12; -fx-border-color: #D7CCC8; -fx-border-radius: 12; -fx-border-width: 1.2;";
-        String hover = "-fx-background-color: linear-gradient(#FFF8E1, #E8DCC8); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 12; -fx-border-color: #D7CCC8; -fx-border-radius: 12; -fx-border-width: 1.2;";
+        String fam = buttonFont.getFamily();
+        int sz = (int) buttonFont.getSize();
+        String base = "-fx-background-color: linear-gradient(#F5F0E6, #E8DCC8); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-font-family: '" + fam + "'; -fx-font-size: " + sz + "px; -fx-padding: 10 16; -fx-background-radius: 12; -fx-border-color: #D7CCC8; -fx-border-radius: 12; -fx-border-width: 1.2;";
+        String hover = "-fx-background-color: linear-gradient(#FFF8E1, #E8DCC8); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-font-family: '" + fam + "'; -fx-font-size: " + sz + "px; -fx-padding: 10 16; -fx-background-radius: 12; -fx-border-color: #D7CCC8; -fx-border-radius: 12; -fx-border-width: 1.2;";
         btn.setStyle(base);
         btn.setEffect(new DropShadow(10, Color.web("#00000022")));
         btn.setOnAction(e -> action.run());

@@ -326,8 +326,10 @@ public class LoginScreen extends Stage {
     }
 
     private void stylePrimary(Button btn) {
-        String base = "-fx-background-color: linear-gradient(#FFEE58, #FBC02D), linear-gradient(#FBC02D, #F57F17); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 14; -fx-border-color: #8D6E63; -fx-border-radius: 14; -fx-border-width: 1.5;";
-        String hover = "-fx-background-color: linear-gradient(#FFF59D, #FBC02D), linear-gradient(#FFECB3, #FFC107); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 14; -fx-border-color: #8D6E63; -fx-border-radius: 14; -fx-border-width: 1.5;";
+        String fam = buttonFont.getFamily();
+        int sz = (int) buttonFont.getSize();
+        String base = "-fx-background-color: linear-gradient(#FFEE58, #FBC02D), linear-gradient(#FBC02D, #F57F17); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-font-family: '" + fam + "'; -fx-font-size: " + sz + "px; -fx-padding: 10 16; -fx-background-radius: 14; -fx-border-color: #8D6E63; -fx-border-radius: 14; -fx-border-width: 1.5;";
+        String hover = "-fx-background-color: linear-gradient(#FFF59D, #FBC02D), linear-gradient(#FFECB3, #FFC107); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-font-family: '" + fam + "'; -fx-font-size: " + sz + "px; -fx-padding: 10 16; -fx-background-radius: 14; -fx-border-color: #8D6E63; -fx-border-radius: 14; -fx-border-width: 1.5;";
         btn.setStyle(base);
         btn.setEffect(new DropShadow(12, javafx.scene.paint.Color.web("#00000033")));
         btn.setOnMouseEntered(e -> btn.setStyle(hover));
@@ -335,8 +337,10 @@ public class LoginScreen extends Stage {
     }
 
     private void styleAccent(Button btn) {
-        String base = "-fx-background-color: linear-gradient(#64B5F6, #1E88E5), linear-gradient(" + ACCENT + ", #0D47A1); -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 14; -fx-border-color: #0D47A1; -fx-border-radius: 14; -fx-border-width: 1.5;";
-        String hover = "-fx-background-color: linear-gradient(#90CAF9, #42A5F5), linear-gradient(#29B6F6, #1565C0); -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 14; -fx-border-color: #0D47A1; -fx-border-radius: 14; -fx-border-width: 1.5;";
+        String fam = buttonFont.getFamily();
+        int sz = (int) buttonFont.getSize();
+        String base = "-fx-background-color: linear-gradient(#64B5F6, #1E88E5), linear-gradient(" + ACCENT + ", #0D47A1); -fx-text-fill: white; -fx-font-weight: bold; -fx-font-family: '" + fam + "'; -fx-font-size: " + sz + "px; -fx-padding: 10 16; -fx-background-radius: 14; -fx-border-color: #0D47A1; -fx-border-radius: 14; -fx-border-width: 1.5;";
+        String hover = "-fx-background-color: linear-gradient(#90CAF9, #42A5F5), linear-gradient(#29B6F6, #1565C0); -fx-text-fill: white; -fx-font-weight: bold; -fx-font-family: '" + fam + "'; -fx-font-size: " + sz + "px; -fx-padding: 10 16; -fx-background-radius: 14; -fx-border-color: #0D47A1; -fx-border-radius: 14; -fx-border-width: 1.5;";
         btn.setStyle(base);
         btn.setEffect(new DropShadow(12, javafx.scene.paint.Color.web("#00000033")));
         btn.setOnMouseEntered(e -> btn.setStyle(hover));
@@ -344,8 +348,10 @@ public class LoginScreen extends Stage {
     }
 
     private void styleSecondary(Button btn) {
-        String base = "-fx-background-color: linear-gradient(#F5F0E6, #E8DCC8); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 12; -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 12; -fx-border-width: 1.2;";
-        String hover = "-fx-background-color: linear-gradient(#FFF8E1, #E8DCC8); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 12; -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 12; -fx-border-width: 1.2;";
+        String fam = buttonFont.getFamily();
+        int sz = (int) buttonFont.getSize();
+        String base = "-fx-background-color: linear-gradient(#F5F0E6, #E8DCC8); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-font-family: '" + fam + "'; -fx-font-size: " + sz + "px; -fx-padding: 10 16; -fx-background-radius: 12; -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 12; -fx-border-width: 1.2;";
+        String hover = "-fx-background-color: linear-gradient(#FFF8E1, #E8DCC8); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-font-family: '" + fam + "'; -fx-font-size: " + sz + "px; -fx-padding: 10 16; -fx-background-radius: 12; -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 12; -fx-border-width: 1.2;";
         btn.setStyle(base);
         btn.setEffect(new DropShadow(10, javafx.scene.paint.Color.web("#00000022")));
         btn.setOnMouseEntered(e -> btn.setStyle(hover));
