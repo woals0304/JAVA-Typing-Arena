@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import typingarena.net.Message;
 import typingarena.server.core.ServerContext;
 import typingarena.server.match.Matchmaker;
+import typingarena.server.session.CastleDefenseSession;
 import typingarena.server.session.LandGrabSession;
 import typingarena.server.session.TugOfWarSession;
 import typingarena.server.db.DatabaseManager;
@@ -49,9 +50,13 @@ public class ServerMain implements Matchmaker.Listener {
             startTugOfWarSession(a, b);
         } else if ("LAND_GRAB".equalsIgnoreCase(gameType)) {
             startLandGrabSession(a, b);
-        } else {
+        } else if ("CASTLE_DEFENSE".equalsIgnoreCase(gameType)) {
+            startCastleDefenseSession(a, b);
+        }else {
+            // 여기가 실행된다면 gameType이 위 3개랑 다르다는 뜻입니다.
+            System.out.println("[ERROR] 알 수 없는 타입: " + gameType);
             Message err = Message.of("MATCH_REQUEST_ERROR");
-            err.data = java.util.Map.of("message", "지원하지 않는 게임 타입입니다.");
+            err.data = java.util.Map.of("message", "지원하지 않는 게임 타입입니다: " + gameType);
             a.send(err);
             b.send(err);
         }
@@ -67,6 +72,12 @@ public class ServerMain implements Matchmaker.Listener {
         LandGrabSession session = new LandGrabSession(context, a, b);
         context.getLandGrabSessions().put(session.getId(), session);
         session.start();
+    }
+    private void startCastleDefenseSession(ClientHandler a, ClientHandler b) {
+        CastleDefenseSession session = new CastleDefenseSession(context, a, b);
+        context.getCastleSessions().put(session.getId(), session); // 방금 만든 맵에 저장
+        session.start();
+        System.out.println("성 지키기 게임 시작: Session " + session.getId());
     }
 
     public void onClientDisconnected(ClientHandler client) {
@@ -90,6 +101,12 @@ public class ServerMain implements Matchmaker.Listener {
         if (landGrabSession != null) {
             String word = getWordFromMessage(msg);
             if (word != null) landGrabSession.handleWord(client, word.trim());
+            return;
+        }
+
+        CastleDefenseSession castleSession = context.getCastleSessions().get(sessionId);
+        if (castleSession != null) {
+            castleSession.handleAction(client, msg);
             return;
         }
     }

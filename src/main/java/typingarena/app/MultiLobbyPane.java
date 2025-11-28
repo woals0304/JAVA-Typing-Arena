@@ -13,6 +13,7 @@ import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
+import typingarena.minigames.castledefense.CastleDefenseOnlineStage;
 import typingarena.net.Message;
 import typingarena.net.NetClient;
 
@@ -109,14 +110,14 @@ public class MultiLobbyPane extends BorderPane {
     private VBox buildCenter() {
         tugBtn.setText("⚔ 줄다리기 (Tug of War)");
         landBtn.setText("🧭 땅따먹기 (Land Grab)");
-        castleBtn.setText("🛡 성 지키기 (준비 중)");
+        castleBtn.setText("🛡 성 지키기 (Castle Defense)"); 
 
         tugBtn.setPrefWidth(320);
         landBtn.setPrefWidth(320);
         castleBtn.setPrefWidth(320);
         tugBtn.setOnAction(e -> startMatch("TUG_OF_WAR"));
         landBtn.setOnAction(e -> startMatch("LAND_GRAB"));
-        castleBtn.setDisable(true);
+        castleBtn.setOnAction(e -> startMatch("CASTLE_DEFENSE"));
 
         styleAccent(tugBtn);
         stylePrimary(landBtn);
@@ -140,7 +141,7 @@ public class MultiLobbyPane extends BorderPane {
     }
 
     private VBox buildStatus() {
-        cancelBtn.setDisable(true);
+        cancelBtn.setDisable(false);
         cancelBtn.setOnAction(e -> cancelMatchmaking(true));
         styleSecondary(cancelBtn);
         cancelBtn.setFont(buttonFont);
@@ -236,7 +237,15 @@ public class MultiLobbyPane extends BorderPane {
             if (landGrabStage == null) landGrabStage = new LandGrabOnlineStage(client, myNickname);
             landGrabStage.handleMessage(msg);
             landGrabStage.show();
-        } else {
+        } else if ("CASTLE_DEFENSE".equalsIgnoreCase(gameType)) {
+        // [수정] 성 지키기 스테이지 생성 및 실행
+            Platform.runLater(() -> {
+                // CastleDefenseOnlineStage 생성 (NetClient 전달)
+                CastleDefenseOnlineStage castleStage = new CastleDefenseOnlineStage(client);
+                castleStage.handleMessage(msg); // 시작 메시지 전달
+                castleStage.show();
+        });
+        }else {
             matchStatusLabel.setText("알 수 없는 게임 타입: " + gameType);
             return;
         }

@@ -3,6 +3,7 @@ package typingarena.server.core;
 import com.google.gson.Gson;
 import typingarena.server.ClientHandler;
 import typingarena.server.lobby.Room;
+import typingarena.server.session.CastleDefenseSession;
 import typingarena.server.session.LandGrabSession; // [신규] LandGrabSession import
 import typingarena.server.session.TugOfWarSession;
 
@@ -26,6 +27,7 @@ public class ServerContext {
     private final Map<String, TugOfWarSession> tugSessions = new ConcurrentHashMap<>();
     // [신규] LandGrab 세션을 저장할 Map 추가
     private final Map<String, LandGrabSession> landGrabSessions = new ConcurrentHashMap<>();
+    private final Map<String, CastleDefenseSession> castleSessions = new ConcurrentHashMap<>();
     private final Set<ClientHandler> clients = ConcurrentHashMap.newKeySet();
 
     private final AuthService authService; // [추가] 인증 서비스
@@ -66,7 +68,9 @@ public class ServerContext {
     public Map<String, LandGrabSession> getLandGrabSessions() {
         return landGrabSessions;
     }
-
+    public Map<String, CastleDefenseSession> getCastleSessions() {
+        return castleSessions;
+    }
     public Set<ClientHandler> getClients() {
         return clients;
     }
