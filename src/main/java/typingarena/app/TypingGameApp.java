@@ -46,7 +46,7 @@ public class TypingGameApp extends Application {
         this.primaryStage = primaryStage;
         this.root = new BorderPane();
         initFonts();
-        root.setStyle("-fx-background-color: radial-gradient(center 50% 50%, radius 80%, #24140D, #0F0704 90%);");
+        root.setStyle("-fx-background-color: radial-gradient(center 50% 50%, radius 80%, #4A2F23, #1D120D 90%);");
         root.setPadding(new Insets(28));
 
         Scene scene = new Scene(root, 900, 640);

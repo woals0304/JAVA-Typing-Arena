@@ -85,7 +85,7 @@ public class LoginScreen extends Stage {
 
         BorderPane root = new BorderPane(frame);
         root.setPadding(new Insets(28));
-        root.setStyle("-fx-background-color: radial-gradient(center 50% 50%, radius 80%, #24140D, #0F0704 90%);");
+        root.setStyle("-fx-background-color: radial-gradient(center 50% 50%, radius 80%, #4A2F23, #1D120D 90%);");
 
         statusLabel.setStyle("-fx-text-fill: #6D4C41;");
         statusLabel.setFont(subtitleFont);
