@@ -1,0 +1,275 @@
+package typingarena.app;
+
+import javafx.application.Platform;
+import javafx.geometry.Rectangle2D;
+import javafx.scene.Scene;
+import javafx.scene.control.Button;
+import javafx.scene.paint.Color;
+import javafx.stage.Screen;
+import javafx.stage.Stage;
+import typingarena.core.tugofwar.GameLogic;
+import typingarena.minigames.tugofwar.RopePanel;
+import typingarena.minigames.tugofwar.TugOfWarMatchView;
+import typingarena.minigames.tugofwar.TugOfWarSoundManager;
+import typingarena.minigames.tugofwar.TugOfWarViewState;
+import typingarena.net.Message;
+import typingarena.net.NetClient;
+
+import java.util.Locale;
+import java.util.Map;
+
+/**
+ * 서버와 통신해 온라인 줄다리기 경기를 표시하는 Stage.
+ */
+public class TugOfWarOnlineStage extends Stage {
+
+    private final NetClient client;
+    private final TugOfWarMatchView view = new TugOfWarMatchView();
+    private final RopePanel ropePanel = view.getRopePanel();
+    private final Button surrenderBtn = new Button("기권");
+    private final Button rematchBtn = new Button("재경기");
+    private final javafx.scene.control.Label rematchStatus = view.getRematchStatusLabel();
+    private final Button overlayPrimary = view.getRematchButton();
+    private final Button overlaySecondary = view.getQuitButton();
+
+    private String sessionId;
+    private boolean running = false;
+    private int lastScoreSelf = 0;
+
+    public TugOfWarOnlineStage(NetClient client) {
+        this.client = client;
+        setTitle("온라인 줄다리기");
+
+        // 사운드 리소스 미리 로딩 (LandGrab 사운드 재사용)
+        TugOfWarSoundManager sm = TugOfWarSoundManager.getInstance();
+        sm.load("sfx_start.wav");
+        sm.load("sfx_hit.wav");
+        sm.load("sfx_win.wav");
+        sm.load("sfx_lose.wav");
+        sm.load("sfx_draw.wav");
+
+        view.getControlBox().getChildren().add(surrenderBtn);
+        view.getControlBox().getChildren().add(rematchBtn);
+        surrenderBtn.setDisable(true);
+        rematchBtn.setDisable(true);
+        surrenderBtn.setOnAction(e -> sendForfeit());
+        rematchBtn.setOnAction(e -> sendRematchRequest());
+        rematchStatus.setText("");
+        view.setRematchStatus("", false);
+
+        view.getInputField().setOnAction(e -> submitWord());
+        overlayPrimary.setOnAction(e -> sendRematchRequest());
+        overlaySecondary.setOnAction(e -> {
+            if (running) sendForfeit();
+            close();
+        });
+        view.setOnCloseAction(() -> {
+            if (running) sendForfeit();
+            close();
+        });
+
+        Rectangle2D bounds = Screen.getPrimary().getVisualBounds();
+        double targetW = Math.min(1280, bounds.getWidth() * 0.9);
+        double targetH = Math.min(820, bounds.getHeight() * 0.9);
+        Scene scene = new Scene(view.getRoot(), targetW, targetH);
+        setScene(scene);
+        setMinWidth(Math.min(1100, bounds.getWidth() * 0.85));
+        setMinHeight(Math.min(720, bounds.getHeight() * 0.85));
+
+        setOnCloseRequest(e -> {
+            if (running) {
+                sendForfeit();
+            }
+        });
+    }
+
+    public void handleMessage(Message msg) {
+        if (msg == null || msg.type == null) return;
+        String type = msg.type.toUpperCase(Locale.ROOT);
+        Platform.runLater(() -> {
+            switch (type) {
+                case "GAME_START_BROADCAST" -> handleStart(msg);
+                case "GAME_UPDATE_BROADCAST" -> handleUpdate(msg);
+                case "GAME_END_BROADCAST" -> handleEnd(msg);
+                case "GAME_REMATCH_NOTICE" -> handleRematchNotice();
+                default -> {}
+            }
+        });
+    }
+
+    private void handleStart(Message msg) {
+        this.sessionId = msg.sessionId;
+        running = true;
+        lastScoreSelf = 0;
+        view.getInputField().setDisable(false);
+        surrenderBtn.setDisable(false);
+        rematchBtn.setDisable(true);
+        rematchBtn.setText("재경기");
+        rematchStatus.setText("");
+        view.setRematchStatus("", false);
+        view.hideGameOver();
+        overlayPrimary.setText("재경기");
+        overlaySecondary.setText("닫기");
+        view.getInputField().clear();
+        view.getInputField().requestFocus();
+
+        TugOfWarSoundManager sm = TugOfWarSoundManager.getInstance();
+        sm.playBgm("bgm_game.wav");
+        sm.play("sfx_start.wav");
+
+        Map<String, Object> data = msg.data;
+        if (data != null) {
+            view.setTimeText(formatTime(toDouble(data.get("timeMs"))));
+            view.setScoreText("점수: 0");
+            view.setComboText("콤보: " + toInt(data.get("comboSelf")));
+            view.setPosText("위치: 0.0");
+            view.setEffectsText(valueOf(data.getOrDefault("effectsSelf", "효과: 없음")));
+            view.setLastItemText("최근 아이템: 없음");
+            TugOfWarViewState state = new TugOfWarViewState(
+                    0.0,
+                    valueOf(data.get("yourWord")),
+                    parseModifier(data.get("modifierSelf")),
+                    Boolean.TRUE.equals(data.get("blindSelf")),
+                    Boolean.TRUE.equals(data.get("jamoSplitSelf"))
+            );
+            updateRopeState(state);
+        }
+        if (!isShowing()) show();
+    }
+
+    private void handleUpdate(Message msg) {
+        if (!running || sessionId == null || !sessionId.equals(msg.sessionId)) return;
+        Map<String, Object> data = msg.data;
+        if (data == null) return;
+
+        view.setTimeText(formatTime(toDouble(data.get("timeMs"))));
+        view.setTimeMs(toDouble(data.get("timeMs")));
+        int scoreSelf = toInt(data.get("scoreSelf"));
+        view.setScoreText(String.format("점수 (나/상대): %d / %d",
+                scoreSelf,
+                toInt(data.get("scoreOpponent"))));
+        view.setComboText("콤보: " + toInt(data.get("comboSelf")));
+        if (scoreSelf > lastScoreSelf) {
+            TugOfWarSoundManager.getInstance().play("sfx_hit.wav");
+        }
+        lastScoreSelf = scoreSelf;
+
+        double pos = toDouble(data.get("pos"));
+        view.setPosText(String.format("위치: %.1f", pos));
+        view.setEffectsText(valueOf(data.getOrDefault("effectsSelf", "효과: 없음")));
+        view.setLastItemText("최근 아이템: " + valueOf(data.get("lastItemSelf")));
+
+        TugOfWarViewState state = new TugOfWarViewState(
+                pos,
+                valueOf(data.get("yourWord")),
+                parseModifier(data.get("modifierSelf")),
+                Boolean.TRUE.equals(data.get("blindSelf")),
+                Boolean.TRUE.equals(data.get("jamoSplitSelf"))
+        );
+        updateRopeState(state);
+    }
+
+    private void handleEnd(Message msg) {
+        if (sessionId == null || !sessionId.equals(msg.sessionId)) return;
+        running = false;
+        view.getInputField().setDisable(true);
+        surrenderBtn.setDisable(true);
+        rematchBtn.setDisable(false);
+        view.setRematchStatus("재경기 가능", true);
+        Map<String, Object> data = msg.data;
+        if (data != null) {
+            view.setEffectsText(valueOf(data.get("result")));
+            view.setLastItemText(valueOf(data.get("message")));
+        }
+        String result = data != null ? valueOf(data.get("result")) : "게임 종료";
+        String message = data != null ? valueOf(data.get("message")) : "";
+        Color accent = Color.web("#9575CD");
+        if (result.contains("승")) accent = Color.web("#FFD54F");
+        else if (result.contains("패")) accent = Color.web("#EF5350");
+        view.showGameOver("MATCH END", result, message, accent, "재경기", "닫기");
+
+        TugOfWarSoundManager sm = TugOfWarSoundManager.getInstance();
+        sm.stopBgm();
+        if (result.contains("무") || result.contains("draw")) sm.play("sfx_draw.wav");
+        else if (result.contains("승")) sm.play("sfx_win.wav");
+        else sm.play("sfx_lose.wav");
+    }
+
+    private void handleRematchNotice() {
+        rematchBtn.setDisable(false);
+        rematchBtn.setText("상대가 재경기를 원합니다");
+        view.setRematchStatus("상대가 재경기를 원합니다", true);
+    }
+
+    private void submitWord() {
+        if (!running || sessionId == null) return;
+        String typed = view.getInputField().getText().trim();
+        if (typed.isEmpty()) return;
+        view.getInputField().clear();
+        Message action = Message.of("GAME_ACTION");
+        action.sessionId = sessionId;
+        action.data = Map.of("word", typed);
+        client.send(action);
+    }
+
+    private void sendForfeit() {
+        if (!running || sessionId == null) return;
+        Message msg = Message.of("GAME_FORFEIT");
+        msg.sessionId = sessionId;
+        client.send(msg);
+        running = false;
+        view.getInputField().setDisable(true);
+        surrenderBtn.setDisable(true);
+        rematchBtn.setDisable(true);
+        TugOfWarSoundManager.getInstance().stopBgm();
+    }
+
+    private void sendRematchRequest() {
+        if (sessionId == null) return;
+        Message msg = Message.of("GAME_REMATCH_REQUEST");
+        msg.sessionId = sessionId;
+        client.send(msg);
+        rematchBtn.setText("재경기 요청됨");
+        rematchBtn.setDisable(true);
+        view.setRematchStatus("재경기 요청 보냄", false);
+    }
+
+    private void updateRopeState(TugOfWarViewState state) {
+        ropePanel.updateState(state);
+    }
+
+    private String valueOf(Object obj) {
+        return obj == null ? "-" : String.valueOf(obj);
+    }
+
+    private String formatTime(double ms) {
+        return String.format("남은 시간: %.1fs", ms / 1000.0);
+    }
+
+    private double toDouble(Object obj) {
+        if (obj instanceof Number n) return n.doubleValue();
+        try {
+            return Double.parseDouble(String.valueOf(obj));
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private int toInt(Object obj) {
+        if (obj instanceof Number n) return n.intValue();
+        try {
+            return Integer.parseInt(String.valueOf(obj));
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private GameLogic.WordModifier parseModifier(Object obj) {
+        if (obj instanceof String s) {
+            try {
+                return GameLogic.WordModifier.valueOf(s);
+            } catch (IllegalArgumentException ignored) {}
+        }
+        return GameLogic.WordModifier.NEUTRAL;
+    }
+}
