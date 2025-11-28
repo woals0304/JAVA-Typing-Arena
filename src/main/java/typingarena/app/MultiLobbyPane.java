@@ -5,14 +5,18 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.effect.DropShadow;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import typingarena.net.Message;
 import typingarena.net.NetClient;
 
+import java.io.InputStream;
 import java.util.Locale;
 import java.util.Map;
 
@@ -22,15 +26,16 @@ import java.util.Map;
  */
 public class MultiLobbyPane extends BorderPane {
 
-    private static final String BG_COLOR = "#FDF5E6";
-    private static final String CARD_BG = "#FFF3E0";
     private static final String CARD_BORDER = "#D7CCC8";
     private static final String TEXT_MAIN = "#4E342E";
     private static final String ACCENT = "#29B6F6";
+    private static final String FRAME_DARK = "#3E2723";
 
-    private final Font titleFont = Font.font("Malgun Gothic", FontWeight.EXTRA_BOLD, 18);
-    private final Font labelFont = Font.font("Malgun Gothic", FontWeight.BOLD, 13);
-    private final Font buttonFont = Font.font("Malgun Gothic", FontWeight.BOLD, 14);
+    private String gameFontFamily = "Malgun Gothic";
+    private Font titleFont;
+    private Font labelFont;
+    private Font buttonFont;
+    private Font overlineFont;
 
     private final NetClient client;
     private final String myNickname;
@@ -52,40 +57,63 @@ public class MultiLobbyPane extends BorderPane {
         this.myNickname = nickname != null ? nickname : "Player";
         this.onBack = onBack;
 
+        initFonts();
         client.setOnMessage(this::handleServerMessage);
 
         BorderPane card = new BorderPane();
-        card.setPadding(new Insets(18));
+        card.setPadding(new Insets(22, 26, 22, 26));
         card.setTop(buildHeader());
         card.setCenter(buildCenter());
         card.setBottom(buildStatus());
-        card.setStyle("-fx-background-color: " + CARD_BG + "; -fx-background-radius: 16; -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 16; -fx-border-width: 2;");
+        card.setStyle("-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, rgba(255,243,224,0.96), rgba(250,220,180,0.96)); -fx-background-radius: 22; -fx-border-color: #5D4037; -fx-border-radius: 22; -fx-border-width: 3; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.18), 18, 0.24, 0, 8);");
 
-        setPadding(new Insets(18));
-        setStyle("-fx-background-color: " + BG_COLOR + ";");
-        setCenter(card);
+        StackPane frame = new StackPane();
+        frame.setPadding(new Insets(16));
+        frame.setStyle("-fx-background-color: linear-gradient(" + FRAME_DARK + " 0%, #2A1B14 100%); -fx-background-radius: 26; -fx-border-color: #5D4037; -fx-border-width: 2; -fx-border-radius: 26; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.45), 28, 0.35, 0, 14);");
+        frame.getChildren().add(card);
+
+        setPadding(new Insets(28));
+        setStyle("-fx-background-color: radial-gradient(center 50% 50%, radius 80%, #4A2F23, #1D120D 90%);");
+        setCenter(frame);
     }
 
-    private HBox buildHeader() {
-        Label title = new Label("멀티 매칭");
+    private VBox buildHeader() {
+        Label overline = new Label("LIVE MATCHING READY");
+        overline.setFont(overlineFont);
+        overline.setStyle("-fx-text-fill: #FFD54F; -fx-letter-spacing: 0.8;");
+
+        Label title = new Label("멀티플레이 타자 미니게임 로비");
         title.setFont(titleFont);
-        title.setStyle("-fx-text-fill: " + TEXT_MAIN + ";");
+        title.setStyle("-fx-text-fill: linear-gradient(#FFE082, #FFB300); -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.45), 0, 0, 0, 3);");
+        StackPane titlePlate = new StackPane(title);
+        titlePlate.setPadding(new Insets(10, 18, 10, 18));
+        titlePlate.setStyle("-fx-background-color: linear-gradient(#5D4037, #3E2723); -fx-background-radius: 18; -fx-border-color: #FFB300; -fx-border-radius: 18; -fx-border-width: 2;");
+        titlePlate.setEffect(new DropShadow(12, Color.web("#00000044")));
+
         backBtn.setOnAction(e -> {
             cancelMatchmaking(true);
             if (onBack != null) onBack.run();
         });
         styleSecondary(backBtn);
         backBtn.setFont(buttonFont);
-        HBox box = new HBox(10, backBtn, title);
+
+        HBox titleRow = new HBox(12, backBtn, titlePlate);
+        titleRow.setAlignment(Pos.CENTER_LEFT);
+
+        VBox box = new VBox(6, overline, titleRow);
         box.setAlignment(Pos.CENTER_LEFT);
-        box.setPadding(new Insets(0, 0, 8, 0));
+        box.setPadding(new Insets(0, 0, 10, 0));
         return box;
     }
 
     private VBox buildCenter() {
-        tugBtn.setPrefWidth(280);
-        landBtn.setPrefWidth(280);
-        castleBtn.setPrefWidth(280);
+        tugBtn.setText("⚔ 줄다리기 (Tug of War)");
+        landBtn.setText("🧭 땅따먹기 (Land Grab)");
+        castleBtn.setText("🛡 성 지키기 (준비 중)");
+
+        tugBtn.setPrefWidth(320);
+        landBtn.setPrefWidth(320);
+        castleBtn.setPrefWidth(320);
         tugBtn.setOnAction(e -> startMatch("TUG_OF_WAR"));
         landBtn.setOnAction(e -> startMatch("LAND_GRAB"));
         castleBtn.setDisable(true);
@@ -97,8 +125,17 @@ public class MultiLobbyPane extends BorderPane {
         landBtn.setFont(buttonFont);
         castleBtn.setFont(buttonFont);
 
-        VBox box = new VBox(12, tugBtn, landBtn, castleBtn);
+        Label sectionTitle = new Label("매치 타입 선택");
+        sectionTitle.setFont(gameFont(16, FontWeight.EXTRA_BOLD));
+        sectionTitle.setStyle("-fx-text-fill: " + TEXT_MAIN + ";");
+
+        VBox buttons = new VBox(12, tugBtn, landBtn, castleBtn);
+        buttons.setAlignment(Pos.CENTER);
+
+        VBox box = new VBox(10, sectionTitle, buttons);
         box.setAlignment(Pos.CENTER);
+        box.setPadding(new Insets(14, 12, 14, 12));
+        box.setStyle("-fx-background-color: rgba(255,255,255,0.82); -fx-background-radius: 16; -fx-border-color: rgba(93,64,55,0.35); -fx-border-radius: 16; -fx-border-width: 1.5; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.12), 12, 0.18, 0, 6);");
         return box;
     }
 
@@ -107,12 +144,38 @@ public class MultiLobbyPane extends BorderPane {
         cancelBtn.setOnAction(e -> cancelMatchmaking(true));
         styleSecondary(cancelBtn);
         cancelBtn.setFont(buttonFont);
-        matchStatusLabel.setPadding(new Insets(10, 0, 6, 0));
+        matchStatusLabel.setPadding(new Insets(6, 0, 6, 0));
         matchStatusLabel.setStyle("-fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold;");
         matchStatusLabel.setFont(labelFont);
-        VBox box = new VBox(6, matchStatusLabel, cancelBtn);
-        box.setPadding(new Insets(10));
+
+        StackPane statusPlate = new StackPane(matchStatusLabel);
+        statusPlate.setPadding(new Insets(10, 16, 10, 16));
+        statusPlate.setStyle("-fx-background-color: linear-gradient(#FFF8E1, #FFE082); -fx-background-radius: 12; -fx-border-color: #D18816; -fx-border-radius: 12; -fx-border-width: 2;");
+        statusPlate.setEffect(new DropShadow(12, Color.web("#00000033")));
+
+        HBox row = new HBox(12, statusPlate, cancelBtn);
+        row.setAlignment(Pos.CENTER_LEFT);
+
+        VBox box = new VBox(8, row);
+        box.setPadding(new Insets(8, 0, 0, 0));
         return box;
+    }
+
+    private void initFonts() {
+        try (InputStream is = getClass().getResourceAsStream("/fonts/CookieRun Regular.otf")) {
+            Font loaded = is != null ? Font.loadFont(is, 22) : null;
+            if (loaded != null) {
+                gameFontFamily = loaded.getFamily();
+            }
+        } catch (Exception ignored) {}
+        titleFont = gameFont(26, FontWeight.EXTRA_BOLD);
+        labelFont = gameFont(13, FontWeight.BOLD);
+        buttonFont = gameFont(15, FontWeight.BOLD);
+        overlineFont = gameFont(12, FontWeight.EXTRA_BOLD);
+    }
+
+    private Font gameFont(double size, FontWeight weight) {
+        return Font.font(gameFontFamily, weight, size);
     }
 
     private void startMatch(String gameType) {
@@ -190,25 +253,34 @@ public class MultiLobbyPane extends BorderPane {
     }
 
     private void stylePrimary(Button btn) {
-        String base = "-fx-background-color: linear-gradient(to right, #FFD54F, #FFB300); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 10; -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 10; -fx-border-width: 1;";
-        String hover = "-fx-background-color: linear-gradient(to right, #FFE082, #FFC107); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 10; -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 10; -fx-border-width: 1;";
+        String fam = buttonFont.getFamily();
+        int sz = (int) buttonFont.getSize();
+        String base = "-fx-background-color: linear-gradient(#FFEE58, #FBC02D), linear-gradient(#FBC02D, #F57F17); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-font-family: '" + fam + "'; -fx-font-size: " + sz + "px; -fx-padding: 12 18; -fx-background-radius: 14; -fx-border-color: #8D6E63; -fx-border-radius: 14; -fx-border-width: 1.5;";
+        String hover = "-fx-background-color: linear-gradient(#FFF59D, #FBC02D), linear-gradient(#FFECB3, #FFC107); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-font-family: '" + fam + "'; -fx-font-size: " + sz + "px; -fx-padding: 12 18; -fx-background-radius: 14; -fx-border-color: #8D6E63; -fx-border-radius: 14; -fx-border-width: 1.5;";
         btn.setStyle(base);
+        btn.setEffect(new DropShadow(12, Color.web("#00000033")));
         btn.setOnMouseEntered(e -> btn.setStyle(hover));
         btn.setOnMouseExited(e -> btn.setStyle(base));
     }
 
     private void styleAccent(Button btn) {
-        String base = "-fx-background-color: " + ACCENT + "; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 10; -fx-border-color: #1B5E20; -fx-border-radius: 10; -fx-border-width: 1;";
-        String hover = "-fx-background-color: #4FC3F7; -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 10; -fx-border-color: #1B5E20; -fx-border-radius: 10; -fx-border-width: 1;";
+        String fam = buttonFont.getFamily();
+        int sz = (int) buttonFont.getSize();
+        String base = "-fx-background-color: linear-gradient(#64B5F6, #1E88E5), linear-gradient(" + ACCENT + ", #0D47A1); -fx-text-fill: white; -fx-font-weight: bold; -fx-font-family: '" + fam + "'; -fx-font-size: " + sz + "px; -fx-padding: 12 18; -fx-background-radius: 14; -fx-border-color: #0D47A1; -fx-border-radius: 14; -fx-border-width: 1.5;";
+        String hover = "-fx-background-color: linear-gradient(#90CAF9, #42A5F5), linear-gradient(#29B6F6, #1565C0); -fx-text-fill: white; -fx-font-weight: bold; -fx-font-family: '" + fam + "'; -fx-font-size: " + sz + "px; -fx-padding: 12 18; -fx-background-radius: 14; -fx-border-color: #0D47A1; -fx-border-radius: 14; -fx-border-width: 1.5;";
         btn.setStyle(base);
+        btn.setEffect(new DropShadow(12, Color.web("#00000033")));
         btn.setOnMouseEntered(e -> btn.setStyle(hover));
         btn.setOnMouseExited(e -> btn.setStyle(base));
     }
 
     private void styleSecondary(Button btn) {
-        String base = "-fx-background-color: #FFF; -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 10; -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 10; -fx-border-width: 1;";
-        String hover = "-fx-background-color: #FFF8E1; -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 10; -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 10; -fx-border-width: 1;";
+        String fam = buttonFont.getFamily();
+        int sz = (int) buttonFont.getSize();
+        String base = "-fx-background-color: linear-gradient(#F5F0E6, #E8DCC8); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-font-family: '" + fam + "'; -fx-font-size: " + sz + "px; -fx-padding: 10 16; -fx-background-radius: 12; -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 12; -fx-border-width: 1.2;";
+        String hover = "-fx-background-color: linear-gradient(#FFF8E1, #E8DCC8); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-font-family: '" + fam + "'; -fx-font-size: " + sz + "px; -fx-padding: 10 16; -fx-background-radius: 12; -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 12; -fx-border-width: 1.2;";
         btn.setStyle(base);
+        btn.setEffect(new DropShadow(10, Color.web("#00000022")));
         btn.setOnMouseEntered(e -> btn.setStyle(hover));
         btn.setOnMouseExited(e -> btn.setStyle(base));
     }
