@@ -9,9 +9,11 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
+import javafx.scene.effect.DropShadow;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
@@ -21,6 +23,7 @@ import typingarena.net.Message;
 import typingarena.net.NetClient;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.Locale;
@@ -35,11 +38,14 @@ public class LoginScreen extends Stage {
     private static final String CARD_BORDER = "#D7CCC8";
     private static final String TEXT_MAIN = "#4E342E";
     private static final String ACCENT = "#29B6F6";
+    private static final String FRAME_DARK = "#3E2723";
 
-    private final Font titleFont = Font.font("Malgun Gothic", FontWeight.EXTRA_BOLD, 20);
-    private final Font subtitleFont = Font.font("Malgun Gothic", FontWeight.NORMAL, 13);
-    private final Font labelFont = Font.font("Malgun Gothic", FontWeight.BOLD, 13);
-    private final Font buttonFont = Font.font("Malgun Gothic", FontWeight.BOLD, 14);
+    private String gameFontFamily = "Malgun Gothic";
+    private Font titleFont;
+    private Font subtitleFont;
+    private Font labelFont;
+    private Font buttonFont;
+    private Font overlineFont;
 
     private final TextField hostField = new TextField("127.0.0.1");
     private final TextField portField = new TextField("7777");
@@ -65,19 +71,26 @@ public class LoginScreen extends Stage {
         initModality(Modality.APPLICATION_MODAL);
         setTitle("로그인 / 회원가입");
 
+        initFonts();
+
         VBox card = new VBox(18, buildHeader(), buildForm(), statusLabel);
         card.setPadding(new Insets(24));
         card.setAlignment(Pos.CENTER_LEFT);
-        card.setStyle("-fx-background-color: " + CARD_BG + "; -fx-background-radius: 18; -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 18; -fx-border-width: 2;");
+        card.setStyle("-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, rgba(255,243,224,0.96), rgba(250,220,180,0.96)); -fx-background-radius: 22; -fx-border-color: #5D4037; -fx-border-radius: 22; -fx-border-width: 3;");
 
-        BorderPane root = new BorderPane(card);
-        root.setPadding(new Insets(24));
-        root.setStyle("-fx-background-color: " + BG_COLOR + ";");
+        StackPane frame = new StackPane();
+        frame.setPadding(new Insets(16));
+        frame.setStyle("-fx-background-color: linear-gradient(" + FRAME_DARK + " 0%, #2A1B14 100%); -fx-background-radius: 26; -fx-border-color: #5D4037; -fx-border-width: 2; -fx-border-radius: 26; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.45), 28, 0.35, 0, 14);");
+        frame.getChildren().add(card);
+
+        BorderPane root = new BorderPane(frame);
+        root.setPadding(new Insets(28));
+        root.setStyle("-fx-background-color: radial-gradient(center 50% 50%, radius 80%, #24140D, #0F0704 90%);");
 
         statusLabel.setStyle("-fx-text-fill: #6D4C41;");
         statusLabel.setFont(subtitleFont);
 
-        Scene scene = new Scene(root, 560, 500);
+        Scene scene = new Scene(root, 760, 580);
         setScene(scene);
 
         connectBtn.setOnAction(e -> connect());
@@ -96,13 +109,17 @@ public class LoginScreen extends Stage {
     }
 
     private VBox buildHeader() {
-        Label title = new Label("타자 연습 게임");
+        Label overline = new Label("ARENA LOGIN");
+        overline.setFont(overlineFont);
+        overline.setStyle("-fx-text-fill: #FFD54F;");
+
+        Label title = new Label("멀티플레이 타자 미니게임");
         title.setFont(titleFont);
-        title.setStyle("-fx-text-fill: " + TEXT_MAIN + ";");
+        title.setStyle("-fx-text-fill: linear-gradient(#FFE082, #FFB300); -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.45), 0, 0, 0, 3);");
         Label subtitle = new Label("서버 접속 후 로그인하거나 회원가입하세요.");
         subtitle.setFont(subtitleFont);
         subtitle.setStyle("-fx-text-fill: #6D4C41;");
-        VBox box = new VBox(6, title, subtitle);
+        VBox box = new VBox(6, overline, title, subtitle);
         box.setAlignment(Pos.CENTER_LEFT);
         return box;
     }
@@ -284,23 +301,54 @@ public class LoginScreen extends Stage {
         return client != null;
     }
 
+    private void initFonts() {
+        try (InputStream is = getClass().getResourceAsStream("/fonts/CookieRun Regular.otf")) {
+            Font loaded = is != null ? Font.loadFont(is, 22) : null;
+            if (loaded != null) {
+                gameFontFamily = loaded.getFamily();
+            }
+        } catch (Exception ignored) {}
+        titleFont = Font.font(gameFontFamily, FontWeight.EXTRA_BOLD, 22);
+        subtitleFont = Font.font(gameFontFamily, FontWeight.NORMAL, 13);
+        labelFont = Font.font(gameFontFamily, FontWeight.BOLD, 13);
+        buttonFont = Font.font(gameFontFamily, FontWeight.BOLD, 14);
+        overlineFont = Font.font(gameFontFamily, FontWeight.EXTRA_BOLD, 12);
+    }
+
+    private Label createDecoChip(String icon, String startColor, String endColor) {
+        Label chip = new Label(icon);
+        chip.setFont(Font.font(gameFontFamily, FontWeight.BOLD, 12));
+        chip.setTextFill(javafx.scene.paint.Color.WHITE);
+        chip.setStyle("-fx-background-color: linear-gradient(" + startColor + ", " + endColor + "); -fx-background-radius: 14; -fx-padding: 6 10; -fx-border-color: rgba(255,255,255,0.35); -fx-border-width: 1; -fx-border-radius: 14;");
+        chip.setEffect(new DropShadow(12, javafx.scene.paint.Color.web("#00000044")));
+        chip.setMouseTransparent(true);
+        return chip;
+    }
+
     private void stylePrimary(Button btn) {
-        btn.setStyle("-fx-background-color: linear-gradient(to right, #FFD54F, #FFB300); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-background-radius: 10; -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 10; -fx-border-width: 1;");
-        btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: linear-gradient(to right, #FFE082, #FFC107); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-background-radius: 10; -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 10; -fx-border-width: 1;"));
-        btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: linear-gradient(to right, #FFD54F, #FFB300); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-background-radius: 10; -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 10; -fx-border-width: 1;"));
+        String base = "-fx-background-color: linear-gradient(#FFEE58, #FBC02D), linear-gradient(#FBC02D, #F57F17); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 14; -fx-border-color: #8D6E63; -fx-border-radius: 14; -fx-border-width: 1.5;";
+        String hover = "-fx-background-color: linear-gradient(#FFF59D, #FBC02D), linear-gradient(#FFECB3, #FFC107); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 14; -fx-border-color: #8D6E63; -fx-border-radius: 14; -fx-border-width: 1.5;";
+        btn.setStyle(base);
+        btn.setEffect(new DropShadow(12, javafx.scene.paint.Color.web("#00000033")));
+        btn.setOnMouseEntered(e -> btn.setStyle(hover));
+        btn.setOnMouseExited(e -> btn.setStyle(base));
     }
 
     private void styleAccent(Button btn) {
-        String base = "-fx-background-color: linear-gradient(to right, #4FC3F7, " + ACCENT + "); -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 10; -fx-border-color: #1B5E20; -fx-border-radius: 10; -fx-border-width: 1;";
-        String hover = "-fx-background-color: linear-gradient(to right, #81D4FA, #4FC3F7); -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 10; -fx-border-color: #1B5E20; -fx-border-radius: 10; -fx-border-width: 1;";
+        String base = "-fx-background-color: linear-gradient(#64B5F6, #1E88E5), linear-gradient(" + ACCENT + ", #0D47A1); -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 14; -fx-border-color: #0D47A1; -fx-border-radius: 14; -fx-border-width: 1.5;";
+        String hover = "-fx-background-color: linear-gradient(#90CAF9, #42A5F5), linear-gradient(#29B6F6, #1565C0); -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 14; -fx-border-color: #0D47A1; -fx-border-radius: 14; -fx-border-width: 1.5;";
         btn.setStyle(base);
+        btn.setEffect(new DropShadow(12, javafx.scene.paint.Color.web("#00000033")));
         btn.setOnMouseEntered(e -> btn.setStyle(hover));
         btn.setOnMouseExited(e -> btn.setStyle(base));
     }
 
     private void styleSecondary(Button btn) {
-        btn.setStyle("-fx-background-color: #FFF; -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-background-radius: 10; -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 10; -fx-border-width: 1;");
-        btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: #FFF8E1; -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-background-radius: 10; -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 10; -fx-border-width: 1;"));
-        btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: #FFF; -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-background-radius: 10; -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 10; -fx-border-width: 1;"));
+        String base = "-fx-background-color: linear-gradient(#F5F0E6, #E8DCC8); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 12; -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 12; -fx-border-width: 1.2;";
+        String hover = "-fx-background-color: linear-gradient(#FFF8E1, #E8DCC8); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 12; -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 12; -fx-border-width: 1.2;";
+        btn.setStyle(base);
+        btn.setEffect(new DropShadow(10, javafx.scene.paint.Color.web("#00000022")));
+        btn.setOnMouseEntered(e -> btn.setStyle(hover));
+        btn.setOnMouseExited(e -> btn.setStyle(base));
     }
 }

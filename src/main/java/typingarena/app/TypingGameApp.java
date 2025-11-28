@@ -8,8 +8,10 @@ import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
+import javafx.scene.effect.DropShadow;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
 import javafx.scene.text.Font;
@@ -20,6 +22,8 @@ import typingarena.minigames.landgrab.LandGrabGame;
 import typingarena.minigames.tugofwar.TugOfWarGame;
 import typingarena.net.NetClient;
 
+import java.io.InputStream;
+
 public class TypingGameApp extends Application {
 
     private Stage primaryStage;
@@ -27,16 +31,25 @@ public class TypingGameApp extends Application {
     private NetClient netClient;
     private String myNickname = "";
 
-    private static final String BG_BEIGE = "#FDF5E6";
+    private static final String TEXT_MAIN = "#4E342E";
+    private static final String ACCENT = "#29B6F6";
+    private static final String FRAME_DARK = "#3E2723";
+
+    private String gameFontFamily = "Malgun Gothic";
+    private Font titleFont;
+    private Font subtitleFont;
+    private Font buttonFont;
+    private Font overlineFont;
 
     @Override
     public void start(Stage primaryStage) {
         this.primaryStage = primaryStage;
         this.root = new BorderPane();
-        root.setStyle("-fx-background-color: " + BG_BEIGE + ";");
-        root.setPadding(new Insets(36));
+        initFonts();
+        root.setStyle("-fx-background-color: radial-gradient(center 50% 50%, radius 80%, #24140D, #0F0704 90%);");
+        root.setPadding(new Insets(28));
 
-        Scene scene = new Scene(root, 760, 560);
+        Scene scene = new Scene(root, 900, 640);
         primaryStage.setTitle("Typing Mini Game");
         primaryStage.setScene(scene);
         primaryStage.show();
@@ -54,74 +67,81 @@ public class TypingGameApp extends Application {
 
     // === Main Menu (Single / Multi) ===
     private void showMainMenu() {
-        applyPlainBackground();
+        Label overline = new Label("ARENA SELECT");
+        overline.setFont(overlineFont);
+        overline.setStyle("-fx-text-fill: #FFD54F;");
+
         Label title = new Label("Typing Arena");
-        title.setFont(Font.font("Malgun Gothic", FontWeight.EXTRA_BOLD, 34));
-        title.setTextFill(Color.web("#2D2A32"));
+        title.setFont(titleFont);
+        title.setStyle("-fx-text-fill: linear-gradient(#FFE082, #FFB300); -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.45), 0, 0, 0, 3);");
 
         Label subtitle = new Label("싱글/멀티 대전을 선택해 빠른 타이핑을 겨뤄보세요.");
-        subtitle.setFont(Font.font("Malgun Gothic", FontWeight.NORMAL, 15));
-        subtitle.setTextFill(Color.web("#4E342E"));
+        subtitle.setFont(subtitleFont);
+        subtitle.setTextFill(Color.web("#6D4C41"));
         subtitle.setWrapText(true);
         subtitle.setAlignment(Pos.CENTER);
 
-        Button singleBtn = createPrimaryButton("싱글 플레이", this::showSingleMenu);
-        Button multiBtn = createPrimaryButton("멀티 플레이", this::showMultiMenu);
+        Button singleBtn = createPrimaryButton("⚔ 싱글 플레이", this::showSingleMenu);
+        Button multiBtn = createPrimaryButton("🎮 멀티 플레이", this::showMultiMenu);
 
         Button logoutBtn = createSecondaryButton("로그아웃", this::logout);
 
-        HBox buttons = new HBox(16, singleBtn, multiBtn);
+        HBox buttons = new HBox(18, singleBtn, multiBtn);
         buttons.setAlignment(Pos.CENTER);
 
         Label tagline = new Label("타이핑으로 실력을 쌓고 친구들과 겨루세요 🏆");
-        tagline.setFont(Font.font("Malgun Gothic", FontWeight.BOLD, 13));
+        tagline.setFont(subtitleFont);
         tagline.setTextFill(Color.web("#3E2723"));
         tagline.setAlignment(Pos.CENTER);
 
-        VBox center = new VBox(18, title, subtitle, buttons, logoutBtn, tagline);
+        VBox center = new VBox(14, overline, title, subtitle, buttons, logoutBtn, tagline);
         center.setAlignment(Pos.CENTER);
         center.setPadding(new Insets(10));
-        VBox card = new VBox(center);
-        card.setAlignment(Pos.CENTER);
-        card.setStyle("-fx-background-color: rgba(255,255,255,0.9); -fx-background-radius: 18; -fx-border-color: rgba(0,0,0,0.08); -fx-border-radius: 18; -fx-border-width: 2; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.18), 20, 0.2, 0, 8);");
-        card.setPadding(new Insets(24));
-        setCenterContent(card);
+
+        setCenterContent(buildFramedCard(center, true));
     }
 
     // === Multi Player Menu ===
     private void showMultiMenu() {
-        applyPlainBackground();
+        Label overline = new Label("ONLINE MATCH");
+        overline.setFont(overlineFont);
+        overline.setStyle("-fx-text-fill: #FFE082;");
+
         Label title = new Label("멀티 플레이");
-        title.setFont(Font.font("Malgun Gothic", FontWeight.EXTRA_BOLD, 28));
-        title.setTextFill(Color.web("#4E342E"));
+        title.setFont(titleFont);
+        title.setStyle("-fx-text-fill: linear-gradient(#FFE082, #FFB300); -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.45), 0, 0, 0, 3);");
 
         Label description = new Label(
                 "온라인으로 친구나 다른 플레이어와 대결하세요.\n" +
                         "줄다리기 / 땅따먹기 매칭을 선택하면\n" +
                         "멀티 로비에서 자동 매칭을 시작합니다."
         );
-        description.setFont(Font.font("Malgun Gothic", 16));
+        description.setFont(subtitleFont);
         description.setTextFill(Color.web("#6D4C41"));
         description.setLineSpacing(4);
         description.setAlignment(Pos.CENTER);
 
-        Button openLobbyBtn = createMenuButton("멀티 로비 열기", this::openMultiLobby);
+        Button openLobbyBtn = createMenuButton("🎮 멀티 로비 열기", this::openMultiLobby);
         Button backBtn = createSecondaryButton("◀ 메인으로", this::showMainMenu);
 
         VBox buttons = new VBox(12, openLobbyBtn, backBtn);
         buttons.setAlignment(Pos.CENTER);
 
-        VBox center = new VBox(25, title, description, buttons);
+        VBox center = new VBox(14, overline, title, description, buttons);
         center.setAlignment(Pos.CENTER);
-        setCenterContent(center);
+        center.setPadding(new Insets(10));
+        setCenterContent(buildFramedCard(center, true));
     }
 
     // === Single Player Menu ===
     private void showSingleMenu() {
-        applyPlainBackground();
+        Label overline = new Label("SOLO MODE");
+        overline.setFont(overlineFont);
+        overline.setStyle("-fx-text-fill: #FFD54F;");
+
         Label title = new Label("싱글 플레이 미니게임");
-        title.setFont(Font.font("Malgun Gothic", FontWeight.EXTRA_BOLD, 28));
-        title.setTextFill(Color.web("#4E342E"));
+        title.setFont(titleFont);
+        title.setStyle("-fx-text-fill: linear-gradient(#FFE082, #FFB300); -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.45), 0, 0, 0, 3);");
 
         Label description = new Label(
                 "준비된 미니게임:\n\n" +
@@ -130,16 +150,16 @@ public class TypingGameApp extends Application {
                         "3. 칸 채우기 땅따먹기 (Land Grab)\n\n" +
                         "버튼을 누르면 각 게임이 새로운 창에서 실행됩니다."
         );
-        description.setFont(Font.font("Malgun Gothic", 16));
+        description.setFont(subtitleFont);
         description.setTextFill(Color.web("#6D4C41"));
         description.setLineSpacing(4);
         description.setAlignment(Pos.CENTER);
 
-        Button tugBtn = createMenuButton("줄다리기 게임 시작",
+        Button tugBtn = createMenuButton("⚔ 줄다리기 게임 시작",
                 () -> launchStage(new TugOfWarGame()));
-        Button castleBtn = createMenuButton("성 지키기 게임 시작",
+        Button castleBtn = createMenuButton("🛡 성 지키기 게임 시작",
                 () -> launchStage(new CastleDefenseGame()));
-        Button landBtn = createMenuButton("땅따먹기 게임 시작",
+        Button landBtn = createMenuButton("🧭 땅따먹기 게임 시작",
                 () -> launchStage(new LandGrabGame()));
 
         VBox buttons = new VBox(12, tugBtn, castleBtn, landBtn);
@@ -147,9 +167,10 @@ public class TypingGameApp extends Application {
 
         Button backBtn = createSecondaryButton("◀ 메인으로", this::showMainMenu);
 
-        VBox center = new VBox(25, title, description, buttons, backBtn);
+        VBox center = new VBox(14, overline, title, description, buttons, backBtn);
         center.setAlignment(Pos.CENTER);
-        setCenterContent(center);
+        center.setPadding(new Insets(10));
+        setCenterContent(buildFramedCard(center, true));
     }
 
     // === Multi Lobby ===
@@ -178,11 +199,12 @@ public class TypingGameApp extends Application {
     // === Helpers ===
     private Button createPrimaryButton(String text, Runnable action) {
         Button btn = new Button(text);
-        btn.setMinWidth(200);
-        btn.setFont(Font.font("Malgun Gothic", FontWeight.BOLD, 18));
-        String normal = "-fx-background-color: linear-gradient(to bottom, #FFD54F, #FFB300); -fx-text-fill: #4E342E; -fx-border-color: #D18816; -fx-border-width: 1px; -fx-background-radius: 10; -fx-border-radius: 10;";
-        String hover = "-fx-background-color: linear-gradient(to bottom, #FFECB3, #FFC107); -fx-text-fill: #4E342E; -fx-border-color: #BF7A10; -fx-border-width: 1px; -fx-background-radius: 10; -fx-border-radius: 10;";
+        btn.setMinWidth(220);
+        btn.setFont(buttonFont);
+        String normal = "-fx-background-color: linear-gradient(#FFEE58, #FBC02D), linear-gradient(#FBC02D, #F57F17); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-padding: 12 18; -fx-background-radius: 14; -fx-border-color: #8D6E63; -fx-border-radius: 14; -fx-border-width: 1.5;";
+        String hover = "-fx-background-color: linear-gradient(#FFF59D, #FBC02D), linear-gradient(#FFECB3, #FFC107); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-padding: 12 18; -fx-background-radius: 14; -fx-border-color: #8D6E63; -fx-border-radius: 14; -fx-border-width: 1.5;";
         btn.setStyle(normal);
+        btn.setEffect(new DropShadow(12, Color.web("#00000033")));
         btn.setOnAction(e -> action.run());
         btn.setOnMouseEntered(e -> btn.setStyle(hover));
         btn.setOnMouseExited(e -> btn.setStyle(normal));
@@ -197,10 +219,37 @@ public class TypingGameApp extends Application {
 
     private Button createSecondaryButton(String text, Runnable action) {
         Button btn = new Button(text);
-        btn.setFont(Font.font("Malgun Gothic", FontWeight.BOLD, 14));
-        btn.setStyle("-fx-background-color: transparent; -fx-text-fill: #8D6E63;");
+        btn.setFont(buttonFont);
+        String base = "-fx-background-color: linear-gradient(#F5F0E6, #E8DCC8); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 12; -fx-border-color: #D7CCC8; -fx-border-radius: 12; -fx-border-width: 1.2;";
+        String hover = "-fx-background-color: linear-gradient(#FFF8E1, #E8DCC8); -fx-text-fill: " + TEXT_MAIN + "; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 12; -fx-border-color: #D7CCC8; -fx-border-radius: 12; -fx-border-width: 1.2;";
+        btn.setStyle(base);
+        btn.setEffect(new DropShadow(10, Color.web("#00000022")));
         btn.setOnAction(e -> action.run());
+        btn.setOnMouseEntered(e -> btn.setStyle(hover));
+        btn.setOnMouseExited(e -> btn.setStyle(base));
         return btn;
+    }
+
+    private Label createHudIcon(String icon, String startColor, String endColor, String tooltipText) {
+        Label badge = new Label(icon);
+        badge.setFont(Font.font(gameFontFamily, FontWeight.BOLD, 12));
+        badge.setTextFill(Color.WHITE);
+        badge.setStyle("-fx-background-color: linear-gradient(" + startColor + ", " + endColor + "); -fx-background-radius: 12; -fx-padding: 6 10; -fx-border-color: rgba(255,255,255,0.35); -fx-border-width: 1; -fx-border-radius: 12;");
+        badge.setEffect(new DropShadow(10, Color.web("#00000033")));
+        if (tooltipText != null && !tooltipText.isBlank()) {
+            badge.setTooltip(new javafx.scene.control.Tooltip(tooltipText));
+        }
+        return badge;
+    }
+
+    private Label createDecoChip(String icon, String startColor, String endColor) {
+        Label chip = new Label(icon);
+        chip.setFont(Font.font(gameFontFamily, FontWeight.BOLD, 12));
+        chip.setTextFill(Color.WHITE);
+        chip.setStyle("-fx-background-color: linear-gradient(" + startColor + ", " + endColor + "); -fx-background-radius: 14; -fx-padding: 6 10; -fx-border-color: rgba(255,255,255,0.35); -fx-border-width: 1; -fx-border-radius: 14;");
+        chip.setEffect(new DropShadow(12, Color.web("#00000044")));
+        chip.setMouseTransparent(true);
+        return chip;
     }
 
     private void launchStage(Stage stage) {
@@ -212,12 +261,30 @@ public class TypingGameApp extends Application {
         root.setCenter(node);
     }
 
-    private void applyGradientBackground() {
-        root.setStyle("-fx-background-color: " + BG_BEIGE + ";");
+    private StackPane buildFramedCard(Node content, boolean withDecorations) {
+        StackPane card = new StackPane(content);
+        card.setPadding(new Insets(22, 26, 22, 26));
+        card.setStyle("-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, rgba(255,243,224,0.96), rgba(250,220,180,0.96)); -fx-background-radius: 22; -fx-border-color: #5D4037; -fx-border-radius: 22; -fx-border-width: 3; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.18), 18, 0.24, 0, 8);");
+
+        StackPane frame = new StackPane();
+        frame.setPadding(new Insets(16));
+        frame.setStyle("-fx-background-color: linear-gradient(" + FRAME_DARK + " 0%, #2A1B14 100%); -fx-background-radius: 26; -fx-border-color: #5D4037; -fx-border-width: 2; -fx-border-radius: 26; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.45), 28, 0.35, 0, 14);");
+        frame.getChildren().add(card);
+
+        return frame;
     }
 
-    private void applyPlainBackground() {
-        root.setStyle("-fx-background-color: " + BG_BEIGE + ";");
+    private void initFonts() {
+        try (InputStream is = getClass().getResourceAsStream("/fonts/CookieRun Regular.otf")) {
+            Font loaded = is != null ? Font.loadFont(is, 22) : null;
+            if (loaded != null) {
+                gameFontFamily = loaded.getFamily();
+            }
+        } catch (Exception ignored) {}
+        titleFont = Font.font(gameFontFamily, FontWeight.EXTRA_BOLD, 30);
+        subtitleFont = Font.font(gameFontFamily, FontWeight.NORMAL, 15);
+        buttonFont = Font.font(gameFontFamily, FontWeight.BOLD, 16);
+        overlineFont = Font.font(gameFontFamily, FontWeight.EXTRA_BOLD, 12);
     }
 
     public static void main(String[] args) {
