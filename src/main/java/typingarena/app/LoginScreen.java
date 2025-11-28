@@ -9,6 +9,7 @@ import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
 import javafx.scene.control.TextField;
+import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
@@ -46,6 +47,7 @@ public class LoginScreen extends Stage {
 
     private final TextField idField = new TextField();
     private final PasswordField pwField = new PasswordField();
+    private final Label nicknameLabel = new Label("Nickname(회원가입)");
     private final TextField nicknameField = new TextField();
     private final Button connectBtn = new Button("접속");
     private final Button modeLoginBtn = new Button("로그인");
@@ -63,20 +65,19 @@ public class LoginScreen extends Stage {
         initModality(Modality.APPLICATION_MODAL);
         setTitle("로그인 / 회원가입");
 
-        VBox card = new VBox(16, buildHeader(), buildForm(), statusLabel);
-        card.setPadding(new Insets(20));
+        VBox card = new VBox(18, buildHeader(), buildForm(), statusLabel);
+        card.setPadding(new Insets(24));
         card.setAlignment(Pos.CENTER_LEFT);
-        card.setStyle("-fx-background-color: " + CARD_BG + "; -fx-background-radius: 16; -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 16; -fx-border-width: 2;");
+        card.setStyle("-fx-background-color: " + CARD_BG + "; -fx-background-radius: 18; -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 18; -fx-border-width: 2;");
 
-        VBox root = new VBox(card);
-        root.setPadding(new Insets(18, 24, 18, 24));
-        root.setAlignment(Pos.CENTER);
+        BorderPane root = new BorderPane(card);
+        root.setPadding(new Insets(24));
         root.setStyle("-fx-background-color: " + BG_COLOR + ";");
 
         statusLabel.setStyle("-fx-text-fill: #6D4C41;");
         statusLabel.setFont(subtitleFont);
 
-        Scene scene = new Scene(root, 520, 420);
+        Scene scene = new Scene(root, 560, 500);
         setScene(scene);
 
         connectBtn.setOnAction(e -> connect());
@@ -95,7 +96,7 @@ public class LoginScreen extends Stage {
     }
 
     private VBox buildHeader() {
-        Label title = new Label("Typing Arena 로그인");
+        Label title = new Label("타자 연습 게임");
         title.setFont(titleFont);
         title.setStyle("-fx-text-fill: " + TEXT_MAIN + ";");
         Label subtitle = new Label("서버 접속 후 로그인하거나 회원가입하세요.");
@@ -111,15 +112,20 @@ public class LoginScreen extends Stage {
         grid.setHgap(8);
         grid.setVgap(8);
 
-        grid.add(new Label("Host"), 0, 0);
+        Label hostLabel = new Label("Host");
+        Label portLabel = new Label("Port");
+        Label idLabel = new Label("ID");
+        Label pwLabel = new Label("Password");
+
+        grid.add(hostLabel, 0, 0);
         grid.add(hostField, 1, 0);
-        grid.add(new Label("Port"), 0, 1);
+        grid.add(portLabel, 0, 1);
         grid.add(portField, 1, 1);
-        grid.add(new Label("ID"), 0, 2);
+        grid.add(idLabel, 0, 2);
         grid.add(idField, 1, 2);
-        grid.add(new Label("Password"), 0, 3);
+        grid.add(pwLabel, 0, 3);
         grid.add(pwField, 1, 3);
-        grid.add(new Label("Nickname(회원가입)"), 0, 4);
+        grid.add(nicknameLabel, 0, 4);
         grid.add(nicknameField, 1, 4);
 
         hostField.setPrefWidth(160);
@@ -145,9 +151,14 @@ public class LoginScreen extends Stage {
         modeLoginBtn.setFont(buttonFont);
         modeRegisterBtn.setFont(buttonFont);
         submitBtn.setFont(buttonFont);
+        connectBtn.setMinWidth(110);
+        modeLoginBtn.setMinWidth(110);
+        modeRegisterBtn.setMinWidth(110);
+        submitBtn.setMinWidth(140);
 
         HBox modeRow = new HBox(8, modeLoginBtn, modeRegisterBtn);
         modeRow.setAlignment(Pos.CENTER_LEFT);
+        modeRow.setPadding(new Insets(6, 0, 6, 0));
 
         HBox btnRow = new HBox(10, connectBtn, submitBtn);
         btnRow.setAlignment(Pos.CENTER_LEFT);
@@ -259,6 +270,8 @@ public class LoginScreen extends Stage {
     private void switchMode(Mode mode) {
         this.mode = mode;
         boolean isRegister = mode == Mode.REGISTER;
+        nicknameLabel.setVisible(isRegister);
+        nicknameLabel.setManaged(isRegister);
         nicknameField.setVisible(isRegister);
         nicknameField.setManaged(isRegister);
         submitBtn.setText(isRegister ? "회원가입" : "로그인");
@@ -278,9 +291,11 @@ public class LoginScreen extends Stage {
     }
 
     private void styleAccent(Button btn) {
-        btn.setStyle("-fx-background-color: " + ACCENT + "; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 10; -fx-border-color: #1B5E20; -fx-border-radius: 10; -fx-border-width: 1;");
-        btn.setOnMouseEntered(e -> btn.setStyle("-fx-background-color: #4FC3F7; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 10; -fx-border-color: #1B5E20; -fx-border-radius: 10; -fx-border-width: 1;"));
-        btn.setOnMouseExited(e -> btn.setStyle("-fx-background-color: " + ACCENT + "; -fx-text-fill: white; -fx-font-weight: bold; -fx-background-radius: 10; -fx-border-color: #1B5E20; -fx-border-radius: 10; -fx-border-width: 1;"));
+        String base = "-fx-background-color: linear-gradient(to right, #4FC3F7, " + ACCENT + "); -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 10; -fx-border-color: #1B5E20; -fx-border-radius: 10; -fx-border-width: 1;";
+        String hover = "-fx-background-color: linear-gradient(to right, #81D4FA, #4FC3F7); -fx-text-fill: white; -fx-font-weight: bold; -fx-padding: 10 16; -fx-background-radius: 10; -fx-border-color: #1B5E20; -fx-border-radius: 10; -fx-border-width: 1;";
+        btn.setStyle(base);
+        btn.setOnMouseEntered(e -> btn.setStyle(hover));
+        btn.setOnMouseExited(e -> btn.setStyle(base));
     }
 
     private void styleSecondary(Button btn) {
