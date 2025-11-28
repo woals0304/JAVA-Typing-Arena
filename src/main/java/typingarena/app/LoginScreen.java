@@ -42,13 +42,17 @@ public class LoginScreen extends Stage {
 
     private final TextField hostField = new TextField("127.0.0.1");
     private final TextField portField = new TextField("7777");
+    private enum Mode { LOGIN, REGISTER }
+
     private final TextField idField = new TextField();
     private final PasswordField pwField = new PasswordField();
     private final TextField nicknameField = new TextField();
     private final Button connectBtn = new Button("접속");
-    private final Button loginBtn = new Button("로그인");
-    private final Button registerBtn = new Button("회원가입");
+    private final Button modeLoginBtn = new Button("로그인");
+    private final Button modeRegisterBtn = new Button("회원가입");
+    private final Button submitBtn = new Button("로그인");
     private final Label statusLabel = new Label("서버에 먼저 접속하세요.");
+    private Mode mode = Mode.LOGIN;
 
     private NetClient client;
     private final BiConsumer<NetClient, String> onLoginSuccess;
@@ -72,12 +76,16 @@ public class LoginScreen extends Stage {
         statusLabel.setStyle("-fx-text-fill: #6D4C41;");
         statusLabel.setFont(subtitleFont);
 
-        Scene scene = new Scene(root, 480, 360);
+        Scene scene = new Scene(root, 520, 420);
         setScene(scene);
 
         connectBtn.setOnAction(e -> connect());
-        loginBtn.setOnAction(e -> sendLogin());
-        registerBtn.setOnAction(e -> sendRegister());
+        modeLoginBtn.setOnAction(e -> switchMode(Mode.LOGIN));
+        modeRegisterBtn.setOnAction(e -> switchMode(Mode.REGISTER));
+        submitBtn.setOnAction(e -> {
+            if (mode == Mode.LOGIN) sendLogin();
+            else sendRegister();
+        });
 
         setOnCloseRequest(e -> {
             if (client != null) {
@@ -130,19 +138,25 @@ public class LoginScreen extends Stage {
         nicknameField.setFont(subtitleFont);
 
         stylePrimary(connectBtn);
-        styleAccent(loginBtn);
-        styleSecondary(registerBtn);
+        styleAccent(modeLoginBtn);
+        styleSecondary(modeRegisterBtn);
+        styleAccent(submitBtn);
         connectBtn.setFont(buttonFont);
-        loginBtn.setFont(buttonFont);
-        registerBtn.setFont(buttonFont);
+        modeLoginBtn.setFont(buttonFont);
+        modeRegisterBtn.setFont(buttonFont);
+        submitBtn.setFont(buttonFont);
 
-        HBox btnRow = new HBox(10, connectBtn, loginBtn, registerBtn);
+        HBox modeRow = new HBox(8, modeLoginBtn, modeRegisterBtn);
+        modeRow.setAlignment(Pos.CENTER_LEFT);
+
+        HBox btnRow = new HBox(10, connectBtn, submitBtn);
         btnRow.setAlignment(Pos.CENTER_LEFT);
 
-        loginBtn.setDisable(true);
-        registerBtn.setDisable(true);
+        submitBtn.setDisable(true);
+        modeLoginBtn.setDisable(true);
+        modeRegisterBtn.setDisable(true);
 
-        VBox box = new VBox(12, grid, btnRow);
+        VBox box = new VBox(12, modeRow, grid, btnRow);
         box.setAlignment(Pos.CENTER_LEFT);
         return box;
     }
@@ -158,15 +172,17 @@ public class LoginScreen extends Stage {
             client = new NetClient(hostField.getText().trim(), port);
             client.setOnMessage(this::handleServerMessage);
             client.connect();
-            statusLabel.setText("서버 연결 성공. 로그인/회원가입을 진행하세요.");
-            statusLabel.setStyle("-fx-text-fill: #008800;");
-            loginBtn.setDisable(false);
-            registerBtn.setDisable(false);
-        } catch (Exception e) {
-            statusLabel.setText("연결 실패: " + e.getMessage());
-            statusLabel.setStyle("-fx-text-fill: #AA0000;");
-            client = null;
-        }
+        statusLabel.setText("서버 연결 성공. 로그인/회원가입을 진행하세요.");
+        statusLabel.setStyle("-fx-text-fill: #008800;");
+        submitBtn.setDisable(false);
+        modeLoginBtn.setDisable(false);
+        modeRegisterBtn.setDisable(false);
+        switchMode(Mode.LOGIN);
+    } catch (Exception e) {
+        statusLabel.setText("연결 실패: " + e.getMessage());
+        statusLabel.setStyle("-fx-text-fill: #AA0000;");
+        client = null;
+    }
     }
 
     private void sendLogin() {
@@ -238,6 +254,21 @@ public class LoginScreen extends Stage {
                 statusLabel.setText("로그인 실패");
             }
         });
+    }
+
+    private void switchMode(Mode mode) {
+        this.mode = mode;
+        boolean isRegister = mode == Mode.REGISTER;
+        nicknameField.setVisible(isRegister);
+        nicknameField.setManaged(isRegister);
+        submitBtn.setText(isRegister ? "회원가입" : "로그인");
+        modeLoginBtn.setDisable(!isConnected());
+        modeRegisterBtn.setDisable(!isConnected());
+        statusLabel.setText(isRegister ? "회원가입 모드입니다." : "로그인 모드입니다.");
+    }
+
+    private boolean isConnected() {
+        return client != null;
     }
 
     private void stylePrimary(Button btn) {

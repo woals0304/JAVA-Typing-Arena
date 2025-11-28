@@ -63,10 +63,12 @@ public class TypingGameApp extends Application {
         Button singleBtn = createPrimaryButton("싱글 플레이", this::showSingleMenu);
         Button multiBtn = createPrimaryButton("멀티 플레이", this::showMultiMenu);
 
+        Button logoutBtn = createSecondaryButton("로그아웃", this::logout);
+
         HBox buttons = new HBox(20, singleBtn, multiBtn);
         buttons.setAlignment(Pos.CENTER);
 
-        VBox center = new VBox(25, title, subtitle, buttons);
+        VBox center = new VBox(20, title, subtitle, buttons, logoutBtn);
         center.setAlignment(Pos.CENTER);
         setCenterContent(center);
     }
@@ -143,6 +145,17 @@ public class TypingGameApp extends Application {
         }
         MultiLobbyPane pane = new MultiLobbyPane(netClient, myNickname, this::showMainMenu);
         setCenterContent(pane);
+    }
+
+    private void logout() {
+        try {
+            if (netClient != null) {
+                netClient.close();
+            }
+        } catch (Exception ignored) {}
+        netClient = null;
+        myNickname = "";
+        showLogin();
     }
 
     // === Helpers ===
