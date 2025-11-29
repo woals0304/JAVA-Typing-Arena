@@ -15,6 +15,8 @@ import javafx.scene.effect.DropShadow;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.text.Font;
@@ -61,7 +63,7 @@ public class LoginScreen extends Stage {
     }
 
     private final ToggleGroup serverToggle = new ToggleGroup();
-    private final RadioButton officialServerBtn = new RadioButton("공식서버 (20.229.220.126)");
+    private final RadioButton officialServerBtn = new RadioButton("공식서버 (20.239.220.126)");
     private final RadioButton localServerBtn = new RadioButton("로컬서버 (127.0.0.1)");
     private final RadioButton manualServerBtn = new RadioButton("수동 입력");
     private ServerOption serverOption = ServerOption.OFFICIAL;
@@ -177,15 +179,6 @@ public class LoginScreen extends Stage {
         modeRegisterBtn.setMinWidth(110);
         submitBtn.setMinWidth(140);
 
-        HBox modeRow = new HBox(8, modeLoginBtn, modeRegisterBtn);
-        modeRow.setAlignment(Pos.CENTER_LEFT);
-        modeRow.setPadding(new Insets(6, 0, 6, 0));
-
-        VBox serverSelector = buildServerSelector();
-
-        HBox topRow = new HBox(14, modeRow, serverSelector);
-        topRow.setAlignment(Pos.CENTER_LEFT);
-
         HBox btnRow = new HBox(10, connectBtn, submitBtn);
         btnRow.setAlignment(Pos.CENTER_LEFT);
 
@@ -193,9 +186,23 @@ public class LoginScreen extends Stage {
         modeLoginBtn.setDisable(true);
         modeRegisterBtn.setDisable(true);
 
-        VBox box = new VBox(12, topRow, grid, btnRow);
-        box.setAlignment(Pos.CENTER_LEFT);
-        return box;
+        HBox modeRow = new HBox(8, modeLoginBtn, modeRegisterBtn);
+        modeRow.setAlignment(Pos.CENTER_LEFT);
+        modeRow.setPadding(new Insets(6, 0, 6, 0));
+
+        VBox leftColumn = new VBox(12, modeRow, grid, btnRow);
+        leftColumn.setAlignment(Pos.CENTER_LEFT);
+
+        VBox serverSelector = buildServerSelector();
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        HBox row = new HBox(16, leftColumn, spacer, serverSelector);
+        row.setAlignment(Pos.TOP_LEFT);
+
+        VBox container = new VBox(row);
+        container.setAlignment(Pos.TOP_LEFT);
+        return container;
     }
 
     private VBox buildServerSelector() {
