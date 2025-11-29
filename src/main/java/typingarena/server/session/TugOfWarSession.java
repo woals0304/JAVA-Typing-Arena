@@ -32,6 +32,7 @@ public class TugOfWarSession {
     private final String gameType = "tug_of_war";
     private boolean rematchRequestA = false;
     private boolean rematchRequestB = false;
+    private boolean disposed = false;
     
     public TugOfWarSession(ServerContext context, ClientHandler a, ClientHandler b) {
         this.context = context;
@@ -92,6 +93,8 @@ public class TugOfWarSession {
     }
 
     public void dispose() {
+        if (disposed) return;
+        disposed = true;
         if (ticker != null) ticker.cancel(false);
         running = false;
         context.getTugSessions().remove(id);
@@ -139,7 +142,6 @@ public class TugOfWarSession {
         PlayerState winner = (quitter == left.getClient()) ? right : left;
         PlayerState loser = (winner == left) ? right : left;
         finish(winner, loser, reason);
-        dispose();
     }
 
     private void applyModifierReward(PlayerState player, PlayerState opponent) {
@@ -224,6 +226,7 @@ public class TugOfWarSession {
 
         sendEnd(left, winner == left, reason);
         sendEnd(right, winner == right, reason);
+        dispose();
     }
 
     private void sendEnd(PlayerState player, boolean isWinner, String reason) {

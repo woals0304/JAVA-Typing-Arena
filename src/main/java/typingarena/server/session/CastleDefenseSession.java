@@ -23,6 +23,7 @@ public class CastleDefenseSession {
     private ScheduledFuture<?> spawnTask;
     private long gameTime = 0; 
     private int spawnCounter = 0;
+    private boolean cleanedUp = false;
 
     private List<String> wordPool = new ArrayList<>();
 
@@ -115,6 +116,15 @@ public class CastleDefenseSession {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    private void cleanupSession() {
+        if (cleanedUp) return;
+        cleanedUp = true;
+        if (spawnTask != null) spawnTask.cancel(false);
+        context.getCastleSessions().remove(id);
+        p1.setCurrentSession(null);
+        p2.setCurrentSession(null);
     }
 
     private void broadcastSpawn(String type) {
@@ -214,6 +224,7 @@ public class CastleDefenseSession {
         endMsg.data = Map.of("result", isWin ? "승리" : "패배", "message", message, "finalScore", teamScore);
         p1.send(endMsg);
         p2.send(endMsg);
+        cleanupSession();
     }
 
     private int toInt(Object o) {

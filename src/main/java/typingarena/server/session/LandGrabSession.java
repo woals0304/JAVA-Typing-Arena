@@ -34,6 +34,7 @@ public class LandGrabSession {
 
     private boolean rematchRequestA = false;
     private boolean rematchRequestB = false;
+    private boolean cleanedUp = false;
 
     public LandGrabSession(ServerContext context, ClientHandler a, ClientHandler b) {
         this.context = context;
@@ -75,6 +76,15 @@ public class LandGrabSession {
         resetGameData();
         startLoop();
         sendStartBroadcast();
+    }
+
+    private void cleanupSession() {
+        if (cleanedUp) return;
+        cleanedUp = true;
+        if (ticker != null) ticker.cancel(false);
+        context.getLandGrabSessions().remove(id);
+        if (playerA != null) playerA.setCurrentSession(null);
+        if (playerB != null) playerB.setCurrentSession(null);
     }
 
     public void handleRematchRequest(ClientHandler client) {
@@ -315,7 +325,7 @@ public class LandGrabSession {
                 leftMsg.sessionId = this.id;
                 opponent.send(leftMsg);
             }
-            context.getLandGrabSessions().remove(id);
+            cleanupSession();
             return;
         }
 
@@ -323,7 +333,6 @@ public class LandGrabSession {
         ClientHandler loser = (quitter == playerA) ? playerA : playerB;
 
         finish(winner, loser, reason);
-        context.getLandGrabSessions().remove(id);
     }
 
     private void finish(ClientHandler winner, ClientHandler loser, String reason) {
@@ -339,6 +348,7 @@ public class LandGrabSession {
 
         sendEnd(playerA, (playerA == winner), isDraw, reason, scoreA, scoreB);
         sendEnd(playerB, (playerB == winner), isDraw, reason, scoreB, scoreA);
+        cleanupSession();
     }
 
     private void sendEnd(ClientHandler player, boolean isWinner, boolean isDraw, String reason, int myScore, int oppScore) {

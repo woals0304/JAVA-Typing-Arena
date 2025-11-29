@@ -54,6 +54,8 @@ public class Matchmaker {
         if (queue.size() >= 2) {
             ClientHandler p1 = queue.remove(0);
             ClientHandler p2 = queue.remove(0);
+            p1.clearPendingMatch();
+            p2.clearPendingMatch();
             System.out.println("[Matchmaker] 매칭 성사! -> ServerMain 호출");
             listener.onMatchReady(gameType, p1, p2);
         }

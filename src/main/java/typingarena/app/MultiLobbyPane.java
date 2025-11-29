@@ -213,7 +213,10 @@ public class MultiLobbyPane extends BorderPane {
                 case "GAME_START_BROADCAST" -> handleGameStart(msg);
                 
                 case "GAME_UPDATE_BROADCAST" -> forwardToGames(msg);
-                case "GAME_END_BROADCAST" -> forwardToGames(msg);
+                case "GAME_END_BROADCAST" -> {
+                    forwardToGames(msg);
+                    cancelMatchmaking(false); // 게임 종료 후 로비 상태 초기화
+                }
                 
                 // [핵심 수정] 아래 3가지 케이스를 추가해야 성 지키기 게임이 메시지를 받을 수 있습니다!!
                 case "GAME_SPAWN_BROADCAST" -> forwardToGames(msg); 
