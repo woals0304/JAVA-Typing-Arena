@@ -43,6 +43,7 @@ public class LoginScreen extends Stage {
     private static final String TEXT_MAIN = "#4E342E";
     private static final String ACCENT = "#29B6F6";
     private static final String FRAME_DARK = "#3E2723";
+    private static final int DEFAULT_PORT = 7777;
 
     private String gameFontFamily = "Malgun Gothic";
     private Font titleFont;
@@ -52,7 +53,6 @@ public class LoginScreen extends Stage {
     private Font overlineFont;
 
     private final TextField hostField = new TextField();
-    private final TextField portField = new TextField("7777");
     private enum Mode { LOGIN, REGISTER }
     private enum ServerOption {
         OFFICIAL("20.239.220.126"),
@@ -63,8 +63,8 @@ public class LoginScreen extends Stage {
     }
 
     private final ToggleGroup serverToggle = new ToggleGroup();
-    private final RadioButton officialServerBtn = new RadioButton("공식서버 (20.239.220.126)");
-    private final RadioButton localServerBtn = new RadioButton("로컬서버 (127.0.0.1)");
+    private final RadioButton officialServerBtn = new RadioButton("공식서버");
+    private final RadioButton localServerBtn = new RadioButton("로컬서버");
     private final RadioButton manualServerBtn = new RadioButton("수동 입력");
     private ServerOption serverOption = ServerOption.OFFICIAL;
 
@@ -179,7 +179,7 @@ public class LoginScreen extends Stage {
         modeRegisterBtn.setMinWidth(110);
         submitBtn.setMinWidth(140);
 
-        HBox btnRow = new HBox(10, connectBtn, submitBtn);
+        HBox btnRow = new HBox(10, submitBtn);
         btnRow.setAlignment(Pos.CENTER_LEFT);
 
         submitBtn.setDisable(true);
@@ -219,22 +219,18 @@ public class LoginScreen extends Stage {
         manualServerBtn.setFont(subtitleFont);
 
         hostField.setFont(subtitleFont);
-        hostField.setPromptText("IP 또는 호스트");
+        hostField.setPromptText("IP 또는 호스트 (포트 7777 고정)");
         hostField.setText("127.0.0.1");
         hostField.setPrefWidth(160);
-
-        Label portLabel = new Label("Port");
-        portLabel.setFont(labelFont);
-        portField.setFont(subtitleFont);
-        portField.setPrefWidth(100);
 
         HBox manualRow = new HBox(6, manualServerBtn, hostField);
         manualRow.setAlignment(Pos.CENTER_LEFT);
 
-        HBox portRow = new HBox(6, portLabel, portField);
-        portRow.setAlignment(Pos.CENTER_LEFT);
+        HBox connectRow = new HBox(connectBtn);
+        connectRow.setAlignment(Pos.CENTER_LEFT);
+        connectRow.setPadding(new Insets(4, 0, 0, 0));
 
-        VBox serverBox = new VBox(6, title, officialServerBtn, localServerBtn, manualRow, portRow);
+        VBox serverBox = new VBox(6, title, officialServerBtn, localServerBtn, manualRow, connectRow);
         serverBox.setAlignment(Pos.CENTER_LEFT);
         serverBox.setPadding(new Insets(6, 8, 6, 12));
         serverBox.setStyle("-fx-background-color: rgba(255,255,255,0.4); -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 12; -fx-background-radius: 12; -fx-border-width: 1.2;");
@@ -274,29 +270,28 @@ public class LoginScreen extends Stage {
 
     private void connect() {
         if (client != null) {
-            statusLabel.setText("?? ???.");
+            statusLabel.setText("이미 연결됨.");
             statusLabel.setStyle("-fx-text-fill: #0078FF;");
             return;
         }
         try {
             String host = resolveHost();
             if (host.isEmpty()) {
-                statusLabel.setText("?? ??? ??????.");
+                statusLabel.setText("서버 주소를 입력해주세요.");
                 statusLabel.setStyle("-fx-text-fill: #AA0000;");
                 return;
             }
-            int port = Integer.parseInt(portField.getText().trim());
-            client = new NetClient(host, port);
+            client = new NetClient(host, DEFAULT_PORT);
             client.setOnMessage(this::handleServerMessage);
             client.connect();
-            statusLabel.setText("?? ?? ??. ???/????? ?????.");
+            statusLabel.setText("서버 연결 성공. 로그인/회원가입을 진행하세요.");
             statusLabel.setStyle("-fx-text-fill: #008800;");
             submitBtn.setDisable(false);
             modeLoginBtn.setDisable(false);
             modeRegisterBtn.setDisable(false);
             switchMode(Mode.LOGIN);
         } catch (Exception e) {
-            statusLabel.setText("?? ?? ??: " + e.getMessage());
+            statusLabel.setText("서버 연결 실패: " + e.getMessage());
             statusLabel.setStyle("-fx-text-fill: #AA0000;");
             client = null;
         }
