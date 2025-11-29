@@ -84,7 +84,7 @@ public class TypingGameApp extends Application {
     private void showMainMenu() {
         root.setTop(null);
 
-        Label overline = new Label("ARENA SELECT");
+        Label overline = new Label("");
         overline.setFont(overlineFont);
         overline.setStyle("-fx-text-fill: #E7B53B;");
 
@@ -130,7 +130,7 @@ public class TypingGameApp extends Application {
     private void showMultiMenu() {
         root.setTop(null);
 
-        Label overline = new Label("ONLINE MATCH");
+        Label overline = new Label("");
         overline.setFont(overlineFont);
         overline.setStyle("-fx-text-fill: #FFE082;");
 
@@ -164,7 +164,7 @@ public class TypingGameApp extends Application {
     private void showSingleMenu() {
         root.setTop(null);
 
-        Label overline = new Label("SOLO MODE");
+        Label overline = new Label("");
         overline.setFont(overlineFont);
         overline.setStyle("-fx-text-fill: #FFD54F;");
 
@@ -173,11 +173,8 @@ public class TypingGameApp extends Application {
         title.setStyle("-fx-text-fill: linear-gradient(#FFE082, #FFB300); -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.45), 0, 0, 0, 3);");
 
         Label description = new Label(
-                "준비된 미니게임:\n\n" +
-                        "1. 줄다리기 타자 대전 (Tug of War)\n" +
-                        "2. 타자 디펜스 (Typing Defense)\n" +
-                        "3. 칸 채우기 땅따먹기 (Land Grab)\n\n" +
-                        "버튼을 누르면 각 게임이 새로운 창에서 실행됩니다."
+                "다양한 타자 미니게임을 혼자서 즐기세요.\n" +
+                "버튼을 누르면 각 게임이 새로운 창에서 실행됩니다."
         );
         description.setFont(subtitleFont);
         description.setTextFill(Color.web("#6D4C41"));
