@@ -8,7 +8,9 @@ import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.PasswordField;
+import javafx.scene.control.RadioButton;
 import javafx.scene.control.TextField;
+import javafx.scene.control.ToggleGroup;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
@@ -47,9 +49,22 @@ public class LoginScreen extends Stage {
     private Font buttonFont;
     private Font overlineFont;
 
-    private final TextField hostField = new TextField("127.0.0.1");
+    private final TextField hostField = new TextField();
     private final TextField portField = new TextField("7777");
     private enum Mode { LOGIN, REGISTER }
+    private enum ServerOption {
+        OFFICIAL("20.239.220.126"),
+        LOCAL("127.0.0.1"),
+        MANUAL("");
+        private final String host;
+        ServerOption(String host) { this.host = host; }
+    }
+
+    private final ToggleGroup serverToggle = new ToggleGroup();
+    private final RadioButton officialServerBtn = new RadioButton("공식서버 (20.229.220.126)");
+    private final RadioButton localServerBtn = new RadioButton("로컬서버 (127.0.0.1)");
+    private final RadioButton manualServerBtn = new RadioButton("수동 입력");
+    private ServerOption serverOption = ServerOption.OFFICIAL;
 
     private final TextField idField = new TextField();
     private final PasswordField pwField = new PasswordField();
@@ -129,33 +144,22 @@ public class LoginScreen extends Stage {
         grid.setHgap(8);
         grid.setVgap(8);
 
-        Label hostLabel = new Label("Host");
-        Label portLabel = new Label("Port");
         Label idLabel = new Label("ID");
         Label pwLabel = new Label("Password");
 
-        grid.add(hostLabel, 0, 0);
-        grid.add(hostField, 1, 0);
-        grid.add(portLabel, 0, 1);
-        grid.add(portField, 1, 1);
-        grid.add(idLabel, 0, 2);
-        grid.add(idField, 1, 2);
-        grid.add(pwLabel, 0, 3);
-        grid.add(pwField, 1, 3);
-        grid.add(nicknameLabel, 0, 4);
-        grid.add(nicknameField, 1, 4);
+        grid.add(idLabel, 0, 0);
+        grid.add(idField, 1, 0);
+        grid.add(pwLabel, 0, 1);
+        grid.add(pwField, 1, 1);
+        grid.add(nicknameLabel, 0, 2);
+        grid.add(nicknameField, 1, 2);
 
-        hostField.setPrefWidth(160);
-        portField.setPrefWidth(100);
         idField.setPrefWidth(180);
         pwField.setPrefWidth(180);
         nicknameField.setPrefWidth(180);
-        grid.getChildren().stream()
-                .filter(n -> n instanceof Label)
-                .map(n -> (Label) n)
-                .forEach(l -> l.setFont(labelFont));
-        hostField.setFont(subtitleFont);
-        portField.setFont(subtitleFont);
+        idLabel.setFont(labelFont);
+        pwLabel.setFont(labelFont);
+        nicknameLabel.setFont(labelFont);
         idField.setFont(subtitleFont);
         pwField.setFont(subtitleFont);
         nicknameField.setFont(subtitleFont);
@@ -177,6 +181,11 @@ public class LoginScreen extends Stage {
         modeRow.setAlignment(Pos.CENTER_LEFT);
         modeRow.setPadding(new Insets(6, 0, 6, 0));
 
+        VBox serverSelector = buildServerSelector();
+
+        HBox topRow = new HBox(14, modeRow, serverSelector);
+        topRow.setAlignment(Pos.CENTER_LEFT);
+
         HBox btnRow = new HBox(10, connectBtn, submitBtn);
         btnRow.setAlignment(Pos.CENTER_LEFT);
 
@@ -184,33 +193,106 @@ public class LoginScreen extends Stage {
         modeLoginBtn.setDisable(true);
         modeRegisterBtn.setDisable(true);
 
-        VBox box = new VBox(12, modeRow, grid, btnRow);
+        VBox box = new VBox(12, topRow, grid, btnRow);
         box.setAlignment(Pos.CENTER_LEFT);
         return box;
     }
 
+    private VBox buildServerSelector() {
+        Label title = new Label("서버 선택");
+        title.setFont(labelFont);
+        title.setStyle("-fx-text-fill: " + TEXT_MAIN + ";");
+
+        officialServerBtn.setToggleGroup(serverToggle);
+        localServerBtn.setToggleGroup(serverToggle);
+        manualServerBtn.setToggleGroup(serverToggle);
+
+        officialServerBtn.setFont(subtitleFont);
+        localServerBtn.setFont(subtitleFont);
+        manualServerBtn.setFont(subtitleFont);
+
+        hostField.setFont(subtitleFont);
+        hostField.setPromptText("IP 또는 호스트");
+        hostField.setText("127.0.0.1");
+        hostField.setPrefWidth(160);
+
+        Label portLabel = new Label("Port");
+        portLabel.setFont(labelFont);
+        portField.setFont(subtitleFont);
+        portField.setPrefWidth(100);
+
+        HBox manualRow = new HBox(6, manualServerBtn, hostField);
+        manualRow.setAlignment(Pos.CENTER_LEFT);
+
+        HBox portRow = new HBox(6, portLabel, portField);
+        portRow.setAlignment(Pos.CENTER_LEFT);
+
+        VBox serverBox = new VBox(6, title, officialServerBtn, localServerBtn, manualRow, portRow);
+        serverBox.setAlignment(Pos.CENTER_LEFT);
+        serverBox.setPadding(new Insets(6, 8, 6, 12));
+        serverBox.setStyle("-fx-background-color: rgba(255,255,255,0.4); -fx-border-color: " + CARD_BORDER + "; -fx-border-radius: 12; -fx-background-radius: 12; -fx-border-width: 1.2;");
+
+        serverToggle.selectedToggleProperty().addListener((obs, oldVal, newVal) -> {
+            if (newVal == officialServerBtn) {
+                updateServerSelection(ServerOption.OFFICIAL);
+            } else if (newVal == localServerBtn) {
+                updateServerSelection(ServerOption.LOCAL);
+            } else {
+                updateServerSelection(ServerOption.MANUAL);
+            }
+        });
+        serverToggle.selectToggle(officialServerBtn);
+        updateServerSelection(ServerOption.OFFICIAL);
+
+        return serverBox;
+    }
+
+    private void updateServerSelection(ServerOption option) {
+        serverOption = option;
+        boolean manual = option == ServerOption.MANUAL;
+        hostField.setVisible(manual);
+        hostField.setManaged(manual);
+        hostField.setDisable(!manual);
+        if (manual && hostField.getText().isEmpty()) {
+            hostField.setText("127.0.0.1");
+        }
+    }
+
+    private String resolveHost() {
+        if (serverOption == ServerOption.MANUAL) {
+            return hostField.getText().trim();
+        }
+        return serverOption.host;
+    }
+
     private void connect() {
         if (client != null) {
-            statusLabel.setText("이미 연결됨.");
+            statusLabel.setText("?? ???.");
             statusLabel.setStyle("-fx-text-fill: #0078FF;");
             return;
         }
         try {
+            String host = resolveHost();
+            if (host.isEmpty()) {
+                statusLabel.setText("?? ??? ??????.");
+                statusLabel.setStyle("-fx-text-fill: #AA0000;");
+                return;
+            }
             int port = Integer.parseInt(portField.getText().trim());
-            client = new NetClient(hostField.getText().trim(), port);
+            client = new NetClient(host, port);
             client.setOnMessage(this::handleServerMessage);
             client.connect();
-        statusLabel.setText("서버 연결 성공. 로그인/회원가입을 진행하세요.");
-        statusLabel.setStyle("-fx-text-fill: #008800;");
-        submitBtn.setDisable(false);
-        modeLoginBtn.setDisable(false);
-        modeRegisterBtn.setDisable(false);
-        switchMode(Mode.LOGIN);
-    } catch (Exception e) {
-        statusLabel.setText("연결 실패: " + e.getMessage());
-        statusLabel.setStyle("-fx-text-fill: #AA0000;");
-        client = null;
-    }
+            statusLabel.setText("?? ?? ??. ???/????? ?????.");
+            statusLabel.setStyle("-fx-text-fill: #008800;");
+            submitBtn.setDisable(false);
+            modeLoginBtn.setDisable(false);
+            modeRegisterBtn.setDisable(false);
+            switchMode(Mode.LOGIN);
+        } catch (Exception e) {
+            statusLabel.setText("?? ?? ??: " + e.getMessage());
+            statusLabel.setStyle("-fx-text-fill: #AA0000;");
+            client = null;
+        }
     }
 
     private void sendLogin() {
