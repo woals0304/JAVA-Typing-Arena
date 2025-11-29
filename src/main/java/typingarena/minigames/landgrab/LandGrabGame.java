@@ -142,6 +142,9 @@ public class LandGrabGame extends Stage {
         // 게임 시작 시 1P(나)임을 패널에 알림 (파란색 표시)
         landGrabPanel.setMyIdentity(true);
 
+        // [수정 요청 반영] 재경기 시에도 BGM이 다시 재생되도록 추가
+        LandGrabSoundManager.getInstance().playBgm("bgm_game.wav");
+
         // [Sound Update] 게임 시작 효과음 재생
         LandGrabSoundManager.getInstance().play("sfx_start.wav");
 

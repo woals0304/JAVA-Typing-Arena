@@ -83,8 +83,8 @@ public class LandGrabOnlineStage extends Stage {
                 case "GAME_START_BROADCAST" -> handleStart(msg);
                 case "GAME_UPDATE_BROADCAST" -> handleUpdate(msg);
                 case "GAME_END_BROADCAST" -> handleEnd(msg);
-                // [3] 알림 메시지 핸들러 연결
                 case "GAME_REMATCH_NOTICE" -> handleRematchNotice(msg);
+                // [중요] 상대방 나감 메시지 처리 핸들러 추가
                 case "GAME_OPPONENT_LEFT" -> handleOpponentLeft(msg);
             }
         });
@@ -94,46 +94,63 @@ public class LandGrabOnlineStage extends Stage {
         view.showRematchNotification();
     }
 
+    // [추가] 상대방이 나갔을 때 View에 알림
     private void handleOpponentLeft(Message msg) {
         view.setOpponentLeftState();
     }
 
     private void handleStart(Message msg) {
+        // [수정] 게임 상태 강제 초기화 (팀원 코드가 불안정해도 UI가 갱신되도록)
         this.sessionId = msg.sessionId;
-        running = true;
-        clientTimeMs = 60000.0;
-        displayTimer.playFromStart();
+        this.running = true;
+        this.clientTimeMs = 60000.0;
 
-        // [Sound] 멀티 게임 시작 시 BGM 재생 및 시작 효과음 재생
+        // [중요] 이전 게임 결과창 확실히 닫기
+        view.hideGameOver();
+
+        // [중요] 점수 및 UI 초기화 (서버 업데이트 전이라도 0으로 보이게)
+        view.setMyScoreText("0");
+        view.setAiScoreText("0");
+        view.setComboText("0");
+        view.setTimeText("60");
+
+        // [Sound] 재경기 시에도 BGM과 효과음 강제 재생
         LandGrabSoundManager.getInstance().playBgm("bgm_game.wav");
         LandGrabSoundManager.getInstance().play("sfx_start.wav");
 
-        view.hideGameOver();
         view.getInputField().setDisable(false);
         view.getInputField().clear();
         view.getInputField().requestFocus();
+        displayTimer.playFromStart();
 
+        // 데이터 파싱 안전장치 추가
         Map<String, Object> data = msg.data;
         if (data != null) {
-            List<String> players = (List<String>) data.get("players");
-            if (players != null) {
-                String p1 = players.size() > 0 ? players.get(0) : "Player1";
-                String p2 = players.size() > 1 ? players.get(1) : "Player2";
+            try {
+                List<String> players = (List<String>) data.get("players");
+                if (players != null) {
+                    String p1 = players.size() > 0 ? players.get(0) : "Player1";
+                    String p2 = players.size() > 1 ? players.get(1) : "Player2";
 
-                if (myNickname.equals(p1)) {
-                    this.opponentNickname = p2;
-                    this.isPlayerA = true; // 나는 A (파랑)
-                    landGrabPanel.setMyIdentity(true);
-                } else {
-                    this.opponentNickname = p1;
-                    this.isPlayerA = false; // 나는 B (빨강 -> 패널에서 파랑으로 변환)
-                    landGrabPanel.setMyIdentity(false);
+                    if (myNickname.equals(p1)) {
+                        this.opponentNickname = p2;
+                        this.isPlayerA = true;
+                        landGrabPanel.setMyIdentity(true);
+                    } else {
+                        this.opponentNickname = p1;
+                        this.isPlayerA = false;
+                        landGrabPanel.setMyIdentity(false);
+                    }
+                    view.setPlayerNames(myNickname, opponentNickname);
                 }
-                view.setPlayerNames(myNickname, opponentNickname);
+                updateFromData(data);
+            } catch (Exception e) {
+                System.err.println("[LandGrab] 시작 데이터 파싱 오류 (무시하고 진행): " + e.getMessage());
             }
-            updateFromData(data);
         }
+
         if (!isShowing()) show();
+        view.getRoot().requestLayout();
     }
 
     private void handleUpdate(Message msg) {
@@ -141,7 +158,6 @@ public class LandGrabOnlineStage extends Stage {
         Map<String, Object> data = msg.data;
         if (data == null) return;
 
-        // 서버 시간 동기화 (오차 보정)
         double serverTimeMs = toDouble(data.get("timeMs"));
         if (Math.abs(clientTimeMs - serverTimeMs) > 1000) {
             clientTimeMs = serverTimeMs;
@@ -150,113 +166,73 @@ public class LandGrabOnlineStage extends Stage {
     }
 
     private void updateFromData(Map<String, Object> data) {
-        int scoreSelf = toInt(data.get("scoreSelf"));
-        int scoreOpp = toInt(data.get("scoreOpponent"));
-        int comboSelf = toInt(data.get("comboSelf"));
+        try {
+            int scoreSelf = toInt(data.get("scoreSelf"));
+            int scoreOpp = toInt(data.get("scoreOpponent"));
+            int comboSelf = toInt(data.get("comboSelf"));
 
-        view.setMyScoreText(""+scoreSelf);
-        view.setAiScoreText(""+scoreOpp);
-        view.setComboText(""+comboSelf);
+            view.setMyScoreText(""+scoreSelf);
+            view.setAiScoreText(""+scoreOpp);
+            view.setComboText(""+comboSelf);
 
-        // [핵심] 콤보 가드 상태 실시간 동기화
-        boolean myComboGuardActive;
-        if (isPlayerA) {
-            myComboGuardActive = Boolean.TRUE.equals(data.get("combo_guard_a"));
-        } else {
-            myComboGuardActive = Boolean.TRUE.equals(data.get("combo_guard_b"));
-        }
-        view.setComboGuardActive(myComboGuardActive);
-
-        // 뷰 상태 업데이트
-        LandGrabViewState state = new LandGrabViewState(data);
-        String debuff = (String) data.get("debuff");
-        boolean flipWords = "FLIP_WORDS".equals(debuff);
-        boolean barrierA = Boolean.TRUE.equals(data.get("barrier_a"));
-        boolean barrierB = Boolean.TRUE.equals(data.get("barrier_b"));
-
-        landGrabPanel.setExtraEffects(flipWords, barrierA, barrierB);
-        landGrabPanel.updateState(state);
-
-        // 애니메이션 트리거 처리
-        Map<String, Object> anim = (Map<String, Object>) data.get("animation_trigger");
-        if (anim != null) {
-            String type = String.valueOf(anim.get("type"));
-            int r = toInt(anim.get("r"));
-            int c = toInt(anim.get("c"));
-
-            LandGrabSoundManager sm = LandGrabSoundManager.getInstance();
-
-            // [Sound Update] MISS 메시지 처리
-            if (type.contains("MISS")) {
-                landGrabPanel.flashMiss();
-                sm.play("sfx_miss.wav");
+            boolean myComboGuardActive;
+            if (isPlayerA) {
+                myComboGuardActive = Boolean.TRUE.equals(data.get("combo_guard_a"));
+            } else {
+                myComboGuardActive = Boolean.TRUE.equals(data.get("combo_guard_b"));
             }
-            else {
-                // 정답일 때 (HIT 또는 아이템 발동 등)
-                // 내 행동인지 확인 (상대방 버프/공격은 제외)
-                boolean isMyAction = type.startsWith("ATTACK_") || (type.startsWith("BUFF_") && !type.contains("OPP_")) || type.contains("HIT");
+            view.setComboGuardActive(myComboGuardActive);
 
-                // 1. [Priority 1] 피버 진입 체크 (아이템 여부 무관하게 10콤보 달성 시 무조건 재생)
-                if (isMyAction && comboSelf == 10) {
-                    sm.play("sfx_fever_start.wav");
-                }
+            LandGrabViewState state = new LandGrabViewState(data);
+            String debuff = (String) data.get("debuff");
+            boolean flipWords = "FLIP_WORDS".equals(debuff);
+            boolean barrierA = Boolean.TRUE.equals(data.get("barrier_a"));
+            boolean barrierB = Boolean.TRUE.equals(data.get("barrier_b"));
 
-                // 2. [Specifics] 아이템 사운드 처리 (아이템이 있으면 HIT 처리 블록으로 가지 않음)
-                if (type.contains("ATTACK_INK")) {
-                    landGrabPanel.showFloatingText("먹물 발사!", r, c, "#444", "#000");
-                    sm.play("sfx_item_ink.wav");
-                }
-                else if (type.contains("TRAP_INK")) landGrabPanel.showInkSplashAnimation(r, c);
-                else if (type.contains("BUFF_SPLASH")) {
-                    landGrabPanel.showSplashAnimation(r, c);
-                    sm.play("sfx_item_splash.wav");
-                }
-                else if (type.contains("OPP_SPLASH")) landGrabPanel.showFloatingText("상대 스플래시!", r, c, "cyan", "blue");
-                else if (type.contains("BUFF_BARRIER")) {
-                    landGrabPanel.showFloatingText("보호막 가동!", r, c, "gold", "orange");
-                    sm.play("sfx_item_barrier.wav");
-                }
-                else if (type.contains("OPP_BARRIER")) landGrabPanel.showFloatingText("상대 보호막!", r, c, "orange", "red");
-                else if (type.contains("BUFF_COMBO_GUARD")) {
-                    landGrabPanel.showFloatingText("콤보 가드!", r, c, "lime", "green");
-                    sm.play("sfx_item_guard.wav");
-                }
-                else if (type.contains("OPP_COMBO_GUARD")) landGrabPanel.showFloatingText("상대 콤보가드!", r, c, "red", "darkred");
-                else if (type.contains("ATTACK_CONFUSION")) {
-                    landGrabPanel.showFloatingText("혼란 공격!", r, c, "purple", "violet");
-                    sm.play("sfx_item_confuse.wav");
-                }
-                else if (type.contains("TRAP_CONFUSION")) landGrabPanel.showFloatingText("혼란 걸림!", r, c, "red", "darkred");
-                else if (type.contains("ATTACK_EMP")) {
-                    landGrabPanel.showFloatingText("EMP 발동!", r, c, "blue", "cyan");
-                    sm.play("sfx_item_emp.wav");
-                }
-                else if (type.contains("TRAP_EMP")) landGrabPanel.showFloatingText("상대 EMP!", r, c, "red", "orange");
+            landGrabPanel.setExtraEffects(flipWords, barrierA, barrierB);
+            landGrabPanel.updateState(state);
 
-                    // [Sound Update] 3. HIT 처리 (아이템이 없을 때만 여기로 옴)
-                else if (type.contains("HIT")) {
-                    landGrabPanel.flashHit();
+            Map<String, Object> anim = (Map<String, Object>) data.get("animation_trigger");
+            if (anim != null) {
+                String type = String.valueOf(anim.get("type"));
+                int r = toInt(anim.get("r"));
+                int c = toInt(anim.get("c"));
+                LandGrabSoundManager sm = LandGrabSoundManager.getInstance();
 
-                    // [안전 장치] 좌표가 유효한지 확인
-                    if (r >= 0 && r < 10 && c >= 0 && c < 10) {
+                if (type.contains("MISS")) {
+                    landGrabPanel.flashMiss();
+                    sm.play("sfx_miss.wav");
+                } else {
+                    boolean isMyAction = type.startsWith("ATTACK_") || (type.startsWith("BUFF_") && !type.contains("OPP_")) || type.contains("HIT");
+                    if (isMyAction && comboSelf == 10) sm.play("sfx_fever_start.wav");
 
-                        // 각성 상태(10콤보 이상)면 무조건 Steal 재생
-                        if (comboSelf >= 10) {
-                            sm.play("sfx_steal.wav");
-                        } else {
-                            // 일반 상태면 타일에 따라 구분
-                            var targetTile = state.getTileState(r, c);
-                            if (targetTile == typingarena.core.landgrab.LandGrabLogic.TileState.EMPTY) {
-                                sm.play("sfx_destroy.wav"); // 파괴
-                            } else {
-                                sm.play("sfx_hit.wav");     // 점령
+                    if (type.contains("ATTACK_INK")) { landGrabPanel.showFloatingText("먹물 발사!", r, c, "#444", "#000"); sm.play("sfx_item_ink.wav"); }
+                    else if (type.contains("TRAP_INK")) landGrabPanel.showInkSplashAnimation(r, c);
+                    else if (type.contains("BUFF_SPLASH")) { landGrabPanel.showSplashAnimation(r, c); sm.play("sfx_item_splash.wav"); }
+                    else if (type.contains("OPP_SPLASH")) landGrabPanel.showFloatingText("상대 스플래시!", r, c, "cyan", "blue");
+                    else if (type.contains("BUFF_BARRIER")) { landGrabPanel.showFloatingText("보호막 가동!", r, c, "gold", "orange"); sm.play("sfx_item_barrier.wav"); }
+                    else if (type.contains("OPP_BARRIER")) landGrabPanel.showFloatingText("상대 보호막!", r, c, "orange", "red");
+                    else if (type.contains("BUFF_COMBO_GUARD")) { landGrabPanel.showFloatingText("콤보 가드!", r, c, "lime", "green"); sm.play("sfx_item_guard.wav"); }
+                    else if (type.contains("OPP_COMBO_GUARD")) landGrabPanel.showFloatingText("상대 콤보가드!", r, c, "red", "darkred");
+                    else if (type.contains("ATTACK_CONFUSION")) { landGrabPanel.showFloatingText("혼란 공격!", r, c, "purple", "violet"); sm.play("sfx_item_confuse.wav"); }
+                    else if (type.contains("TRAP_CONFUSION")) landGrabPanel.showFloatingText("혼란 걸림!", r, c, "red", "darkred");
+                    else if (type.contains("ATTACK_EMP")) { landGrabPanel.showFloatingText("EMP 발동!", r, c, "blue", "cyan"); sm.play("sfx_item_emp.wav"); }
+                    else if (type.contains("TRAP_EMP")) landGrabPanel.showFloatingText("상대 EMP!", r, c, "red", "orange");
+                    else if (type.contains("HIT")) {
+                        landGrabPanel.flashHit();
+                        if (r >= 0 && r < 10 && c >= 0 && c < 10) {
+                            if (comboSelf >= 10) sm.play("sfx_steal.wav");
+                            else {
+                                var targetTile = state.getTileState(r, c);
+                                if (targetTile == typingarena.core.landgrab.LandGrabLogic.TileState.EMPTY) sm.play("sfx_destroy.wav");
+                                else sm.play("sfx_hit.wav");
                             }
-                        }
-                    } else {
-                        sm.play("sfx_hit.wav");
+                        } else sm.play("sfx_hit.wav");
                     }
                 }
             }
+        } catch (Exception e) {
+            System.err.println("[LandGrab] Update Error: " + e.getMessage());
         }
     }
 
@@ -301,10 +277,7 @@ public class LandGrabOnlineStage extends Stage {
         Message msg = Message.of("GAME_FORFEIT");
         msg.sessionId = sessionId;
         client.send(msg);
-
-        // [Sound] 기권 시 BGM 정지
         LandGrabSoundManager.getInstance().stopBgm();
-
         running = false;
         displayTimer.stop();
     }

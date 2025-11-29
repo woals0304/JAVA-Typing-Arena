@@ -528,7 +528,29 @@ public class LandGrabMatchView {
 
     public void hideGameOver() { gameOverOverlay.setVisible(false); if (autoCloseTimeline != null) autoCloseTimeline.stop(); }
     public void setRematchRequestedState() { btnRematch.setDisable(true); btnRematch.setText("수락 대기중..."); }
-    public void setOpponentLeftState() { btnRematch.setDisable(true); if(blinkAnimation != null) blinkAnimation.stop(); lblRematchStatus.setOpacity(1.0); lblRematchStatus.setText("상대방이 나갔습니다."); lblRematchStatus.setTextFill(COLOR_P2); }
+
+    public void setOpponentLeftState() {
+        btnRematch.setDisable(true);
+
+        // [중요 수정] 애니메이션 시작 전 투명도와 가시성 확실하게 초기화
+        lblRematchStatus.setOpacity(1.0);
+        lblRematchStatus.setVisible(true);
+
+        lblRematchStatus.setText("상대방이 나갔습니다.");
+        lblRematchStatus.setTextFill(COLOR_P2);
+
+        // 깜빡임 애니메이션 초기화 (없으면 생성)
+        if (blinkAnimation == null) {
+            blinkAnimation = new FadeTransition(Duration.seconds(0.5), lblRematchStatus);
+            blinkAnimation.setFromValue(1.0);
+            blinkAnimation.setToValue(0.2);
+            blinkAnimation.setCycleCount(FadeTransition.INDEFINITE);
+            blinkAnimation.setAutoReverse(true);
+        }
+        // 애니메이션 시작!
+        blinkAnimation.playFromStart();
+    }
+
     public void showRematchNotification() { lblRematchStatus.setText("상대방이 재경기를 원합니다!"); lblRematchStatus.setTextFill(COLOR_P1); if (blinkAnimation == null) { blinkAnimation = new FadeTransition(Duration.seconds(0.5), lblRematchStatus); blinkAnimation.setFromValue(1.0); blinkAnimation.setToValue(0.2); blinkAnimation.setCycleCount(FadeTransition.INDEFINITE); blinkAnimation.setAutoReverse(true); } blinkAnimation.playFromStart(); }
 
     private void styleCookieButton(Button btn, Color color) {
