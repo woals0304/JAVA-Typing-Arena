@@ -333,6 +333,7 @@ public class LandGrabSession {
         ClientHandler loser = (quitter == playerA) ? playerA : playerB;
 
         finish(winner, loser, reason);
+        cleanupSession();
     }
 
     private void finish(ClientHandler winner, ClientHandler loser, String reason) {
@@ -348,7 +349,6 @@ public class LandGrabSession {
 
         sendEnd(playerA, (playerA == winner), isDraw, reason, scoreA, scoreB);
         sendEnd(playerB, (playerB == winner), isDraw, reason, scoreB, scoreA);
-        cleanupSession();
     }
 
     private void sendEnd(ClientHandler player, boolean isWinner, boolean isDraw, String reason, int myScore, int oppScore) {

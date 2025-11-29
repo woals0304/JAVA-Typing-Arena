@@ -142,6 +142,7 @@ public class TugOfWarSession {
         PlayerState winner = (quitter == left.getClient()) ? right : left;
         PlayerState loser = (winner == left) ? right : left;
         finish(winner, loser, reason);
+        dispose();
     }
 
     private void applyModifierReward(PlayerState player, PlayerState opponent) {
@@ -226,7 +227,6 @@ public class TugOfWarSession {
 
         sendEnd(left, winner == left, reason);
         sendEnd(right, winner == right, reason);
-        dispose();
     }
 
     private void sendEnd(PlayerState player, boolean isWinner, String reason) {

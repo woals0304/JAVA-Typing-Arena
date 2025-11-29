@@ -109,7 +109,7 @@ public class ClientHandler extends Thread {
 
             case "GAME_ACTION" -> server.onGameAction(this, m);
             case "GAME_FORFEIT" -> server.onGameForfeit(this);
-            case "GAME_REMATCH_REQUEST" -> server.onGameRematchRequest(this);
+            case "GAME_REMATCH_REQUEST" -> server.onGameRematchRequest(this, m);
             default -> {}
         }
     }

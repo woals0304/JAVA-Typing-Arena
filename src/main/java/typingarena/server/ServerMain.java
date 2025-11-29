@@ -110,8 +110,8 @@ public class ServerMain implements Matchmaker.Listener {
     }
 
     // [핵심 수정] 재경기 요청 처리 메서드 추가!
-    public void onGameRematchRequest(ClientHandler client) {
-        String sessionId = client.getCurrentSession();
+    public void onGameRematchRequest(ClientHandler client, Message msg) {
+        String sessionId = msg.sessionId != null ? msg.sessionId : client.getCurrentSession();
         if (sessionId == null) return;
 
         // LandGrab 세션
