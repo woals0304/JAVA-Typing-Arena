@@ -79,10 +79,10 @@
                         <configuration>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
-                                    <mainClass>typingarena.server.ServerMain</mainClass>
+                                    <mainClass>typingarena.app.Launcher</mainClass>
                                 </transformer>
                             </transformers>
-                            <finalName>server-fat</finalName>
+                            <finalName>typing-arena-game</finalName>
                             <outputDirectory>${project.build.directory}</outputDirectory>
                         </configuration>
                     </execution>

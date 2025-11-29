@@ -123,6 +123,9 @@ public class LandGrabMatchView {
     private Timeline autoCloseTimeline;
     private FadeTransition blinkAnimation;
 
+    // [FIX] 중복 실행 방지를 위한 플래그 추가
+    private boolean isResultShown = false;
+
     private Runnable onCloseAction;
 
     public LandGrabMatchView() {
@@ -463,9 +466,16 @@ public class LandGrabMatchView {
     public void flashItem(Color color) { landGrabPanel.flashBuffColor(color); }
 
     public void showGameOver(boolean isWin, String reason, int myScore, int oppScore) {
+        // [FIX] 중복 호출 방지: 이미 결과창이 떠있다면 실행하지 않음
+        if (isResultShown) return;
+        isResultShown = true;
+
         // [Sound] 게임 종료 시 BGM 끄고 결과음 재생
         LandGrabSoundManager sm = LandGrabSoundManager.getInstance();
         sm.stopBgm();
+
+        // null 체크 추가 (안전장치)
+        if (reason == null) reason = "";
 
         if (reason.contains("무승부") || myScore == oppScore) {
             sm.play("sfx_draw.wav");
@@ -526,7 +536,14 @@ public class LandGrabMatchView {
         autoCloseTimeline.play();
     }
 
-    public void hideGameOver() { gameOverOverlay.setVisible(false); if (autoCloseTimeline != null) autoCloseTimeline.stop(); }
+    public void hideGameOver() {
+        // [FIX] 창이 닫힐 때 플래그 초기화 (재경기 등 위해)
+        isResultShown = false;
+
+        gameOverOverlay.setVisible(false);
+        if (autoCloseTimeline != null) autoCloseTimeline.stop();
+    }
+
     public void setRematchRequestedState() { btnRematch.setDisable(true); btnRematch.setText("수락 대기중..."); }
 
     public void setOpponentLeftState() {
