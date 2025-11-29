@@ -335,8 +335,6 @@ public class LandGrabSession {
         ClientHandler loser = (quitter == playerA) ? playerA : playerB;
 
         finish(winner, loser, reason);
-<<<<<<< HEAD
-=======
 
         // [문제 해결] 게임 도중 나갈 때도 남은 사람에게 "상대방이 나갔습니다" 메시지 전송
         if (opponent != null) {
@@ -346,7 +344,6 @@ public class LandGrabSession {
         }
 
         // [중요] 게임 도중 기권한 경우는 재경기 불가능 -> 즉시 세션 정리
->>>>>>> d6d2377ba104a4e4043e4110b552f49cbb2c54ad
         cleanupSession();
     }
 
@@ -363,13 +360,10 @@ public class LandGrabSession {
 
         sendEnd(playerA, (playerA == winner), isDraw, reason, scoreA, scoreB);
         sendEnd(playerB, (playerB == winner), isDraw, reason, scoreB, scoreA);
-<<<<<<< HEAD
-=======
 
         // [핵심 수정 사항 유지]
         // 여기서 cleanupSession()을 호출하던 코드를 삭제했습니다.
         // 이제 게임이 끝나도 세션은 살아있어서 재경기 요청을 받을 수 있습니다.
->>>>>>> d6d2377ba104a4e4043e4110b552f49cbb2c54ad
     }
 
     private void sendEnd(ClientHandler player, boolean isWinner, boolean isDraw, String reason, int myScore, int oppScore) {

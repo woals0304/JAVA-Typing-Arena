@@ -73,6 +73,7 @@ public class LoginScreen extends Stage {
     private final Label nicknameLabel = new Label("Nickname(회원가입)");
     private final TextField nicknameField = new TextField();
     private final Button connectBtn = new Button("접속");
+    private final Button disconnectBtn = new Button("연결 종료");
     private final Button modeLoginBtn = new Button("로그인");
     private final Button modeRegisterBtn = new Button("회원가입");
     private final Button submitBtn = new Button("로그인");
@@ -111,6 +112,7 @@ public class LoginScreen extends Stage {
         setScene(scene);
 
         connectBtn.setOnAction(e -> connect());
+        disconnectBtn.setOnAction(e -> disconnect());
         modeLoginBtn.setOnAction(e -> switchMode(Mode.LOGIN));
         modeRegisterBtn.setOnAction(e -> switchMode(Mode.REGISTER));
         submitBtn.setOnAction(e -> {
@@ -170,11 +172,14 @@ public class LoginScreen extends Stage {
         styleAccent(modeLoginBtn);
         styleSecondary(modeRegisterBtn);
         styleAccent(submitBtn);
+        styleSecondary(disconnectBtn);
         connectBtn.setFont(buttonFont);
+        disconnectBtn.setFont(buttonFont);
         modeLoginBtn.setFont(buttonFont);
         modeRegisterBtn.setFont(buttonFont);
         submitBtn.setFont(buttonFont);
         connectBtn.setMinWidth(110);
+        disconnectBtn.setMinWidth(110);
         modeLoginBtn.setMinWidth(110);
         modeRegisterBtn.setMinWidth(110);
         submitBtn.setMinWidth(140);
@@ -185,6 +190,7 @@ public class LoginScreen extends Stage {
         submitBtn.setDisable(true);
         modeLoginBtn.setDisable(true);
         modeRegisterBtn.setDisable(true);
+        disconnectBtn.setDisable(true);
 
         HBox modeRow = new HBox(8, modeLoginBtn, modeRegisterBtn);
         modeRow.setAlignment(Pos.CENTER_LEFT);
@@ -226,7 +232,7 @@ public class LoginScreen extends Stage {
         HBox manualRow = new HBox(6, manualServerBtn, hostField);
         manualRow.setAlignment(Pos.CENTER_LEFT);
 
-        HBox connectRow = new HBox(connectBtn);
+        HBox connectRow = new HBox(10, connectBtn, disconnectBtn);
         connectRow.setAlignment(Pos.CENTER_LEFT);
         connectRow.setPadding(new Insets(4, 0, 0, 0));
 
@@ -289,12 +295,28 @@ public class LoginScreen extends Stage {
             submitBtn.setDisable(false);
             modeLoginBtn.setDisable(false);
             modeRegisterBtn.setDisable(false);
+            connectBtn.setDisable(true);
+            disconnectBtn.setDisable(false);
             switchMode(Mode.LOGIN);
         } catch (Exception e) {
             statusLabel.setText("서버 연결 실패: " + e.getMessage());
             statusLabel.setStyle("-fx-text-fill: #AA0000;");
             client = null;
         }
+    }
+
+    private void disconnect() {
+        if (client != null) {
+            try { client.close(); } catch (Exception ignored) {}
+        }
+        client = null;
+        statusLabel.setText("연결을 종료했습니다. 서버를 다시 선택하세요.");
+        statusLabel.setStyle("-fx-text-fill: #AA0000;");
+        submitBtn.setDisable(true);
+        modeLoginBtn.setDisable(true);
+        modeRegisterBtn.setDisable(true);
+        connectBtn.setDisable(false);
+        disconnectBtn.setDisable(true);
     }
 
     private void sendLogin() {
