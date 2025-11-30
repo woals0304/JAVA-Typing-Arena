@@ -11,6 +11,9 @@ import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.*;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.effect.Glow;
+// [Fix] 키보드 이벤트 처리를 위한 import 추가
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.*;
 import javafx.scene.paint.*;
 import javafx.scene.shape.*;
@@ -401,6 +404,11 @@ public class LandGrabMatchView {
         if (blinkAnimation != null) blinkAnimation.stop();
         gameOverOverlay.setVisible(true); gameOverOverlay.toFront();
         startAutoCloseTimer();
+
+        // [Fix] 게임 종료 화면이 뜰 때 포커스를 엉뚱한 곳으로 이동 (버튼 자동 포커스 방지)
+        // 빈 공간이나 타이틀에 포커스를 줘서 엔터키 눌림 방지
+        gameOverBox.setFocusTraversable(true);
+        Platform.runLater(gameOverBox::requestFocus);
     }
 
     private void startAutoCloseTimer() {
@@ -425,7 +433,17 @@ public class LandGrabMatchView {
     public void showRematchNotification() { lblRematchStatus.setText("상대방이 재경기를 원합니다!"); lblRematchStatus.setTextFill(COLOR_P1); if (blinkAnimation == null) { blinkAnimation = new FadeTransition(Duration.seconds(0.5), lblRematchStatus); blinkAnimation.setFromValue(1.0); blinkAnimation.setToValue(0.2); blinkAnimation.setCycleCount(FadeTransition.INDEFINITE); blinkAnimation.setAutoReverse(true); } blinkAnimation.playFromStart(); }
     private void styleCookieButton(Button btn, Color color) { btn.setFont(getBoldFont(16)); String hex = toHex(color); btn.setStyle("-fx-background-color: " + hex + "; -fx-text-fill: white; -fx-background-radius: 25; -fx-border-color: #5D4037; -fx-border-width: 2px; -fx-border-radius: 25; -fx-padding: 10 30; -fx-cursor: hand;"); btn.setEffect(new DropShadow(3, color.darker())); }
     private String toHex(Color c) { return String.format("#%02X%02X%02X", (int)(c.getRed()*255), (int)(c.getGreen()*255), (int)(c.getBlue()*255)); }
-    private void setupEventHandlers() { btnQuit.setOnAction(e -> performClose()); }
+    private void setupEventHandlers() {
+        btnQuit.setOnAction(e -> performClose());
+
+        // [Fix] 엔터키로 인한 오작동 방지 (버튼에서 엔터키 이벤트 무시)
+        btnQuit.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.ENTER) e.consume();
+        });
+        btnRematch.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.ENTER) e.consume();
+        });
+    }
     private void addSoundToButton(Button btn) { btn.setOnMouseEntered(e -> LandGrabSoundManager.getInstance().play("sfx_ui_hover.wav")); btn.setOnMouseClicked(e -> LandGrabSoundManager.getInstance().play("sfx_ui_click.wav")); }
 
     public void playCountdown(Runnable onFinished) {
