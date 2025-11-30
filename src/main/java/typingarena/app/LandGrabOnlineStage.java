@@ -27,8 +27,6 @@ public class LandGrabOnlineStage extends Stage {
     private boolean running = false;
     private String myNickname;
     private String opponentNickname = "상대";
-
-    // [중요] 내가 Player A인지 B인지 식별하는 플래그
     private boolean isPlayerA = true;
 
     private Timeline displayTimer;
@@ -40,35 +38,23 @@ public class LandGrabOnlineStage extends Stage {
         setTitle("온라인 땅따먹기");
         setResizable(false);
 
-        // [1] UI 이벤트 연결
         view.getInputField().setOnAction(e -> submitWord());
         view.getRematchButton().setOnAction(e -> sendRematchRequest());
-        view.getQuitButton().setOnAction(e -> {
-            sendForfeit();
-            close();
-        });
-
-        // [2] 자동 종료 시 실행할 동작 (포기 선언 후 창 닫기)
-        view.setOnCloseAction(() -> {
-            sendForfeit();
-            close();
-        });
+        view.getQuitButton().setOnAction(e -> { sendForfeit(); close(); });
+        view.setOnCloseAction(() -> { sendForfeit(); close(); });
 
         Scene scene = new Scene(view.getRoot(), 1200, 800);
         setScene(scene);
 
-        // 창 X버튼 눌렀을 때
-        setOnCloseRequest(e -> {
-            sendForfeit();
-            view.hideGameOver();
-        });
+        setOnCloseRequest(e -> { sendForfeit(); view.hideGameOver(); });
 
-        // 인게임 타이머 (클라이언트 예측용)
         displayTimer = new Timeline(new KeyFrame(Duration.millis(100), e -> {
             if (running && clientTimeMs > 0) {
                 clientTimeMs -= 100;
                 if (clientTimeMs < 0) clientTimeMs = 0;
-                view.setTimeText(formatTime(clientTimeMs));
+                if (!view.isCountdownRunning()) {
+                    view.setTimeText(formatTime(clientTimeMs));
+                }
             }
         }));
         displayTimer.setCycleCount(Timeline.INDEFINITE);
@@ -80,50 +66,45 @@ public class LandGrabOnlineStage extends Stage {
 
         Platform.runLater(() -> {
             switch (type) {
+                case "GAME_PREPARE" -> {
+                    if (!isShowing()) show();
+                    view.getRoot().requestLayout();
+                    view.getInputField().setDisable(true);
+                    view.playCountdown(null);
+                }
                 case "GAME_START_BROADCAST" -> handleStart(msg);
                 case "GAME_UPDATE_BROADCAST" -> handleUpdate(msg);
                 case "GAME_END_BROADCAST" -> handleEnd(msg);
                 case "GAME_REMATCH_NOTICE" -> handleRematchNotice(msg);
-                // [중요] 상대방 나감 메시지 처리 핸들러 추가
                 case "GAME_OPPONENT_LEFT" -> handleOpponentLeft(msg);
             }
         });
     }
 
-    private void handleRematchNotice(Message msg) {
-        view.showRematchNotification();
-    }
-
-    // [추가] 상대방이 나갔을 때 View에 알림
-    private void handleOpponentLeft(Message msg) {
-        view.setOpponentLeftState();
-    }
+    private void handleRematchNotice(Message msg) { view.showRematchNotification(); }
+    private void handleOpponentLeft(Message msg) { view.setOpponentLeftState(); }
 
     private void handleStart(Message msg) {
-        // [수정] 게임 상태 강제 초기화 (팀원 코드가 불안정해도 UI가 갱신되도록)
         this.sessionId = msg.sessionId;
         this.running = true;
         this.clientTimeMs = 60000.0;
 
-        // [중요] 이전 게임 결과창 확실히 닫기
         view.hideGameOver();
-
-        // [중요] 점수 및 UI 초기화 (서버 업데이트 전이라도 0으로 보이게)
         view.setMyScoreText("0");
         view.setAiScoreText("0");
         view.setComboText("0");
         view.setTimeText("60");
 
-        // [Sound] 재경기 시에도 BGM과 효과음 강제 재생
         LandGrabSoundManager.getInstance().playBgm("bgm_game.wav");
-        LandGrabSoundManager.getInstance().play("sfx_start.wav");
 
-        view.getInputField().setDisable(false);
-        view.getInputField().clear();
-        view.getInputField().requestFocus();
-        displayTimer.playFromStart();
+        view.getInputField().setDisable(true);
 
-        // 데이터 파싱 안전장치 추가
+        view.playCountdown(() -> {
+            view.getInputField().setDisable(false);
+            view.getInputField().requestFocus();
+            displayTimer.playFromStart();
+        });
+
         Map<String, Object> data = msg.data;
         if (data != null) {
             try {
@@ -131,22 +112,12 @@ public class LandGrabOnlineStage extends Stage {
                 if (players != null) {
                     String p1 = players.size() > 0 ? players.get(0) : "Player1";
                     String p2 = players.size() > 1 ? players.get(1) : "Player2";
-
-                    if (myNickname.equals(p1)) {
-                        this.opponentNickname = p2;
-                        this.isPlayerA = true;
-                        landGrabPanel.setMyIdentity(true);
-                    } else {
-                        this.opponentNickname = p1;
-                        this.isPlayerA = false;
-                        landGrabPanel.setMyIdentity(false);
-                    }
+                    if (myNickname.equals(p1)) { this.opponentNickname = p2; this.isPlayerA = true; landGrabPanel.setMyIdentity(true); }
+                    else { this.opponentNickname = p1; this.isPlayerA = false; landGrabPanel.setMyIdentity(false); }
                     view.setPlayerNames(myNickname, opponentNickname);
                 }
                 updateFromData(data);
-            } catch (Exception e) {
-                System.err.println("[LandGrab] 시작 데이터 파싱 오류 (무시하고 진행): " + e.getMessage());
-            }
+            } catch (Exception e) { System.err.println("[LandGrab] 시작 데이터 파싱 오류: " + e.getMessage()); }
         }
 
         if (!isShowing()) show();
@@ -200,7 +171,8 @@ public class LandGrabOnlineStage extends Stage {
                 LandGrabSoundManager sm = LandGrabSoundManager.getInstance();
 
                 if (type.contains("MISS")) {
-                    landGrabPanel.flashMiss();
+                    // [Fix] 번쩍임 제거 (소리만 재생)
+                    // landGrabPanel.flashMiss();
                     sm.play("sfx_miss.wav");
                 } else {
                     boolean isMyAction = type.startsWith("ATTACK_") || (type.startsWith("BUFF_") && !type.contains("OPP_")) || type.contains("HIT");
@@ -219,7 +191,8 @@ public class LandGrabOnlineStage extends Stage {
                     else if (type.contains("ATTACK_EMP")) { landGrabPanel.showFloatingText("EMP 발동!", r, c, "blue", "cyan"); sm.play("sfx_item_emp.wav"); }
                     else if (type.contains("TRAP_EMP")) landGrabPanel.showFloatingText("상대 EMP!", r, c, "red", "orange");
                     else if (type.contains("HIT")) {
-                        landGrabPanel.flashHit();
+                        // [Fix] 번쩍임 제거 (소리만 재생)
+                        // landGrabPanel.flashHit();
                         if (r >= 0 && r < 10 && c >= 0 && c < 10) {
                             if (comboSelf >= 10) sm.play("sfx_steal.wav");
                             else {

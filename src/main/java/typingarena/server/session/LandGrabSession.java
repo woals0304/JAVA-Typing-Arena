@@ -36,6 +36,10 @@ public class LandGrabSession {
     private boolean rematchRequestB = false;
     private boolean cleanedUp = false;
 
+    // [New] 서버 측 카운트다운 대기 시간 (3.5초)
+    // 클라이언트 애니메이션(3초) + 네트워크 딜레이 여유분(0.5초)
+    private int startCountdownMs = 3500;
+
     public LandGrabSession(ServerContext context, ClientHandler a, ClientHandler b) {
         this.context = context;
         this.playerA = a;
@@ -66,6 +70,9 @@ public class LandGrabSession {
     private void resetGameData() {
         coreLogic.startGame();
         timeMs = 60_000;
+        // [New] 게임 초기화 시 카운트다운 시간도 리셋
+        startCountdownMs = 3500;
+
         confusionUntilA = 0L;
         confusionUntilB = 0L;
         rematchRequestA = false;
@@ -88,7 +95,6 @@ public class LandGrabSession {
     }
 
     public void handleRematchRequest(ClientHandler client) {
-        // 게임 중에는 재경기 요청 무시
         if (running) return;
 
         if (client == playerA) rematchRequestA = true;
@@ -129,6 +135,9 @@ public class LandGrabSession {
 
     public void handleWord(ClientHandler client, String word) {
         if (!running) return;
+
+        // [New] 카운트다운 중에는 입력 무시 (부정 출발 방지)
+        if (startCountdownMs > 0) return;
 
         TileState who;
         boolean isPlayerA;
@@ -203,6 +212,17 @@ public class LandGrabSession {
     private void onTick() {
         if (!running) return;
         try {
+            // [New] 카운트다운 처리 로직
+            if (startCountdownMs > 0) {
+                startCountdownMs -= 100;
+                // 카운트다운 중에는 시간 감소 없음, 업데이트만 보냄 (동기화 유지용)
+                if (startCountdownMs % 1000 == 0) {
+                    sendUpdate(null, null, -1, -1);
+                }
+                return;
+            }
+
+            // [기존 로직] 게임 시간 감소
             timeMs -= 100;
             if (timeMs <= 0) {
                 finishByScore("시간 종료!");
@@ -315,13 +335,10 @@ public class LandGrabSession {
         return inkList;
     }
 
-    // [중요 수정] 중도 포기(나가기) 시에는 확실하게 세션을 정리하도록 수정
     public void forfeit(ClientHandler quitter, String reason) {
         ClientHandler opponent = (quitter == playerA) ? playerB : playerA;
 
-        // [수정] 게임이 끝난 상태(재경기 대기 중)에서 나갈 경우
         if (!running) {
-            // [Fix] isConnected() 체크를 제거하여, 상대방이 남아있다면 무조건 전송 시도
             if (opponent != null) {
                 Message leftMsg = Message.of("GAME_OPPONENT_LEFT");
                 leftMsg.sessionId = this.id;
@@ -336,14 +353,12 @@ public class LandGrabSession {
 
         finish(winner, loser, reason);
 
-        // [문제 해결] 게임 도중 나갈 때도 남은 사람에게 "상대방이 나갔습니다" 메시지 전송
         if (opponent != null) {
             Message leftMsg = Message.of("GAME_OPPONENT_LEFT");
             leftMsg.sessionId = this.id;
             opponent.send(leftMsg);
         }
 
-        // [중요] 게임 도중 기권한 경우는 재경기 불가능 -> 즉시 세션 정리
         cleanupSession();
     }
 
@@ -360,10 +375,6 @@ public class LandGrabSession {
 
         sendEnd(playerA, (playerA == winner), isDraw, reason, scoreA, scoreB);
         sendEnd(playerB, (playerB == winner), isDraw, reason, scoreB, scoreA);
-
-        // [핵심 수정 사항 유지]
-        // 여기서 cleanupSession()을 호출하던 코드를 삭제했습니다.
-        // 이제 게임이 끝나도 세션은 살아있어서 재경기 요청을 받을 수 있습니다.
     }
 
     private void sendEnd(ClientHandler player, boolean isWinner, boolean isDraw, String reason, int myScore, int oppScore) {

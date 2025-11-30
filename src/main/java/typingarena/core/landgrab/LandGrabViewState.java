@@ -140,4 +140,15 @@ public class LandGrabViewState {
     public List<LandGrabEffects.BlindedTile> getActiveBlindedTiles() {
         return blindedTiles;
     }
+
+    // [추가된 메서드] 특정 좌표(r, c)가 현재 먹물 상태인지 확인
+    public boolean isTileBlinded(int r, int c) {
+        if (blindedTiles == null) return false;
+        for (LandGrabEffects.BlindedTile tile : blindedTiles) {
+            if (tile.r() == r && tile.c() == c) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

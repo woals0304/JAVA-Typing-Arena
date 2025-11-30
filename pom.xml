@@ -72,6 +72,7 @@
                 <version>3.5.1</version>
                 <executions>
                     <execution>
+                        <id>client-build</id>
                         <phase>package</phase>
                         <goals>
                             <goal>shade</goal>
@@ -83,6 +84,23 @@
                                 </transformer>
                             </transformers>
                             <finalName>typing-arena-game</finalName>
+                            <outputDirectory>${project.build.directory}</outputDirectory>
+                        </configuration>
+                    </execution>
+
+                    <execution>
+                        <id>server-build</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <mainClass>typingarena.server.ServerMain</mainClass>
+                                </transformer>
+                            </transformers>
+                            <finalName>server-fat</finalName>
                             <outputDirectory>${project.build.directory}</outputDirectory>
                         </configuration>
                     </execution>

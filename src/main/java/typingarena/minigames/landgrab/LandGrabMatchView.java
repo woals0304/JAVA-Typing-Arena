@@ -1,9 +1,6 @@
 package typingarena.minigames.landgrab;
 
-import javafx.animation.FadeTransition;
-import javafx.animation.KeyFrame;
-import javafx.animation.ScaleTransition;
-import javafx.animation.Timeline;
+import javafx.animation.*;
 import javafx.application.Platform;
 import javafx.geometry.HPos;
 import javafx.geometry.Insets;
@@ -11,21 +8,12 @@ import javafx.geometry.Pos;
 import javafx.scene.Group;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
-import javafx.scene.control.Button;
-import javafx.scene.control.Label;
-import javafx.scene.control.ProgressBar;
-import javafx.scene.control.Separator;
-import javafx.scene.control.TextField;
+import javafx.scene.control.*;
 import javafx.scene.effect.DropShadow;
 import javafx.scene.effect.Glow;
 import javafx.scene.layout.*;
-import javafx.scene.paint.Color;
-import javafx.scene.paint.CycleMethod;
-import javafx.scene.paint.LinearGradient;
-import javafx.scene.paint.Stop;
-import javafx.scene.shape.Polygon;
-import javafx.scene.shape.Rectangle;
-import javafx.scene.shape.StrokeType;
+import javafx.scene.paint.*;
+import javafx.scene.shape.*;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
@@ -36,31 +24,38 @@ import java.io.InputStream;
 
 public class LandGrabMatchView {
 
-    // [테마 색상]
+    private final Interpolator ELASTIC_OUT = new Interpolator() {
+        @Override
+        protected double curve(double t) {
+            return (t == 1) ? 1 : 1 - Math.pow(2, -10 * t) * Math.cos((t * 10 - 0.75) * ((2 * Math.PI) / 3));
+        }
+    };
+
+    // Colors
     private static final Color THEME_BG_COLOR = Color.web("#FDF5E6");
     private static final Color THEME_PANEL_BG = Color.web("#FFF3E0");
     private static final Color THEME_STROKE = Color.web("#5D4037");
     private static final Color THEME_TEXT_MAIN = Color.web("#4E342E");
-
     private static final Color COLOR_P1 = Color.web("#29B6F6");
     private static final Color COLOR_P2 = Color.web("#EF5350");
     private static final Color COLOR_GOLD_START = Color.web("#FFD54F");
     private static final Color COLOR_GOLD_END = Color.web("#FF6F00");
     private static final Color COLOR_TIMER_BG = Color.web("#D7CCC8");
-
     private static final Color COMBO_BG_PURPLE_START = Color.web("#BA68C8");
     private static final Color COMBO_BG_PURPLE_END = Color.web("#7B1FA2");
     private static final Color COMBO_TEXT_NORMAL = Color.web("#E1BEE7");
     private static final Color COMBO_TEXT_FEVER = Color.WHITE;
 
+    // Fonts
     private Font cookieFontMain;
     private Font cookieFontBold;
     private Font cookieFontTitle;
+    private Font cookieFontCountdown;
 
+    // UI Components
     private final StackPane root = new StackPane();
     private final Group contentGroup = new Group();
     private final StackPane gameContent = new StackPane();
-
     private static final double BASE_WIDTH = 1200;
     private static final double BASE_HEIGHT = 800;
     private final Scale contentScale = new Scale(1, 1, 0, 0);
@@ -68,13 +63,13 @@ public class LandGrabMatchView {
     private final BorderPane mainLayout = new BorderPane();
     private final LandGrabPanel landGrabPanel;
 
-    // --- Header ---
+    // Header & Info
     private final Text txtMyName = new Text("YOU");
     private final Text txtMyScore = new Text("0");
     private final Text txtOppName = new Text("COMPUTER");
     private final Text txtAiScore = new Text("0");
 
-    // 메인 타이머
+    // Timer
     private final StackPane timerContainer = new StackPane();
     private final Rectangle timerFill = new Rectangle();
     private final Rectangle timerBg = new Rectangle();
@@ -86,7 +81,7 @@ public class LandGrabMatchView {
     private final double TIMER_HEIGHT = 32.0;
     private final double TIMER_STROKE = 3.0;
 
-    // --- Combo ---
+    // Combo
     private final HBox comboWrapper = new HBox(8);
     private final StackPane comboBadgePane = new StackPane();
     private final Polygon comboHexagon = new Polygon();
@@ -94,11 +89,11 @@ public class LandGrabMatchView {
     private final Label lblComboText = new Label("COMBO");
     private final Label lblComboGuardMsg = new Label("🛡 가드 ON");
 
-    // --- Input ---
+    // Input
     private final TextField inputField = new TextField();
     private final HBox controlBox = new HBox();
 
-    // --- Game Over ---
+    // Game Over
     private final StackPane gameOverOverlay = new StackPane();
     private final VBox gameOverBox = new VBox(15);
     private final Label lblResultTitle = new Label("RESULT");
@@ -107,30 +102,32 @@ public class LandGrabMatchView {
     private final Button btnQuit = new Button("나가기");
     private final Label lblRematchStatus = new Label("");
 
-    // [수정] 게임 오버용 타이머 구성 요소
+    // Auto Close
     private final StackPane autoCloseContainer = new StackPane();
     private final Rectangle autoCloseBg = new Rectangle();
     private final Rectangle autoCloseFill = new Rectangle();
     private final StackPane autoCloseFillWrapper = new StackPane();
-    private final Rectangle autoCloseClip = new Rectangle(); // 클리핑 마스크
+    private final Rectangle autoCloseClip = new Rectangle();
     private final Rectangle autoCloseBorder = new Rectangle();
     private final Label lblAutoCloseText = new Label("30");
-
     private final double AUTO_CLOSE_WIDTH = 280.0;
     private final double AUTO_CLOSE_HEIGHT = 32.0;
-    private final double AUTO_CLOSE_STROKE = 3.0; // 테두리 두께
+    private final double AUTO_CLOSE_STROKE = 3.0;
 
     private Timeline autoCloseTimeline;
     private FadeTransition blinkAnimation;
-
-    // [FIX] 중복 실행 방지를 위한 플래그 추가
     private boolean isResultShown = false;
-
     private Runnable onCloseAction;
+
+    // Countdown UI
+    private final StackPane countdownContainer = new StackPane();
+    private final Rectangle countdownDimmer = new Rectangle();
+    private final Label lblCountdown = new Label("");
+    private final Label lblCountdownSub = new Label("Game Start!");
+    private boolean isCountdownRunning = false;
 
     public LandGrabMatchView() {
         this.landGrabPanel = new LandGrabPanel();
-
         loadFonts();
         initLayoutStructure();
         initStyles();
@@ -140,21 +137,13 @@ public class LandGrabMatchView {
         Platform.runLater(this::updateScale);
         root.layoutBoundsProperty().addListener((obs, old, bounds) -> updateScale());
 
-        // [Sound] 버튼 효과음 연결
         addSoundToButton(btnRematch);
         addSoundToButton(btnQuit);
     }
 
-    public void setOnCloseAction(Runnable action) {
-        this.onCloseAction = action;
-    }
-
-    private void performClose() {
-        if (autoCloseTimeline != null) autoCloseTimeline.stop();
-        if (onCloseAction != null) {
-            onCloseAction.run();
-        }
-    }
+    public boolean isCountdownRunning() { return isCountdownRunning; }
+    public void setOnCloseAction(Runnable action) { this.onCloseAction = action; }
+    private void performClose() { if (autoCloseTimeline != null) autoCloseTimeline.stop(); if (onCloseAction != null) onCloseAction.run(); }
 
     private void loadFonts() {
         try {
@@ -164,15 +153,18 @@ public class LandGrabMatchView {
                 cookieFontMain = Font.font(rawFont.getFamily(), FontWeight.NORMAL, 14);
                 cookieFontBold = Font.font(rawFont.getFamily(), FontWeight.BOLD, 24);
                 cookieFontTitle = Font.font(rawFont.getFamily(), FontWeight.EXTRA_BOLD, 32);
+                cookieFontCountdown = Font.font(rawFont.getFamily(), FontWeight.EXTRA_BOLD, 120);
             } else {
                 cookieFontMain = Font.font("Malgun Gothic", FontWeight.BOLD, 14);
                 cookieFontBold = Font.font("Malgun Gothic", FontWeight.BOLD, 24);
                 cookieFontTitle = Font.font("Impact", 32);
+                cookieFontCountdown = Font.font("Impact", 120);
             }
         } catch (Exception e) {
             cookieFontMain = Font.font("System", 14);
             cookieFontBold = Font.font("System", 24);
             cookieFontTitle = Font.font("System", 32);
+            cookieFontCountdown = Font.font("System", 120);
         }
     }
     private Font getFont(double size) { return Font.font(cookieFontMain.getFamily(), FontWeight.NORMAL, size); }
@@ -191,46 +183,20 @@ public class LandGrabMatchView {
     }
 
     private void initStyles() {
-        // [메인 타이머 스타일]
-        timerBg.setWidth(MAX_TIMER_WIDTH);
-        timerBg.setHeight(TIMER_HEIGHT);
-        timerBg.setArcWidth(TIMER_HEIGHT); timerBg.setArcHeight(TIMER_HEIGHT);
-        timerBg.setFill(COLOR_TIMER_BG);
-        timerBg.setStroke(null);
-
-        double innerHeight = TIMER_HEIGHT - (TIMER_STROKE * 2);
-        double innerMaxW = MAX_TIMER_WIDTH - (TIMER_STROKE * 2);
-        timerFill.setWidth(innerMaxW); timerFill.setHeight(innerHeight);
-        timerFill.setArcWidth(0); timerFill.setArcHeight(0);
-        timerFill.setFill(COLOR_P1);
-        timerFill.setStroke(null);
-
-        timerClip.setWidth(MAX_TIMER_WIDTH); timerClip.setHeight(TIMER_HEIGHT);
-        timerClip.setArcWidth(TIMER_HEIGHT); timerClip.setArcHeight(TIMER_HEIGHT);
-
-        timerFillWrapper.setMaxSize(MAX_TIMER_WIDTH, TIMER_HEIGHT);
-        timerFillWrapper.setAlignment(Pos.CENTER_LEFT);
-        if(timerFillWrapper.getChildren().isEmpty()) timerFillWrapper.getChildren().add(timerFill);
-        timerFillWrapper.setClip(timerClip);
-
-        timerBorder.setWidth(MAX_TIMER_WIDTH); timerBorder.setHeight(TIMER_HEIGHT);
-        timerBorder.setArcWidth(TIMER_HEIGHT); timerBorder.setArcHeight(TIMER_HEIGHT);
-        timerBorder.setFill(Color.TRANSPARENT); timerBorder.setStroke(THEME_STROKE);
-        timerBorder.setStrokeWidth(TIMER_STROKE); timerBorder.setStrokeType(StrokeType.INSIDE);
-
-        lblTimeText.setFont(getBoldFont(18));
-        lblTimeText.setTextFill(THEME_STROKE);
-
-        StackPane.setAlignment(timerBg, Pos.CENTER_LEFT);
-        StackPane.setAlignment(timerFillWrapper, Pos.CENTER_LEFT);
-        StackPane.setAlignment(timerBorder, Pos.CENTER_LEFT);
-        StackPane.setAlignment(lblTimeText, Pos.CENTER);
+        // [기존 UI 스타일 유지]
+        timerBg.setWidth(MAX_TIMER_WIDTH); timerBg.setHeight(TIMER_HEIGHT); timerBg.setArcWidth(TIMER_HEIGHT); timerBg.setArcHeight(TIMER_HEIGHT); timerBg.setFill(COLOR_TIMER_BG); timerBg.setStroke(null);
+        double innerHeight = TIMER_HEIGHT - (TIMER_STROKE * 2); double innerMaxW = MAX_TIMER_WIDTH - (TIMER_STROKE * 2);
+        timerFill.setWidth(innerMaxW); timerFill.setHeight(innerHeight); timerFill.setArcWidth(0); timerFill.setArcHeight(0); timerFill.setFill(COLOR_P1); timerFill.setStroke(null);
+        timerClip.setWidth(MAX_TIMER_WIDTH); timerClip.setHeight(TIMER_HEIGHT); timerClip.setArcWidth(TIMER_HEIGHT); timerClip.setArcHeight(TIMER_HEIGHT);
+        timerFillWrapper.setMaxSize(MAX_TIMER_WIDTH, TIMER_HEIGHT); timerFillWrapper.setAlignment(Pos.CENTER_LEFT);
+        if(timerFillWrapper.getChildren().isEmpty()) timerFillWrapper.getChildren().add(timerFill); timerFillWrapper.setClip(timerClip);
+        timerBorder.setWidth(MAX_TIMER_WIDTH); timerBorder.setHeight(TIMER_HEIGHT); timerBorder.setArcWidth(TIMER_HEIGHT); timerBorder.setArcHeight(TIMER_HEIGHT);
+        timerBorder.setFill(Color.TRANSPARENT); timerBorder.setStroke(THEME_STROKE); timerBorder.setStrokeWidth(TIMER_STROKE); timerBorder.setStrokeType(StrokeType.INSIDE);
+        lblTimeText.setFont(getBoldFont(18)); lblTimeText.setTextFill(THEME_STROKE);
+        StackPane.setAlignment(timerBg, Pos.CENTER_LEFT); StackPane.setAlignment(timerFillWrapper, Pos.CENTER_LEFT); StackPane.setAlignment(timerBorder, Pos.CENTER_LEFT); StackPane.setAlignment(lblTimeText, Pos.CENTER);
         StackPane.setMargin(timerFill, new Insets(0, 0, 0, TIMER_STROKE));
+        timerContainer.getChildren().setAll(timerBg, timerFillWrapper, timerBorder, lblTimeText); timerContainer.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
 
-        timerContainer.getChildren().setAll(timerBg, timerFillWrapper, timerBorder, lblTimeText);
-        timerContainer.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
-
-        // Input
         inputField.setFont(getBoldFont(22)); inputField.setPromptText("단어를 입력하세요!");
         inputField.setAlignment(Pos.CENTER);
         inputField.setStyle("-fx-background-radius: 30; -fx-background-color: white; -fx-border-color: #5D4037; -fx-border-width: 4px; -fx-border-radius: 30; -fx-text-fill: #3E2723; -fx-prompt-text-fill: gray;");
@@ -240,105 +206,68 @@ public class LandGrabMatchView {
         controlBox.getChildren().add(inputField);
         mainLayout.setBottom(controlBox);
 
-        // Combo Guard
         lblComboGuardMsg.setFont(getBoldFont(11)); lblComboGuardMsg.setTextFill(Color.WHITE);
         lblComboGuardMsg.setStyle("-fx-background-color: #43A047; -fx-background-radius: 12; -fx-padding: 2 8; -fx-border-color: #1B5E20; -fx-border-width: 2px; -fx-border-radius: 12; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.2), 3, 0, 0, 1);");
         lblComboGuardMsg.setVisible(false);
+        styleCookieButton(btnRematch, COLOR_P1); styleCookieButton(btnQuit, COLOR_P2);
 
-        // Buttons
-        styleCookieButton(btnRematch, COLOR_P1);
-        styleCookieButton(btnQuit, COLOR_P2);
-
-        // [수정] 게임오버 스타일
-        gameOverOverlay.setStyle("-fx-background-color: rgba(0, 0, 0, 0.6);");
-        gameOverOverlay.setVisible(false);
-
-        gameOverBox.setAlignment(Pos.CENTER);
-        gameOverBox.setMinWidth(480);
-        gameOverBox.setMaxWidth(550);
-        gameOverBox.setMaxHeight(Region.USE_PREF_SIZE);
-        gameOverBox.setPadding(new Insets(30));
+        gameOverOverlay.setStyle("-fx-background-color: rgba(0, 0, 0, 0.6);"); gameOverOverlay.setVisible(false);
+        gameOverBox.setAlignment(Pos.CENTER); gameOverBox.setMinWidth(480); gameOverBox.setMaxWidth(550); gameOverBox.setMaxHeight(Region.USE_PREF_SIZE); gameOverBox.setPadding(new Insets(30));
         gameOverBox.setStyle("-fx-background-color: #FFF8E1; -fx-background-radius: 40; -fx-border-color: #5D4037; -fx-border-width: 6px; -fx-border-radius: 40; -fx-effect: dropshadow(three-pass-box, rgba(0,0,0,0.5), 20, 0, 0, 10);");
 
-        // [핵심 수정] 게임 오버용 타이머 스타일 (메인과 동일한 핏 적용)
-        autoCloseBg.setWidth(AUTO_CLOSE_WIDTH); autoCloseBg.setHeight(AUTO_CLOSE_HEIGHT);
-        autoCloseBg.setArcWidth(AUTO_CLOSE_HEIGHT); autoCloseBg.setArcHeight(AUTO_CLOSE_HEIGHT);
-        autoCloseBg.setFill(COLOR_TIMER_BG);
-        autoCloseBg.setStroke(null);
-
-        // 내부 크기 계산: 전체 - (테두리 * 2)
-        double acInnerH = AUTO_CLOSE_HEIGHT - (AUTO_CLOSE_STROKE * 2);
-        double acInnerW = AUTO_CLOSE_WIDTH - (AUTO_CLOSE_STROKE * 2);
-
-        autoCloseFill.setWidth(acInnerW); autoCloseFill.setHeight(acInnerH);
-        autoCloseFill.setArcWidth(0); autoCloseFill.setArcHeight(0); // 직각 (클리핑)
-        autoCloseFill.setFill(COLOR_P1);
-        autoCloseFill.setStroke(null);
-
-        autoCloseClip.setWidth(AUTO_CLOSE_WIDTH); autoCloseClip.setHeight(AUTO_CLOSE_HEIGHT);
-        autoCloseClip.setArcWidth(AUTO_CLOSE_HEIGHT); autoCloseClip.setArcHeight(AUTO_CLOSE_HEIGHT);
-
-        autoCloseFillWrapper.setMaxSize(AUTO_CLOSE_WIDTH, AUTO_CLOSE_HEIGHT);
-        autoCloseFillWrapper.setAlignment(Pos.CENTER_LEFT);
-        if(autoCloseFillWrapper.getChildren().isEmpty()) autoCloseFillWrapper.getChildren().add(autoCloseFill);
-        autoCloseFillWrapper.setClip(autoCloseClip);
-
-        autoCloseBorder.setWidth(AUTO_CLOSE_WIDTH); autoCloseBorder.setHeight(AUTO_CLOSE_HEIGHT);
-        autoCloseBorder.setArcWidth(AUTO_CLOSE_HEIGHT); autoCloseBorder.setArcHeight(AUTO_CLOSE_HEIGHT);
-        autoCloseBorder.setFill(Color.TRANSPARENT);
-        autoCloseBorder.setStroke(THEME_STROKE);
-        autoCloseBorder.setStrokeWidth(AUTO_CLOSE_STROKE);
-        autoCloseBorder.setStrokeType(StrokeType.INSIDE);
-
-        lblAutoCloseText.setFont(getBoldFont(16));
-        lblAutoCloseText.setTextFill(THEME_STROKE);
-
-        StackPane.setAlignment(autoCloseBg, Pos.CENTER);
-        StackPane.setAlignment(autoCloseFillWrapper, Pos.CENTER);
-        StackPane.setAlignment(autoCloseBorder, Pos.CENTER);
-        StackPane.setAlignment(lblAutoCloseText, Pos.CENTER);
-
-        // [중요] 왼쪽 테두리만큼 여백 추가하여 침범 방지
+        autoCloseBg.setWidth(AUTO_CLOSE_WIDTH); autoCloseBg.setHeight(AUTO_CLOSE_HEIGHT); autoCloseBg.setArcWidth(AUTO_CLOSE_HEIGHT); autoCloseBg.setArcHeight(AUTO_CLOSE_HEIGHT); autoCloseBg.setFill(COLOR_TIMER_BG); autoCloseBg.setStroke(null);
+        double acInnerH = AUTO_CLOSE_HEIGHT - (AUTO_CLOSE_STROKE * 2); double acInnerW = AUTO_CLOSE_WIDTH - (AUTO_CLOSE_STROKE * 2);
+        autoCloseFill.setWidth(acInnerW); autoCloseFill.setHeight(acInnerH); autoCloseFill.setArcWidth(0); autoCloseFill.setArcHeight(0); autoCloseFill.setFill(COLOR_P1); autoCloseFill.setStroke(null);
+        autoCloseClip.setWidth(AUTO_CLOSE_WIDTH); autoCloseClip.setHeight(AUTO_CLOSE_HEIGHT); autoCloseClip.setArcWidth(AUTO_CLOSE_HEIGHT); autoCloseClip.setArcHeight(AUTO_CLOSE_HEIGHT);
+        autoCloseFillWrapper.setMaxSize(AUTO_CLOSE_WIDTH, AUTO_CLOSE_HEIGHT); autoCloseFillWrapper.setAlignment(Pos.CENTER_LEFT);
+        if(autoCloseFillWrapper.getChildren().isEmpty()) autoCloseFillWrapper.getChildren().add(autoCloseFill); autoCloseFillWrapper.setClip(autoCloseClip);
+        autoCloseBorder.setWidth(AUTO_CLOSE_WIDTH); autoCloseBorder.setHeight(AUTO_CLOSE_HEIGHT); autoCloseBorder.setArcWidth(AUTO_CLOSE_HEIGHT); autoCloseBorder.setArcHeight(AUTO_CLOSE_HEIGHT);
+        autoCloseBorder.setFill(Color.TRANSPARENT); autoCloseBorder.setStroke(THEME_STROKE); autoCloseBorder.setStrokeWidth(AUTO_CLOSE_STROKE); autoCloseBorder.setStrokeType(StrokeType.INSIDE);
+        lblAutoCloseText.setFont(getBoldFont(16)); lblAutoCloseText.setTextFill(THEME_STROKE);
+        StackPane.setAlignment(autoCloseBg, Pos.CENTER); StackPane.setAlignment(autoCloseFillWrapper, Pos.CENTER); StackPane.setAlignment(autoCloseBorder, Pos.CENTER); StackPane.setAlignment(lblAutoCloseText, Pos.CENTER);
         StackPane.setMargin(autoCloseFill, new Insets(0, 0, 0, AUTO_CLOSE_STROKE));
+        autoCloseContainer.getChildren().setAll(autoCloseBg, autoCloseFillWrapper, autoCloseBorder, lblAutoCloseText); autoCloseContainer.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        lblRematchStatus.setFont(getBoldFont(14)); lblRematchStatus.setMinHeight(25);
 
-        autoCloseContainer.getChildren().setAll(autoCloseBg, autoCloseFillWrapper, autoCloseBorder, lblAutoCloseText);
-        autoCloseContainer.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        // [Countdown Style]
+        countdownDimmer.widthProperty().bind(root.widthProperty());
+        countdownDimmer.heightProperty().bind(root.heightProperty());
+        countdownDimmer.setFill(Color.rgb(0, 0, 0, 0.5));
 
-        lblRematchStatus.setFont(getBoldFont(14));
-        lblRematchStatus.setMinHeight(25);
+        lblCountdown.setFont(cookieFontCountdown);
+        // 쿠키런 느낌의 둥글둥글 스타일
+        lblCountdown.setStyle(
+                "-fx-text-fill: #FFD54F;" +
+                        "-fx-effect: dropshadow(gaussian, #5D4037, 0, 0, 0, 6);" +
+                        "-fx-stroke: #5D4037; -fx-stroke-width: 5px;"
+        );
+
+        lblCountdownSub.setFont(getBoldFont(36));
+        lblCountdownSub.setStyle("-fx-text-fill: white; -fx-effect: dropshadow(gaussian, rgba(0,0,0,0.8), 2, 0, 1, 1);");
+        lblCountdownSub.setTranslateY(90);
+
+        VBox centerBox = new VBox(10, lblCountdown, lblCountdownSub);
+        centerBox.setAlignment(Pos.CENTER);
+        centerBox.setMouseTransparent(true);
+
+        countdownContainer.getChildren().addAll(countdownDimmer, centerBox);
+        countdownContainer.setVisible(false);
     }
 
     private void buildUI() {
-        mainLayout.setPadding(new Insets(15, 20, 0, 20));
-        mainLayout.setTop(buildUnifiedHeader());
-
-        StackPane centerWrapper = new StackPane(landGrabPanel);
-        centerWrapper.setPadding(new Insets(10));
-        centerWrapper.setMinSize(300, 300);
+        mainLayout.setPadding(new Insets(15, 20, 0, 20)); mainLayout.setTop(buildUnifiedHeader());
+        StackPane centerWrapper = new StackPane(landGrabPanel); centerWrapper.setPadding(new Insets(10)); centerWrapper.setMinSize(300, 300);
         landGrabPanel.setEffect(new DropShadow(15, Color.rgb(0,0,0,0.15)));
         mainLayout.setCenter(centerWrapper);
-
         mainLayout.setLeft(buildSidePanel("게임 규칙", buildRulesContent()));
         mainLayout.setRight(buildSidePanel("아이템 도감", buildItemsContent()));
-
-        HBox btnBox = new HBox(15, btnQuit, btnRematch);
-        btnBox.setAlignment(Pos.CENTER);
-
-        gameOverBox.getChildren().clear();
-        gameOverBox.getChildren().addAll(
-                lblResultTitle,
-                lblResultScore,
-                new Region() {{ setMinHeight(10); }},
-                btnBox,
-                lblRematchStatus,
-                autoCloseContainer
-        );
+        HBox btnBox = new HBox(15, btnQuit, btnRematch); btnBox.setAlignment(Pos.CENTER);
+        gameOverBox.getChildren().clear(); gameOverBox.getChildren().addAll(lblResultTitle, lblResultScore, new Region() {{ setMinHeight(10); }}, btnBox, lblRematchStatus, autoCloseContainer);
         gameOverOverlay.getChildren().add(gameOverBox);
-
-        root.getChildren().addAll(mainLayout, gameOverOverlay);
+        root.getChildren().addAll(mainLayout, gameOverOverlay, countdownContainer);
     }
 
-    // ... (Header 등 기존 코드) ...
+    // [기존 Header, SidePanel 등 코드 그대로 유지]
     private StackPane buildUnifiedHeader() {
         StackPane headerContainer = new StackPane(); headerContainer.setPadding(new Insets(0, 0, 10, 0)); headerContainer.setAlignment(Pos.CENTER);
         Rectangle bg = new Rectangle(1100, 110); bg.setArcWidth(40); bg.setArcHeight(40); bg.setFill(Color.rgb(255, 248, 225, 0.7)); bg.setStroke(Color.rgb(93, 64, 55, 0.2)); bg.setStrokeWidth(2);
@@ -420,6 +349,8 @@ public class LandGrabMatchView {
             case "CONFUSION" -> { gc.setFill(Color.MAGENTA); gc.setFont(Font.font("Arial", FontWeight.BOLD, 20)); gc.fillText("?", 7, 20); }
         }
     }
+
+    // [기존 getter/setter]
     private void updateScale() { }
     public StackPane getRoot() { return root; }
     public LandGrabPanel getLandGrabPanel() { return landGrabPanel; }
@@ -433,20 +364,11 @@ public class LandGrabMatchView {
             if (numStr.isEmpty()) return;
             double ms = Double.parseDouble(numStr) * 1000;
             double ratio = Math.max(0, Math.min(1.0, ms / 60000.0));
-
             double innerMaxWidth = MAX_TIMER_WIDTH - (TIMER_STROKE * 2);
             timerFill.setWidth(innerMaxWidth * ratio);
-
             int seconds = (int)Math.ceil(ms/1000.0);
             lblTimeText.setText(String.valueOf(seconds));
-
-            if (ratio < 0.2) {
-                timerFill.setFill(COLOR_P2);
-                lblTimeText.setTextFill(Color.RED);
-            } else {
-                timerFill.setFill(COLOR_P1);
-                lblTimeText.setTextFill(THEME_STROKE);
-            }
+            if (ratio < 0.2) { timerFill.setFill(COLOR_P2); lblTimeText.setTextFill(Color.RED); } else { timerFill.setFill(COLOR_P1); lblTimeText.setTextFill(THEME_STROKE); }
         } catch (Exception e) { lblTimeText.setText("0"); }
     }
 
@@ -466,125 +388,139 @@ public class LandGrabMatchView {
     public void flashItem(Color color) { landGrabPanel.flashBuffColor(color); }
 
     public void showGameOver(boolean isWin, String reason, int myScore, int oppScore) {
-        // [FIX] 중복 호출 방지: 이미 결과창이 떠있다면 실행하지 않음
         if (isResultShown) return;
         isResultShown = true;
-
-        // [Sound] 게임 종료 시 BGM 끄고 결과음 재생
         LandGrabSoundManager sm = LandGrabSoundManager.getInstance();
         sm.stopBgm();
-
-        // null 체크 추가 (안전장치)
         if (reason == null) reason = "";
-
-        if (reason.contains("무승부") || myScore == oppScore) {
-            sm.play("sfx_draw.wav");
-            lblResultTitle.setText("DRAW"); lblResultTitle.setTextFill(Color.web("#9575CD"));
-        } else {
-            if (isWin) sm.play("sfx_win.wav");
-            else sm.play("sfx_lose.wav");
-
-            lblResultTitle.setText(isWin ? "VICTORY!" : "DEFEAT...");
-            lblResultTitle.setTextFill(isWin ? COLOR_GOLD_START : Color.GRAY);
-        }
+        if (reason.contains("무승부") || myScore == oppScore) { sm.play("sfx_draw.wav"); lblResultTitle.setText("DRAW"); lblResultTitle.setTextFill(Color.web("#9575CD")); } else { if (isWin) sm.play("sfx_win.wav"); else sm.play("sfx_lose.wav"); lblResultTitle.setText(isWin ? "VICTORY!" : "DEFEAT..."); lblResultTitle.setTextFill(isWin ? COLOR_GOLD_START : Color.GRAY); }
         lblResultTitle.setFont(getBoldFont(48)); lblResultTitle.setEffect(new DropShadow(3, THEME_STROKE));
         lblResultScore.setText("나 " + myScore + "  vs  " + oppScore + " 상대");
         lblResultScore.setFont(getBoldFont(24)); lblResultScore.setTextFill(THEME_TEXT_MAIN);
         btnRematch.setDisable(false); btnRematch.setText("재경기 신청"); lblRematchStatus.setText("");
         if (blinkAnimation != null) blinkAnimation.stop();
-
         gameOverOverlay.setVisible(true); gameOverOverlay.toFront();
         startAutoCloseTimer();
     }
 
-    // [수정] 게임 오버 타이머 로직 (핏 보정 적용)
     private void startAutoCloseTimer() {
         if (autoCloseTimeline != null) autoCloseTimeline.stop();
-
         final double TOTAL_SECONDS = 30.0;
         final double UPDATE_INTERVAL = 0.1;
-
         double innerMaxWidth = AUTO_CLOSE_WIDTH - (AUTO_CLOSE_STROKE * 2);
-        autoCloseFill.setWidth(innerMaxWidth); // 꽉 찬 상태로 시작
-        autoCloseFill.setFill(COLOR_P1);
-
+        autoCloseFill.setWidth(innerMaxWidth); autoCloseFill.setFill(COLOR_P1);
         autoCloseTimeline = new Timeline(new KeyFrame(Duration.seconds(UPDATE_INTERVAL), e -> {
             double currentWidth = autoCloseFill.getWidth();
             double decreaseAmount = (innerMaxWidth * UPDATE_INTERVAL) / TOTAL_SECONDS;
             double newWidth = currentWidth - decreaseAmount;
-
-            if (newWidth <= 0) {
-                autoCloseFill.setWidth(0);
-                autoCloseTimeline.stop();
-                performClose();
-            } else {
-                autoCloseFill.setWidth(newWidth);
-                // 전체 비율 기준 시간 표시
-                double ratio = newWidth / innerMaxWidth;
-                lblAutoCloseText.setText(String.valueOf((int)Math.ceil(ratio * TOTAL_SECONDS)));
-
-                if (ratio < 0.2) {
-                    autoCloseFill.setFill(COLOR_P2);
-                    lblAutoCloseText.setTextFill(Color.RED);
-                } else {
-                    autoCloseFill.setFill(COLOR_P1);
-                    lblAutoCloseText.setTextFill(THEME_STROKE);
-                }
-            }
+            if (newWidth <= 0) { autoCloseFill.setWidth(0); autoCloseTimeline.stop(); performClose(); } else { autoCloseFill.setWidth(newWidth); double ratio = newWidth / innerMaxWidth; lblAutoCloseText.setText(String.valueOf((int)Math.ceil(ratio * TOTAL_SECONDS))); if (ratio < 0.2) { autoCloseFill.setFill(COLOR_P2); lblAutoCloseText.setTextFill(Color.RED); } else { autoCloseFill.setFill(COLOR_P1); lblAutoCloseText.setTextFill(THEME_STROKE); } }
         }));
         autoCloseTimeline.setCycleCount(Timeline.INDEFINITE);
         autoCloseTimeline.play();
     }
 
-    public void hideGameOver() {
-        // [FIX] 창이 닫힐 때 플래그 초기화 (재경기 등 위해)
-        isResultShown = false;
-
-        gameOverOverlay.setVisible(false);
-        if (autoCloseTimeline != null) autoCloseTimeline.stop();
-    }
-
+    public void hideGameOver() { isResultShown = false; gameOverOverlay.setVisible(false); if (autoCloseTimeline != null) autoCloseTimeline.stop(); }
     public void setRematchRequestedState() { btnRematch.setDisable(true); btnRematch.setText("수락 대기중..."); }
-
-    public void setOpponentLeftState() {
-        btnRematch.setDisable(true);
-
-        // [중요 수정] 애니메이션 시작 전 투명도와 가시성 확실하게 초기화
-        lblRematchStatus.setOpacity(1.0);
-        lblRematchStatus.setVisible(true);
-
-        lblRematchStatus.setText("상대방이 나갔습니다.");
-        lblRematchStatus.setTextFill(COLOR_P2);
-
-        // 깜빡임 애니메이션 초기화 (없으면 생성)
-        if (blinkAnimation == null) {
-            blinkAnimation = new FadeTransition(Duration.seconds(0.5), lblRematchStatus);
-            blinkAnimation.setFromValue(1.0);
-            blinkAnimation.setToValue(0.2);
-            blinkAnimation.setCycleCount(FadeTransition.INDEFINITE);
-            blinkAnimation.setAutoReverse(true);
-        }
-        // 애니메이션 시작!
-        blinkAnimation.playFromStart();
-    }
-
+    public void setOpponentLeftState() { btnRematch.setDisable(true); lblRematchStatus.setOpacity(1.0); lblRematchStatus.setVisible(true); lblRematchStatus.setText("상대방이 나갔습니다."); lblRematchStatus.setTextFill(COLOR_P2); if (blinkAnimation == null) { blinkAnimation = new FadeTransition(Duration.seconds(0.5), lblRematchStatus); blinkAnimation.setFromValue(1.0); blinkAnimation.setToValue(0.2); blinkAnimation.setCycleCount(FadeTransition.INDEFINITE); blinkAnimation.setAutoReverse(true); } blinkAnimation.playFromStart(); }
     public void showRematchNotification() { lblRematchStatus.setText("상대방이 재경기를 원합니다!"); lblRematchStatus.setTextFill(COLOR_P1); if (blinkAnimation == null) { blinkAnimation = new FadeTransition(Duration.seconds(0.5), lblRematchStatus); blinkAnimation.setFromValue(1.0); blinkAnimation.setToValue(0.2); blinkAnimation.setCycleCount(FadeTransition.INDEFINITE); blinkAnimation.setAutoReverse(true); } blinkAnimation.playFromStart(); }
-
-    private void styleCookieButton(Button btn, Color color) {
-        btn.setFont(getBoldFont(16));
-        String hex = toHex(color);
-        btn.setStyle("-fx-background-color: " + hex + "; -fx-text-fill: white; -fx-background-radius: 25; -fx-border-color: #5D4037; -fx-border-width: 2px; -fx-border-radius: 25; -fx-padding: 10 30; -fx-cursor: hand;");
-        btn.setEffect(new DropShadow(3, color.darker()));
-    }
+    private void styleCookieButton(Button btn, Color color) { btn.setFont(getBoldFont(16)); String hex = toHex(color); btn.setStyle("-fx-background-color: " + hex + "; -fx-text-fill: white; -fx-background-radius: 25; -fx-border-color: #5D4037; -fx-border-width: 2px; -fx-border-radius: 25; -fx-padding: 10 30; -fx-cursor: hand;"); btn.setEffect(new DropShadow(3, color.darker())); }
     private String toHex(Color c) { return String.format("#%02X%02X%02X", (int)(c.getRed()*255), (int)(c.getGreen()*255), (int)(c.getBlue()*255)); }
+    private void setupEventHandlers() { btnQuit.setOnAction(e -> performClose()); }
+    private void addSoundToButton(Button btn) { btn.setOnMouseEntered(e -> LandGrabSoundManager.getInstance().play("sfx_ui_hover.wav")); btn.setOnMouseClicked(e -> LandGrabSoundManager.getInstance().play("sfx_ui_click.wav")); }
 
-    private void setupEventHandlers() {
-        btnQuit.setOnAction(e -> performClose());
+    public void playCountdown(Runnable onFinished) {
+        if (isCountdownRunning) return;
+        isCountdownRunning = true;
+
+        countdownContainer.setVisible(true);
+        countdownContainer.setOpacity(1.0);
+        lblCountdown.setScaleX(1.0);
+        lblCountdown.setScaleY(1.0);
+        countdownContainer.toFront();
+
+        lblCountdown.setVisible(true);
+        lblCountdownSub.setVisible(true);
+
+        lblCountdown.setText("");
+        lblCountdownSub.setText("");
+
+        // [New] 배경음처럼 깔리는 카운트다운 사운드
+        LandGrabSoundManager.getInstance().play("sfx_countdown.wav");
+
+        Timeline timeline = new Timeline();
+
+        // [3초] - 시각적 표시 + 기존 비프음 복구
+        timeline.getKeyFrames().add(new KeyFrame(Duration.seconds(0), e -> {
+            showCountdownStep("3");
+            // [Restored] 기존 효과음
+            LandGrabSoundManager.getInstance().play("sfx_ui_hover.wav");
+        }));
+        // [2초]
+        timeline.getKeyFrames().add(new KeyFrame(Duration.seconds(1), e -> {
+            showCountdownStep("2");
+            // [Restored] 기존 효과음
+            LandGrabSoundManager.getInstance().play("sfx_ui_hover.wav");
+        }));
+        // [1초]
+        timeline.getKeyFrames().add(new KeyFrame(Duration.seconds(2), e -> {
+            showCountdownStep("1");
+            // [Restored] 기존 효과음
+            LandGrabSoundManager.getInstance().play("sfx_ui_hover.wav");
+        }));
+        // [시작!] - 시각적 표시 + 기존 시작음 복구
+        timeline.getKeyFrames().add(new KeyFrame(Duration.seconds(3), e -> {
+            showGoEffect();
+            // [Restored] 기존 시작 효과음
+            LandGrabSoundManager.getInstance().play("sfx_start.wav");
+
+            if (onFinished != null) onFinished.run();
+        }));
+        // [종료]
+        timeline.setOnFinished(e -> isCountdownRunning = false);
+
+        timeline.play();
     }
 
-    // [Sound] 버튼 효과음 연결 헬퍼 메서드
-    private void addSoundToButton(Button btn) {
-        btn.setOnMouseEntered(e -> LandGrabSoundManager.getInstance().play("sfx_ui_hover.wav"));
-        btn.setOnMouseClicked(e -> LandGrabSoundManager.getInstance().play("sfx_ui_click.wav"));
+    private void showCountdownStep(String text) {
+        lblCountdown.setText(text);
+        lblCountdownSub.setText("GET READY");
+        // 쿠키런 느낌의 둥글둥글 스타일
+        lblCountdown.setStyle(
+                "-fx-text-fill: #FFD54F;" +
+                        "-fx-effect: dropshadow(gaussian, #5D4037, 0, 0, 0, 6);" +
+                        "-fx-stroke: #5D4037; -fx-stroke-width: 5px;"
+        );
+
+        ScaleTransition st = new ScaleTransition(Duration.millis(800), lblCountdown);
+        st.setFromX(0.0); st.setFromY(0.0);
+        st.setToX(1.0); st.setToY(1.0);
+        st.setInterpolator(this.ELASTIC_OUT);
+        st.play();
+    }
+
+    private void showGoEffect() {
+        // [New] 텍스트 한글화 "시작!"
+        lblCountdown.setText("시작!");
+        lblCountdownSub.setText("");
+
+        // "시작!" 텍스트 스타일
+        lblCountdown.setStyle(
+                "-fx-text-fill: #29B6F6;" +
+                        "-fx-effect: dropshadow(gaussian, #5D4037, 0, 0, 0, 6);" +
+                        "-fx-stroke: white; -fx-stroke-width: 5px;"
+        );
+
+        ScaleTransition stAppear = new ScaleTransition(Duration.millis(500), lblCountdown);
+        stAppear.setFromX(0.0); stAppear.setFromY(0.0);
+        stAppear.setToX(1.0); stAppear.setToY(1.0);
+        stAppear.setInterpolator(this.ELASTIC_OUT);
+
+        FadeTransition ft = new FadeTransition(Duration.millis(500), countdownContainer);
+        ft.setFromValue(1.0); ft.setToValue(0.0);
+        ft.setDelay(Duration.millis(500));
+        ft.setOnFinished(e -> countdownContainer.setVisible(false));
+
+        SequentialTransition seq = new SequentialTransition(stAppear, ft);
+        seq.play();
     }
 }
