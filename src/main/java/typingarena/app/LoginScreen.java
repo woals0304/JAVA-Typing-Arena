@@ -55,7 +55,7 @@ public class LoginScreen extends Stage {
     private final TextField hostField = new TextField();
     private enum Mode { LOGIN, REGISTER }
     private enum ServerOption {
-        OFFICIAL("20.239.220.126"),
+        OFFICIAL("20.41.113.230"),
         LOCAL("127.0.0.1"),
         MANUAL("");
         private final String host;
